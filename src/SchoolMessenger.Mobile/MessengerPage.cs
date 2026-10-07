@@ -10,7 +10,7 @@ public sealed class MessengerPage : ContentPage
     readonly VerticalStackLayout body=new(){Spacing=16,Padding=new Thickness(24,26)};
     readonly Label feedback=new(){TextColor=Color.FromArgb("#a53a38"),FontSize=13};
     MessengerApi? api;
-    bool busy,covered,restored;
+    bool busy,covered,restored,resuming;
     int epoch,offset;
     string view="received",child="";
     bool unread;
@@ -40,7 +40,7 @@ public sealed class MessengerPage : ContentPage
     void Header(string caption,string title){body.Clear();body.Add(Text(caption,12));body.Add(Text(title,28,true));body.Add(feedback);feedback.Text="";}
     Entry Input(string title,bool password=false,string? value=null){body.Add(Text(title,13,true));var input=new Entry{Placeholder=title,IsPassword=password,Text=value,TextColor=Navy,BackgroundColor=Colors.White};body.Add(input);return input;}
     void Action(string label,Func<Task> action,bool primary=false){var b=new Button{Text=label,BackgroundColor=primary?Blue:Colors.White,TextColor=primary?Colors.White:Navy,CornerRadius=10,Padding=new Thickness(16,12)};b.Clicked+=async(_,_)=>await Run(action);body.Add(b);}
-    async Task Run(Func<Task> action){if(busy)return;busy=true;feedback.Text="";try{await action();}catch(Exception e){feedback.Text=e is HttpRequestException?"학교 서버에 연결할 수 없습니다. 주소·인터넷·교내망/VPN을 확인하세요.":e.Message;}finally{busy=false;}}
+    async Task Run(Func<Task> action){if(busy||resuming)return;busy=true;body.IsEnabled=false;feedback.Text="";try{await action();}catch(Exception e){feedback.Text=e is HttpRequestException?"학교 서버에 연결할 수 없습니다. 주소·인터넷·교내망/VPN을 확인하세요.":e.Message;}finally{busy=false;body.IsEnabled=!resuming;}}
     bool Current(MessengerApi source,int version)=>api==source&&version==epoch&&!covered;
     void Invalidate(){epoch++;MainThread.BeginInvokeOnMainThread(()=>{while(Navigation.NavigationStack.Count>1)Navigation.RemovePage(Navigation.NavigationStack.Last());Login();});}
     void Login()
@@ -62,7 +62,7 @@ public sealed class MessengerPage : ContentPage
         Action("학교 초대 코드로 가입",async()=>{if(mode.SelectedIndex==1)throw new InvalidOperationException("교직원 계정 신청은 PC 교무실에서 진행하세요.");var source=new MessengerApi(address.Text??"",false);var p=new ContentPage{Title="학교 초대로 가입",BackgroundColor=BackgroundColor};var stack=new VerticalStackLayout{Padding=24,Spacing=16};p.Content=new ScrollView{Content=stack};stack.Add(Text("이름·역할·자녀는 학교에서 확인합니다.",15));var code=new Entry{Placeholder="학교 초대 코드"};var id=new Entry{Placeholder="아이디 (3~32자)"};var pass=new Entry{Placeholder="비밀번호 (12~128자)",IsPassword=true};var error=Text("",13);stack.Add(code);stack.Add(id);stack.Add(pass);stack.Add(error);var join=new Button{Text="계정 등록",BackgroundColor=Blue,TextColor=Colors.White};join.Clicked+=async(_,_)=>{join.IsEnabled=false;try{await source.Refresh();await source.Send("api/register",new MobileRegistration(code.Text,id.Text,pass.Text));pass.Text="";await Navigation.PopAsync();feedback.Text="계정 등록 완료. 로그인하세요.";}catch(Exception e){error.Text=e.Message;}finally{join.IsEnabled=true;}};stack.Add(join);p.Disappearing+=(_,_)=>source.Dispose();await Navigation.PushAsync(p);});
     }
     public void Cover(){covered=true;epoch++;foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=false;}
-    public async Task Resume(){covered=false;if(api is null){foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=true;return;}try{await api.Refresh();if(api.Session.ValueKind!=JsonValueKind.Undefined&&api.Session.GetProperty("user").ValueKind!=JsonValueKind.Null){while(Navigation.NavigationStack.Count>1)await Navigation.PopAsync(false);await Home();}}catch(Exception e){Invalidate();feedback.Text=e.Message;}finally{foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=true;}}
+    public async Task Resume(){covered=false;if(api is null){foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=true;return;}resuming=true;body.IsEnabled=false;try{await api.Refresh();if(api.Session.ValueKind!=JsonValueKind.Undefined&&api.Session.GetProperty("user").ValueKind!=JsonValueKind.Null){while(Navigation.NavigationStack.Count>1)await Navigation.PopAsync(false);await Home();}}catch(Exception e){Invalidate();feedback.Text=e.Message;}finally{resuming=false;body.IsEnabled=!busy;foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=true;}}
     async Task Home()
     {
         var source=api!;var user=source.Session.GetProperty("user");var version=++epoch;
