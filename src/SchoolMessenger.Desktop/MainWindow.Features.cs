@@ -18,6 +18,7 @@ public partial class MainWindow
     void OpenChatClick(object sender, RoutedEventArgs e) => OpenChat();
     void OpenSurveyClick(object sender, RoutedEventArgs e) => OpenSurvey();
     void OpenWorkClick(object sender, RoutedEventArgs e) { if (Api is not null) new WorkWindow(this).Show(); }
+    void OpenAnnouncementClick(object sender, RoutedEventArgs e) { if (Api is not null) new AnnouncementWindow(this).Show(); }
     void OpenChat(string[]? ids = null)
     {
         if (Api is null) return;

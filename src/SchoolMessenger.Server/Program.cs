@@ -26,6 +26,8 @@ if (builder.Configuration["School:CertificateThumbprint"] is { Length: > 0 } thu
 }
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 105L * 1024 * 1024);
 builder.Services.AddSingleton<Store>();
+builder.Services.AddSingleton<ExternalAnnouncements>();
+builder.Services.AddHostedService(s => s.GetRequiredService<ExternalAnnouncements>());
 builder.Services.AddSingleton<Presence>();
 builder.Services.AddSingleton<RemoteSessions>();
 builder.Services.AddHostedService(s => s.GetRequiredService<RemoteSessions>());
@@ -65,7 +67,7 @@ builder.Services.AddRateLimiter(o =>
         RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString() ?? "local", _ =>
             new FixedWindowRateLimiterOptions { PermitLimit = 600, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     o.AddPolicy("login", c => RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString() ?? "local", _ =>
-        new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+        new FixedWindowRateLimiterOptions { PermitLimit = Math.Clamp(builder.Configuration.GetValue("School:LoginLimitPerMinute",120),20,300), Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     o.AddPolicy("upload", _ => RateLimitPartition.GetConcurrencyLimiter("uploads", _ => new ConcurrencyLimiterOptions { PermitLimit = 4, QueueLimit = 0 }));
     o.AddPolicy("zip", _ => RateLimitPartition.GetConcurrencyLimiter("zip", _ => new ConcurrencyLimiterOptions { PermitLimit = 2, QueueLimit = 0 }));
 });
@@ -86,7 +88,7 @@ var networks = (builder.Configuration["School:AllowedNetworks"] ?? "").Split(','
 // Never accept credentials over plain HTTP from another computer, including Development.
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/api") && !(context.Request.Method == "POST" && context.Request.Path == "/api/attachments"))
+    if (context.Request.Path.StartsWithSegments("/api") && !(context.Request.Method == "POST" && (context.Request.Path == "/api/attachments" || context.Request.Path == "/api/external-announcements/attachments")))
     {
         var limit = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
         if (limit is { IsReadOnly: false }) limit.MaxRequestBodySize = context.Request.Path.StartsWithSegments("/api/surveys") ? 524_288 : 131_072;
@@ -476,6 +478,7 @@ app.MapHub<MessageHub>("/hub", options => options.CloseOnAuthenticationExpiratio
 app.MapHub<RemoteHub>("/remote", options => { options.CloseOnAuthenticationExpiration = true; options.ApplicationMaxBufferSize = 4096; options.TransportMaxBufferSize = 4096; });
 // Cleanup before accepting connections also handles expiry while the server was offline.
 app.Services.GetRequiredService<Maintenance>().Cleanup();
+ExternalAnnouncements.Map(app, app.Services.GetRequiredService<ExternalAnnouncements>());
 app.Run();
 
 static string UserId(HttpContext c) => c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;

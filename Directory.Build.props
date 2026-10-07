@@ -3,6 +3,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(MSBuildProjectName)' == 'SchoolMessenger.Server' Or '$(MSBuildProjectName)' == 'SchoolMessenger.Desktop' Or '$(MSBuildProjectName)' == 'SchoolMessenger.AnnouncementServer'">win-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(MSBuildProjectName)' == 'SchoolMessenger.Contracts'">win-x64</RuntimeIdentifiers>
   </PropertyGroup>
 </Project>

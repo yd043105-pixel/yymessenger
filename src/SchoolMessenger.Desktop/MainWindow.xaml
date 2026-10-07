@@ -26,6 +26,7 @@
      <Button Style="{StaticResource RailButton}" Click="OpenChatClick"><StackPanel><Path Data="{StaticResource ChatIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="채팅" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
      <Button Style="{StaticResource RailButton}" Click="OpenSurveyClick"><StackPanel><Path Data="{StaticResource SurveyIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="설문" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
      <Button Style="{StaticResource RailButton}" Click="OpenWorkClick"><StackPanel><Path Data="{StaticResource FileIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="할 일·제출" FontSize="9" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
+     <Button Style="{StaticResource RailButton}" Click="OpenAnnouncementClick"><StackPanel><Path Data="{StaticResource MailIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="학교 공지" FontSize="9" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
     </StackPanel>
    </DockPanel></Border>
    <DockPanel>

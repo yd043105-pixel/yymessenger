@@ -12,7 +12,7 @@ $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $env:DOTNET_ROOT = Split-Path $dotnetExecutable -Parent
 Push-Location $projectRoot
 try {
-    foreach ($project in @('Server','Desktop')) {
+    foreach ($project in @('Server','Desktop','AnnouncementServer')) {
         & $dotnetExecutable restore "src\SchoolMessenger.$project" --locked-mode --nologo -v quiet
         if ($LASTEXITCODE -ne 0) { throw "$project 패키지 잠금 검증 실패" }
         & $dotnetExecutable build "src\SchoolMessenger.$project" "-p:Version=$Version" --no-restore --nologo -v quiet
@@ -24,6 +24,12 @@ try {
         if ($HeadlessTests) { node tests\smoke.mjs --features }
         else { node tests\smoke.mjs --ui }
         if ($LASTEXITCODE -ne 0) { throw '송수신 검증 실패' }
+        node tests\announcements.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'External announcement verification failed' }
+        node tests\announcement-bridge.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Announcement bridge verification failed' }
+        node tests\data-boundaries.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Server data isolation verification failed' }
     }
     $packageDirectory = Join-Path $projectRoot 'artifacts\여양고-교무메신저'
     New-Item -ItemType Directory -Force -Path $packageDirectory | Out-Null
@@ -32,14 +38,17 @@ try {
     if ($LASTEXITCODE -ne 0) { throw '서버 배포 파일 생성 실패' }
     & $dotnetExecutable publish src\SchoolMessenger.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true "-p:Version=$Version" -p:RestoreLockedMode=true -o (Join-Path $packageDirectory 'client') --nologo -v quiet
     if ($LASTEXITCODE -ne 0) { throw '교사용 배포 파일 생성 실패' }
+    & $dotnetExecutable publish src\SchoolMessenger.AnnouncementServer -c Release -r win-x64 --self-contained true "-p:Version=$Version" -p:RestoreLockedMode=true -o (Join-Path $packageDirectory 'announcement-server') --nologo -v quiet
+    if ($LASTEXITCODE -ne 0) { throw 'External announcement package failed' }
     New-Item -ItemType Directory -Force -Path (Join-Path $packageDirectory 'scripts') | Out-Null
-    Copy-Item -LiteralPath 'scripts\Start-Server.ps1','scripts\Configure-RemoteFirewall.ps1' -Destination (Join-Path $packageDirectory 'scripts')
+    Copy-Item -LiteralPath 'scripts\Start-Server.ps1','scripts\Start-AnnouncementServer.ps1','scripts\Configure-RemoteFirewall.ps1' -Destination (Join-Path $packageDirectory 'scripts')
     Copy-Item -LiteralPath 'README.md','시작-로컬체험.cmd','시작-교사용.cmd' -Destination $packageDirectory
     $packageDocs = Join-Path $packageDirectory 'docs'
     New-Item -ItemType Directory -Force -Path $packageDocs | Out-Null
     Copy-Item -Path 'docs\security-audit-*.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\web-tasks-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\mobile-operations.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\releases.md' -Destination $packageDocs
     Set-Content -LiteralPath (Join-Path $packageDirectory 'VERSION.txt') -Value $Version -Encoding ASCII
     $privateFiles = Get-ChildItem -LiteralPath $packageDirectory -Recurse -File | Where-Object { $_.Name -match '(?i)(\.db($|-)|\.sqlite3?($|-)|\.pfx$|\.pem$|\.key$|^login\.dat$|^\.env|^appsettings\.Production\.json$)' }
