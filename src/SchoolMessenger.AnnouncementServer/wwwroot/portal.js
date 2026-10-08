@@ -4,7 +4,7 @@ let session,people=[],classes=[],panel='people',offset=0,busy=false,epoch=0;
 const say=text=>{$('feedback').textContent=text;};
 $('updates').onclick=()=>UpdateNotice.show('portal',true);
 async function request(path,method='GET',body){const response=await fetch('/api/'+path,{method,headers:method==='GET'?{}:{'X-CSRF-TOKEN':session.csrfToken,'Content-Type':'application/json'},body:method==='GET'?undefined:JSON.stringify(body??{}),cache:'no-store'});if(response.status===401){clear();throw Error('로그인이 만료되었습니다. 다시 로그인하세요.');}const text=await response.text();let data;try{data=text?JSON.parse(text):null;}catch{}if(!response.ok)throw Error(data?.error??'연결 상태와 권한을 확인하세요.');return data;}
-function clear(){UpdateNotice.reset();$('updates').hidden=true;epoch++;session=null;$('workspace').hidden=true;$('login').hidden=false;$('logout').hidden=true;$('admin-content').replaceChildren();$('list').replaceChildren();$('detail').replaceChildren();people=[];classes=[];}
+function clear(){TimetableUI.reset();UpdateNotice.reset();$('updates').hidden=true;epoch++;session=null;$('workspace').hidden=true;$('login').hidden=false;$('logout').hidden=true;$('admin-content').replaceChildren();$('list').replaceChildren();$('detail').replaceChildren();people=[];classes=[];}
 async function run(action){if(busy)return;busy=true;document.querySelectorAll('button:not(dialog button)').forEach(b=>b.disabled=true);try{say('');await action();}catch(e){say(e.message);}finally{busy=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);}}
 function button(text,action){const x=el('button',text);x.type='button';x.onclick=()=>run(action);return x;}
 function field(form,title,name,type='text',options){const label=el('label',title),input=el(options?'select':'input');input.name=name;if(options)options.forEach(([value,text])=>{const option=el('option',text);option.value=value;input.append(option);});else input.type=type;label.append(input);form.append(label);return input;}
@@ -28,3 +28,5 @@ $('refresh').onclick=()=>run(refreshSession);$('child').onchange=()=>run(async()
 document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>run(async()=>{panel=b.dataset.panel;await admin();}));
 window.addEventListener('pageshow',()=>{if(!busy)run(refreshSession);});document.addEventListener('visibilitychange',()=>{if(!document.hidden&&session?.user&&!busy)run(refreshSession);});
 run(refreshSession);
+
+$("timetable").onclick=()=>run(()=>TimetableUI.open(request,session?.user?.role==="teacher"));

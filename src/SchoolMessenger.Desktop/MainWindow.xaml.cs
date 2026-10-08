@@ -18,6 +18,7 @@ public partial class MainWindow : Window
     public HashSet<string> Favorites { get; set; } = new();
     readonly HashSet<string> selectedPeople = new(), knownIncoming = new();
     readonly HashSet<string> expandedGroups = new();
+    readonly HashSet<long> knownTimetables = new();
     Person[] people = [];
     bool favoritesOnly, onlineOnly, onlineFirst = true, schoolExpanded = true, refreshing, exiting;
     int unreadCount, peopleRefreshVersion;
@@ -112,6 +113,7 @@ public partial class MainWindow : Window
         var user = Api!.Session!.User!; IdentityLabel.Text = user.Name + " 선생님"; IdentityDepartment.Text = user.Department; AvatarInitial.Text = user.Name[..1];
         AdminButton.Visibility = user.IsAdmin ? Visibility.Visible : Visibility.Collapsed;
         Workspace.Visibility = Visibility.Visible; LoginPanel.Visibility = Visibility.Collapsed;
+        knownTimetables.Clear();
         knownIncoming.Clear(); foreach (var message in await Api.Get<MessageItem[]>("api/messages?box=received")) knownIncoming.Add(message.Id);
         await Refresh(); await ConnectNotifications(); await RefreshPeople(); timer.Start();
         remote = new RemoteClient(this);
@@ -146,6 +148,7 @@ public partial class MainWindow : Window
         hub.On("PresenceChanged", async () => await Dispatcher.InvokeAsync(() => Run(RefreshPeople)).Task.Unwrap());
         hub.On<string>("ChatChanged", id => Dispatcher.InvokeAsync(() => { ChatChanged?.Invoke(id); NotifyFeature("새 채팅을 확인하세요.", "chat"); }).Task);
         hub.On<string>("SurveyChanged", id => Dispatcher.InvokeAsync(() => { SurveyChanged?.Invoke(id); NotifyFeature("설문 변경 사항을 확인하세요.", "survey"); }).Task);
+        hub.On<string,long>("TimetableChanged",(date,revision)=>Dispatcher.InvokeAsync(()=>{if(knownTimetables.Add(revision))NotifyFeature("시간표 변경 · "+date,"timetable");}).Task);
         hub.Reconnecting += _ => { Dispatcher.Invoke(() => ConnectionLabel.Text = "재연결 중 · 수신 확인 계속"); return Task.CompletedTask; };
         hub.Reconnected += _ => Dispatcher.InvokeAsync(() => Run(Refresh)).Task.Unwrap();
         hub.Closed += _ => { Dispatcher.Invoke(() => ConnectionLabel.Text = "알림 연결 끊김 · 재시도 중"); return Task.CompletedTask; };
@@ -162,6 +165,8 @@ public partial class MainWindow : Window
             var incoming = await Api.Get<MessageItem[]>("api/messages?box=received");
             if (incoming.Any(m => !knownIncoming.Contains(m.Id))) Notify();
             foreach (var message in incoming) knownIncoming.Add(message.Id);
+            foreach(var n in await Api.Get<SchoolMessenger.Contracts.TimetableNotice[]>("api/timetable/notices"))
+                if(knownTimetables.Add(n.Revision)&&n.ReadAt is null)NotifyFeature(n.Title+" · "+n.Date,"timetable");
             await RefreshWindows();
             ConnectionLabel.Text = hub?.State == HubConnectionState.Connected ? "학교 서버 연결됨" : "학교 서버 연결됨 · 수신 확인 30초";
         }

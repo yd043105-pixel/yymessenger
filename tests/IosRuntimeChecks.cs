@@ -78,6 +78,13 @@ internal static class IosRuntimeChecks
                 entries[0].Text = portal; entries[1].Text = fixture.GetProperty("parent").GetString(); entries[2].Text = password;
                 await Tap("로그인"); await Wait(() => Has("10월 현장체험학습 안내"));
                 Check(entries[2].Text == "", "native parent login renders allowed notices and clears password input");
+                await Tap("시간표 · 내 수업 / 학급");await Wait(()=>CurrentPage.Title=="우리 학급 시간표");
+                Controls.OfType<DatePicker>().Single().Date=DateTime.ParseExact(fixture.GetProperty("timetableDate").GetString()!,"yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture);
+                await Tap("선택한 날짜 보기");await Wait(()=>Has("가상 영어"));
+                Check(Has("변경 전: 가상 수학")&&Has("2교시 · 수업 없음")&&Has("일자별 시간표 적용"),"native iOS displays dated replacement, previous lesson and explicitly empty period");
+                Controls.OfType<DatePicker>().Single().Date=new DateTime(2026,10,15);await Tap("선택한 날짜 보기");await Wait(()=>Has("기초시간표 적용"));
+                Check(Has("가상 수학")&&Has("가상 국어"),"native iOS falls back to baseline when no dated workbook exists");
+                await Page.Navigation.PopAsync();await Wait(()=>Has("10월 현장체험학습 안내"));
                 var row = Controls.OfType<Button>().Single(b => b.Text?.Contains("10월 현장체험학습 안내") == true);
                 await Wait(() => row.IsEnabled);
                 ((IButtonController)row).SendClicked(); await Wait(() => Has("<svg onload=alert(1)>"));

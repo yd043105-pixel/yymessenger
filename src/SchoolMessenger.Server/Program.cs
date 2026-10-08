@@ -28,6 +28,8 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => 
 builder.Services.AddSingleton<Store>();
 builder.Services.AddSingleton<ExternalAnnouncements>();
 builder.Services.AddHostedService(s => s.GetRequiredService<ExternalAnnouncements>());
+builder.Services.AddSingleton<Timetables>();
+builder.Services.AddHostedService(s => s.GetRequiredService<Timetables>());
 builder.Services.AddSingleton<Presence>();
 builder.Services.AddSingleton<RemoteSessions>();
 builder.Services.AddHostedService(s => s.GetRequiredService<RemoteSessions>());
@@ -88,10 +90,15 @@ var networks = (builder.Configuration["School:AllowedNetworks"] ?? "").Split(','
 // Never accept credentials over plain HTTP from another computer, including Development.
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/api") && !(context.Request.Method == "POST" && (context.Request.Path == "/api/attachments" || context.Request.Path == "/api/external-announcements/attachments")))
+    if (context.Request.Path.StartsWithSegments("/api") && !(context.Request.Method == "POST" && (context.Request.Path == "/api/attachments" || context.Request.Path == "/api/external-announcements/attachments" || context.Request.Path == "/api/timetable/import")))
     {
         var limit = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
         if (limit is { IsReadOnly: false }) limit.MaxRequestBodySize = context.Request.Path.StartsWithSegments("/api/surveys") ? 524_288 : 131_072;
+    }
+    if(context.Request.Path=="/api/timetable/import")
+    {
+        var limit=context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+        if(limit is{IsReadOnly:false})limit.MaxRequestBodySize=12_582_912;
     }
     if (!context.Request.IsHttps && context.Connection.RemoteIpAddress is { } ip && !System.Net.IPAddress.IsLoopback(ip))
     { context.Response.StatusCode = 400; await context.Response.WriteAsync("교내 접속에는 HTTPS가 필요합니다."); return; }
@@ -481,6 +488,7 @@ app.MapHub<RemoteHub>("/remote", options => { options.CloseOnAuthenticationExpir
 // Cleanup before accepting connections also handles expiry while the server was offline.
 app.Services.GetRequiredService<Maintenance>().Cleanup();
 ExternalAnnouncements.Map(app, app.Services.GetRequiredService<ExternalAnnouncements>());
+Timetables.Map(app, app.Services.GetRequiredService<Timetables>());
 app.Run();
 
 static string UserId(HttpContext c) => c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;

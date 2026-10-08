@@ -4,6 +4,7 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <ProjectReference Include="../SchoolMessenger.Contracts/SchoolMessenger.Contracts.csproj" />
     <Compile Include="../SchoolMessenger.Shared/FilePolicy.cs" Link="FilePolicy.cs" />
-    <Content Include="../SchoolMessenger.Shared/updates.json;../SchoolMessenger.Shared/update-notice.js;../SchoolMessenger.Shared/update-notice.css" Link="wwwroot/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Compile Include="../SchoolMessenger.Shared/TimetableData.cs" Link="TimetableData.cs" />
+    <Content Include="../SchoolMessenger.Shared/updates.json;../SchoolMessenger.Shared/update-notice.js;../SchoolMessenger.Shared/update-notice.css;../SchoolMessenger.Shared/timetable.js;../SchoolMessenger.Shared/timetable.css" Link="wwwroot/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

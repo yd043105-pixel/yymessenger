@@ -8,7 +8,7 @@ const statusNames = { suggested:'추천 · 확인 필요', open:'진행 중', do
 const date = n => new Date(n).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'});
 function node(tag, text, cls) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if(cls)e.className=cls; return e; }
 function message(text){ $('feedback').textContent=text; }
-function clearSession(){ UpdateNotice.reset();epoch++;session=null;selected=null;pending.clear();$('office').hidden=true;$('login').hidden=false;$('password').value='';$('list').replaceChildren();$('detail').replaceChildren();$('identity').textContent=''; }
+function clearSession(){ TimetableUI.reset();UpdateNotice.reset();epoch++;session=null;selected=null;pending.clear();$('office').hidden=true;$('login').hidden=false;$('password').value='';$('list').replaceChildren();$('detail').replaceChildren();$('identity').textContent=''; }
 async function api(path, method='GET', body){
   const token=epoch; const headers={}; const options={method,headers,credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(90000)};
   if(method!=='GET'){headers['X-CSRF-TOKEN']=session?.csrfToken||'';if(body instanceof FormData)options.body=body;else{headers['Content-Type']='application/json';options.body=JSON.stringify(body||{});}}
@@ -85,3 +85,5 @@ setInterval(safe(refreshSession),30000);
 document.addEventListener('visibilitychange',safe(async()=>{if(!document.hidden)await refreshSession();}));
 
 async function confirmAction(text){const dialog=document.createElement('dialog'),form=document.createElement('form');form.method='dialog';form.append(node('h2','제출 요청 종료'),node('p',text));for(const [label,value] of [['취소','cancel'],['종료하기','ok']]){const b=node('button',label);b.value=value;form.append(b);}dialog.append(form);document.body.append(dialog);dialog.showModal();return new Promise(resolve=>dialog.addEventListener('close',()=>{const accepted=dialog.returnValue==='ok';dialog.remove();resolve(accepted);},{once:true}));}
+
+$("timetable").onclick=safe(()=>TimetableUI.open(api,true));

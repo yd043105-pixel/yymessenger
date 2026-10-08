@@ -47,6 +47,7 @@ public sealed class ExternalAnnouncements : BackgroundService
     static string Owner(HttpContext c)=>c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
     static IResult Error(string text,int status=400)=>Results.Json(new{error=text},statusCode:status);
     DirectoryPerson? Publisher(string owner)=>directory?.People.FirstOrDefault(p=>p.Role=="teacher"&&p.InternalUserId==owner);
+    public PortalDirectory? TimetableDirectory=>synced>Now-60000?directory:null;
     PortalNoticeDetail? SafeDetail(string? value,string owner)
     {
         if(value is null||synced<Now-60000)return null;

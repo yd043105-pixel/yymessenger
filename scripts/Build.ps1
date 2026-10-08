@@ -39,6 +39,10 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Announcement bridge verification failed' }
         node tests\data-boundaries.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Server data isolation verification failed' }
+        & $dotnetExecutable build tests\TimetableChecks -p:RestoreLockedMode=true --nologo -v quiet
+        if ($LASTEXITCODE -ne 0) { throw 'Timetable checks build failed' }
+        node tests\timetable.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Timetable import and replica verification failed' }
     }
     $packageDirectory = Join-Path $projectRoot 'artifacts\여양고-교무메신저'
     New-Item -ItemType Directory -Force -Path $packageDirectory | Out-Null
@@ -60,6 +64,7 @@ try {
     Copy-Item -LiteralPath 'docs\mobile-operations.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\ios-operations.md','docs\ios-verification.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\releases.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\timetable-import-design.md','docs\timetable-operations.md' -Destination $packageDocs
     Set-Content -LiteralPath (Join-Path $packageDirectory 'VERSION.txt') -Value $Version -Encoding ASCII
     $privateFiles = Get-ChildItem -LiteralPath $packageDirectory -Recurse -File | Where-Object { $_.Name -match '(?i)(\.db($|-)|\.sqlite3?($|-)|\.pfx$|\.pem$|\.key$|^login\.dat$|^\.env|^appsettings\.Production\.json$)' }
     if ($privateFiles) { throw '배포 폴더에 데이터 또는 비밀 파일이 있습니다. 압축을 중단합니다.' }

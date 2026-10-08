@@ -63,7 +63,7 @@ app.Use(async(c,next)=>
     if(!c.Request.IsHttps && c.Connection.RemoteIpAddress is {} ip && !System.Net.IPAddress.IsLoopback(ip)){c.Response.StatusCode=400;return;}
     if(c.Request.Headers.TryGetValue("Origin",out var origins) && (origins.Count!=1 || origins[0]!=$"{c.Request.Scheme}://{c.Request.Host}")){c.Response.StatusCode=403;return;}
     if(c.Request.Path.StartsWithSegments("/api")||c.Request.Path.StartsWithSegments("/bridge"))
-    {c.Response.Headers.CacheControl="no-store"; if(!c.Request.Path.Value!.EndsWith("/attachments",StringComparison.Ordinal)){var limit=c.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();if(limit is{IsReadOnly:false})limit.MaxRequestBodySize=2_097_152;}}
+    {c.Response.Headers.CacheControl="no-store"; if(!c.Request.Path.Value!.EndsWith("/attachments",StringComparison.Ordinal)){var limit=c.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();if(limit is{IsReadOnly:false})limit.MaxRequestBodySize=c.Request.Path=="/bridge/timetable"?8_388_608:2_097_152;}}
     c.Response.Headers["X-Content-Type-Options"]="nosniff";c.Response.Headers["X-Frame-Options"]="DENY";c.Response.Headers["Referrer-Policy"]="no-referrer";
     c.Response.Headers["Content-Security-Policy"]="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
     c.Response.Headers["Permissions-Policy"]="camera=(), microphone=(), geolocation=()";
@@ -101,6 +101,7 @@ var api=app.MapGroup("/api").RequireAuthorization();
 api.MapPost("/logout",async(HttpContext c)=>{store.Execute("UPDATE People SET Version=Version+1 WHERE Id=$id",("$id",Id(c)));await c.SignOutAsync();return Results.Ok();});
 PortalAdministration.Map(app.MapGroup("/api/admin").RequireAuthorization("Admin"),store);
 PortalNotices.Map(api,app.MapGroup("/bridge"),store,app.Configuration,app.Environment);
+PortalTimetables.Map(api,app.MapGroup("/bridge"),store);
 app.Services.GetServices<IHostedService>().OfType<PortalMaintenance>().Single().Cleanup();
 app.Run();
 

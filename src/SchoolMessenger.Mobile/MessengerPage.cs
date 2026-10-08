@@ -3,7 +3,7 @@ using SchoolMessenger.Contracts;
 
 namespace SchoolMessenger.Mobile;
 
-public sealed class MessengerPage : ContentPage
+public sealed partial class MessengerPage : ContentPage
 {
     public static MessengerPage? Active{get;private set;}
     static readonly Color Navy=Color.FromArgb("#1c334f"),Blue=Color.FromArgb("#2864df");
@@ -75,6 +75,13 @@ public sealed class MessengerPage : ContentPage
         Action("업데이트 내역",()=>ShowUpdates(true));
         await ShowUpdates();
         if(!Current(source,version))return;
+        Action("시간표 · 내 수업 / 학급",()=>Timetable());
+        var scheduleNotices=await source.Get("api/timetable/notices");if(!Current(source,version))return;
+        foreach(var notice in scheduleNotices.EnumerateArray().Where(n=>n.GetProperty("readAt").ValueKind==JsonValueKind.Null))
+        {
+            var revision=notice.GetProperty("revision").GetInt64();var day=notice.GetProperty("date").GetString();
+            Action("● "+notice.GetProperty("title").GetString()+" · "+day,async()=>{if(await Timetable(day)&&Current(source,version))await source.Send($"api/timetable/notices/{revision}/read");});
+        }
         if(source.Office)
         {
             var picker=new Picker{Title="업무",ItemsSource=new[]{"받은 메시지","보낸 메시지","미확인 메시지"},SelectedIndex=view=="sent"?1:view=="unread"?2:0};body.Add(picker);picker.SelectedIndexChanged+=async(_,_)=>{view=picker.SelectedIndex==1?"sent":picker.SelectedIndex==2?"unread":"received";offset=0;await Run(Home);};
