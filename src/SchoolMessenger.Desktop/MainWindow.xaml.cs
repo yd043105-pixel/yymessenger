@@ -116,6 +116,7 @@ public partial class MainWindow : Window
         await Refresh(); await ConnectNotifications(); await RefreshPeople(); timer.Start();
         remote = new RemoteClient(this);
         try { await remote.Connect(); } catch { StatusLabel.Text = "원격 지원 연결 대기 중"; }
+        ShowUpdates();
     }
     async Task TryAutomaticLogin()
     {
@@ -349,6 +350,7 @@ public partial class MainWindow : Window
     {
         try
         {
+            VerifyUpdateNotice();
             try { startup.SetEnabled(true); if (!startup.Enabled || !WindowsStartup.Command.EndsWith(" --startup", StringComparison.Ordinal)) throw new InvalidOperationException("자동 실행 등록 실패"); }
             finally { startup.SetEnabled(false); }
             if (startup.Enabled) throw new InvalidOperationException("자동 실행 해제 실패");

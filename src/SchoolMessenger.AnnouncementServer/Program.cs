@@ -70,7 +70,10 @@ app.Use(async(c,next)=>
     if(c.Request.IsHttps)c.Response.Headers["Strict-Transport-Security"]="max-age=31536000";
     await next();
 });
-app.UseDefaultFiles();app.UseStaticFiles();app.UseRouting();app.UseAuthentication();app.UseRateLimiter();app.UseAuthorization();
+app.UseDefaultFiles();app.UseStaticFiles();
+if (app.Environment.IsDevelopment() && Directory.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot")))
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "wwwroot")) });
+app.UseRouting();app.UseAuthentication();app.UseRateLimiter();app.UseAuthorization();
 app.Use(async(c,next)=>
 {
     if(c.Request.Path.StartsWithSegments("/bridge")&&!Bridge(c,app.Configuration)){c.Response.StatusCode=401;return;}

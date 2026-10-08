@@ -33,7 +33,11 @@ async function register(admin,personId,username,extra={}){const invite=await adm
 async function person(admin,name,role,classId=null,internalUserId=null,classIds=[],canBroadcast=false){return (await admin.request('/api/admin/people','POST',{name,role,classId,internalUserId,classIds,canBroadcast})).id;}
 function post(classId,title='가정통신문',overrides={}){return{clientId:randomUUID().replaceAll('-',''),title,body:'내일까지 확인해 주세요. <svg onload=alert(1)>',audience:'both',classIds:[classId],all:false,attachmentIds:[],...overrides};}
 try{
- start();await ready();const admin=await new Client().login('admin'),guest=new Client();guest.csrf=(await guest.request('/api/session')).csrfToken;
+ start();await ready();
+ for(const asset of ['updates.json','update-notice.js','update-notice.css'])assert.equal((await fetch(address+'/'+asset)).status,200);
+ assert.equal((await(await fetch(address+'/updates.json')).json()).version,JSON.parse(readFileSync('src/SchoolMessenger.Shared/updates.json','utf8')).version);
+ check('external web serves bundled release notes and popup assets without exposing account data');
+ const admin=await new Client().login('admin'),guest=new Client();guest.csrf=(await guest.request('/api/session')).csrfToken;
  await guest.request('/api/announcements','GET',undefined,401);await guest.request('/api/admin/people','GET',undefined,401);
  for(const route of ['/api/messages','/api/todos','/api/users','/remote/negotiate','/hub/negotiate'])await guest.request(route,'GET',undefined,404);
  assert.notEqual(JSON.parse(readFileSync('src/SchoolMessenger.AnnouncementServer/packages.lock.json','utf8')).version,0);

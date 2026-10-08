@@ -2,4 +2,7 @@
   <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
   <ItemGroup><PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../SchoolMessenger.Contracts/SchoolMessenger.Contracts.csproj" /><Compile Include="../SchoolMessenger.Shared/FilePolicy.cs" Link="FilePolicy.cs" /></ItemGroup>
+  <ItemGroup>
+    <Content Include="../SchoolMessenger.Shared/updates.json;../SchoolMessenger.Shared/update-notice.js;../SchoolMessenger.Shared/update-notice.css" Link="wwwroot/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

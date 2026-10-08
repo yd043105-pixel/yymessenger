@@ -12,6 +12,7 @@ public sealed class MessengerPage : ContentPage
     MessengerApi? api;
     bool busy,covered,restored,resuming,preserveComposerOnResume;
     ContentPage? composer;
+    bool updateNoticeOpen,updateNoticeOffered;
     int epoch,offset;
     string view="received",child="";
     bool unread;
@@ -47,6 +48,7 @@ public sealed class MessengerPage : ContentPage
     void Invalidate(){epoch++;MainThread.BeginInvokeOnMainThread(()=>{while(Navigation.NavigationStack.Count>1)Navigation.RemovePage(Navigation.NavigationStack.Last());Login();});}
     void Login()
     {
+        updateNoticeOffered=false;
         Header("학교에서 전하는 이야기","우리 학교 소식");body.Add(Text("가정통신문과 공지를 확인하세요. 교직원 업무 메시지는 교내망 또는 학교 VPN에서 열 수 있습니다.",14));
         var mode=new Picker{Title="접속할 공간",ItemsSource=new[]{"학교 소식 · 학생/보호자/교사","교직원 교무실 · 교내망/VPN"},SelectedIndex=Preferences.Default.Get("mode",0)};body.Add(mode);
         var address=Input("학교에서 안내한 서버 주소",value:Preferences.Default.Get("address-"+mode.SelectedIndex,""));address.Keyboard=Keyboard.Url;
@@ -70,6 +72,9 @@ public sealed class MessengerPage : ContentPage
         var source=api!;var user=source.Session.GetProperty("user");var version=++epoch;
         Header(user.GetProperty("name").GetString()!,source.Office?"온라인 교무실":"학교 소식");
         Action("새로고침",async()=>{await source.Refresh();await Home();});Action("로그아웃",async()=>{try{await source.Logout();}finally{source.Dispose();if(api==source)api=null;Login();}});
+        Action("업데이트 내역",()=>ShowUpdates(true));
+        await ShowUpdates();
+        if(!Current(source,version))return;
         if(source.Office)
         {
             var picker=new Picker{Title="업무",ItemsSource=new[]{"받은 메시지","보낸 메시지","미확인 메시지"},SelectedIndex=view=="sent"?1:view=="unread"?2:0};body.Add(picker);picker.SelectedIndexChanged+=async(_,_)=>{view=picker.SelectedIndex==1?"sent":picker.SelectedIndex==2?"unread":"received";offset=0;await Run(Home);};
@@ -91,6 +96,23 @@ public sealed class MessengerPage : ContentPage
         if(visible==0)body.Add(Text("표시할 공지가 없습니다. 새로고침으로 학교 소식을 확인하세요."));if(notices.GetArrayLength()==100)Action("다음 목록",async()=>{offset+=100;await Home();});
     }
     static string Date(long value)=>DateTimeOffset.FromUnixTimeMilliseconds(value).ToLocalTime().ToString("MM.dd HH:mm");
+    async Task ShowUpdates(bool manual=false)
+    {
+        if(updateNoticeOpen||(!manual&&updateNoticeOffered))return;
+        try
+        {
+            var notice=SchoolMessenger.Shared.ReleaseNotice.Load("mobile");
+            var confirmed=Preferences.Default.Get("update-confirmed-sequence",0);
+            if(!manual&&!notice.ShouldShow(confirmed))return;
+            updateNoticeOffered=true;
+            updateNoticeOpen=true;
+            if(await DisplayAlertAsync("업데이트 내역 · "+notice.Version,notice.Text,"확인","나중에"))
+                Preferences.Default.Set("update-confirmed-sequence",Math.Max(confirmed,notice.Sequence));
+        }
+        catch(Exception e) when(e is IOException or System.Text.Json.JsonException or InvalidOperationException)
+        {feedback.Text="업데이트 내역을 읽거나 확인 기록을 저장하지 못했습니다.";}
+        finally{updateNoticeOpen=false;}
+    }
     async Task OfficeDetail(string id)
     {
         var source=api!;var version=epoch;var value=await source.Get("api/messages/"+id);if(!Current(source,version))return;

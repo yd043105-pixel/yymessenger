@@ -1,10 +1,13 @@
 ﻿param(
     [switch]$SkipTests,
     [switch]$HeadlessTests,
-    [ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')][string]$Version = '0.1.0-beta.1'
+    [ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')][string]$Version
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
+$releaseNotes = Get-Content -LiteralPath (Join-Path $projectRoot 'src\SchoolMessenger.Shared\updates.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+if (-not $Version) { $Version = $releaseNotes.version }
+if ($Version -ne $releaseNotes.version) { throw 'Release version must match the bundled updates.json version.' }
 $localDotnet = Join-Path $projectRoot '.tools\dotnet\dotnet.exe'
 if (Test-Path -LiteralPath $localDotnet) { $dotnetExecutable = $localDotnet }
 else { $dotnetExecutable = (Get-Command dotnet -ErrorAction Stop).Source }
@@ -19,6 +22,10 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "$project 빌드 실패" }
     }
     if (-not $SkipTests) {
+        node tests\update-notice.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Update notice verification failed' }
+        node tests\remote-channel.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Remote test channel verification failed' }
         & powershell -NoProfile -ExecutionPolicy Bypass -File tests\remote-firewall.ps1
         if ($LASTEXITCODE -ne 0) { throw '원격 지원 방화벽 스크립트 검증 실패' }
         if ($HeadlessTests) { node tests\smoke.mjs --features }

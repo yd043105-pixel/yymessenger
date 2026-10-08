@@ -2,12 +2,13 @@
 const $ = id => document.getElementById(id);
 let session, view = 'received', offset = 0, selected, epoch = 0, listRevision = 0, loggingOut = false;
 const pending = new Map();
+$('updates').onclick=()=>UpdateNotice.show('office',true);
 const labels = { received:'받은 메시지', sent:'보낸 메시지', chats:'교직원 채팅', surveys:'설문', todos:'나의 할 일', submissions:'파일 제출' };
 const statusNames = { suggested:'추천 · 확인 필요', open:'진행 중', done:'완료', dismissed:'제외' };
 const date = n => new Date(n).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'});
 function node(tag, text, cls) { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if(cls)e.className=cls; return e; }
 function message(text){ $('feedback').textContent=text; }
-function clearSession(){ epoch++;session=null;selected=null;pending.clear();$('office').hidden=true;$('login').hidden=false;$('password').value='';$('list').replaceChildren();$('detail').replaceChildren();$('identity').textContent=''; }
+function clearSession(){ UpdateNotice.reset();epoch++;session=null;selected=null;pending.clear();$('office').hidden=true;$('login').hidden=false;$('password').value='';$('list').replaceChildren();$('detail').replaceChildren();$('identity').textContent=''; }
 async function api(path, method='GET', body){
   const token=epoch; const headers={}; const options={method,headers,credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(90000)};
   if(method!=='GET'){headers['X-CSRF-TOKEN']=session?.csrfToken||'';if(body instanceof FormData)options.body=body;else{headers['Content-Type']='application/json';options.body=JSON.stringify(body||{});}}
@@ -21,7 +22,7 @@ function safe(action){return async()=>{try{await action();}catch(e){message(e.me
 function button(text,action){const b=node('button',text);b.onclick=safe(async()=>{b.disabled=true;try{await action();}finally{b.disabled=false;}});return b;}
 function link(text,path){const a=node('a',text);a.href='/api/'+path;return a;}
 function files(list,container){const group=node('div',undefined,'files');for(const f of list)group.append(f.expired?node('span',f.name+' · 파일 만료','muted'):link(f.name+' · '+Math.ceil(f.size/1024)+'KB','attachments/'+encodeURIComponent(f.id)+'/download'));container.append(group);}
-function activate(){ $('login').hidden=true;$('office').hidden=false;$('identity').textContent=session.user.name+' · '+session.user.department;$('school-name').textContent=session.schoolName; }
+function activate(){ $('login').hidden=true;$('office').hidden=false;$('identity').textContent=session.user.name+' · '+session.user.department;$('school-name').textContent=session.schoolName;void UpdateNotice.show('office'); }
 async function reload(keep=false){
  if(!session?.user)return;const revision=++listRevision,ticket=epoch,current=view,page=offset;
  try{

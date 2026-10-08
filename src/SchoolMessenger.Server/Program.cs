@@ -123,6 +123,8 @@ app.UseExceptionHandler(error => error.Run(async context =>
 }));
 app.UseDefaultFiles();
 app.UseStaticFiles();
+if (app.Environment.IsDevelopment() && Directory.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot")))
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "wwwroot")) });
 app.UseRouting();
 app.UseRateLimiter();
 app.UseAuthentication();

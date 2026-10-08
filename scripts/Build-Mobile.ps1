@@ -12,7 +12,7 @@ $stageRoot=Join-Path $env:LOCALAPPDATA ('YyMessengerBuild\'+[guid]::NewGuid().To
 if($stageRoot -match '[^\x00-\x7F]'){throw 'Set LOCALAPPDATA to an ASCII build directory before building Android.'}
 New-Item -ItemType Directory -Path $stageRoot | Out-Null
 Copy-Item -LiteralPath (Join-Path $projectRoot 'global.json'),(Join-Path $projectRoot 'Directory.Build.props') -Destination $stageRoot
-foreach($project in @('SchoolMessenger.Mobile','SchoolMessenger.Contracts')){
+foreach($project in @('SchoolMessenger.Mobile','SchoolMessenger.Contracts','SchoolMessenger.Shared')){
     $source=Join-Path $projectRoot "src\$project"
     $target=Join-Path $stageRoot "src\$project"
     New-Item -ItemType Directory -Path $target -Force | Out-Null
