@@ -32,6 +32,7 @@ public sealed class TimetableWindow:Window
         Loaded+=async(_,_)=>await Run(Load);
     }
     record Choice(string Id,string Name){public override string ToString()=>Name;}
+    static string TeacherLabel(JsonElement value)=>value.GetProperty("name").GetString()+" · "+value.GetProperty("department").GetString()+" · "+value.GetProperty("username").GetString();
     static TextBlock Text(string value,int size=14)=>new(){Text=value,FontSize=size,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)};
     void Action(string label,Func<Task> action){var b=new Button{Content=label,Margin=new Thickness(0,0,8,10),HorizontalAlignment=HorizontalAlignment.Left};b.Click+=async(_,_)=>await Run(action);body.Children.Add(b);}
     async Task Run(Func<Task> action){if(busy)return;busy=true;body.IsEnabled=false;feedback.Text="";try{await action();}catch(Exception e){feedback.Text=e.Message;}finally{busy=false;body.IsEnabled=true;}}
@@ -85,7 +86,7 @@ public sealed class TimetableWindow:Window
     }
     void AddLinks(string heading,JsonElement sources,JsonElement options,Dictionary<string,ComboBox> links)
     {
-        body.Children.Add(Text(heading,19));var choices=options.EnumerateArray().Select(r=>new Choice(r.GetProperty("id").GetString()!,r.GetProperty("name").GetString()!+(r.TryGetProperty("department",out var d)?" · "+d.GetString():""))).ToArray();
+        body.Children.Add(Text(heading,19));var choices=options.EnumerateArray().Select(r=>new Choice(r.GetProperty("id").GetString()!,r.TryGetProperty("department",out _)?TeacherLabel(r):r.GetProperty("name").GetString()!)).ToArray();
         foreach(var source in sources.EnumerateArray())
         {
             var label=source.GetProperty("source").GetString()!;body.Children.Add(Text(label));var box=new ComboBox{ItemsSource=choices,Margin=new Thickness(0,0,0,12)};
@@ -110,8 +111,8 @@ public sealed class TimetableWindow:Window
     async Task Administration()
     {
         var users=await api.Get<JsonElement[]>("api/admin/timetable-managers");body.Children.Clear();body.Children.Add(Text("수업 담당자 권한 · 담임 연결",24));body.Children.Add(feedback);Action("조회 화면으로",Load);
-        foreach(var user in users){var check=new CheckBox{Content=user.GetProperty("name").GetString()+" · 시간표 관리",IsChecked=user.GetProperty("enabled").GetBoolean(),IsEnabled=!user.GetProperty("isAdmin").GetBoolean(),Margin=new Thickness(0,0,0,8)};body.Children.Add(check);Action("이 담당자 권한 저장",()=>api.Send<JsonElement>(HttpMethod.Post,"api/admin/timetable-managers",new{userId=user.GetProperty("id").GetString(),enabled=check.IsChecked==true}));}
-        var teachers=setup.GetProperty("teachers").EnumerateArray().Select(t=>new Choice(t.GetProperty("id").GetString()!,t.GetProperty("name").GetString()!)).ToArray();
+        foreach(var user in users){var check=new CheckBox{Content=TeacherLabel(user)+" · 시간표 관리",IsChecked=user.GetProperty("enabled").GetBoolean(),IsEnabled=!user.GetProperty("isAdmin").GetBoolean(),Margin=new Thickness(0,0,0,8)};body.Children.Add(check);Action("이 담당자 권한 저장",()=>api.Send<JsonElement>(HttpMethod.Post,"api/admin/timetable-managers",new{userId=user.GetProperty("id").GetString(),enabled=check.IsChecked==true}));}
+        var teachers=setup.GetProperty("teachers").EnumerateArray().Select(t=>new Choice(t.GetProperty("id").GetString()!,TeacherLabel(t))).ToArray();
         foreach(var room in setup.GetProperty("classes").EnumerateArray()){body.Children.Add(Text(room.GetProperty("name").GetString()+" 담임"));var box=new ComboBox{ItemsSource=teachers};var id=room.GetProperty("id").GetString();var home=setup.GetProperty("homerooms").EnumerateArray().FirstOrDefault(h=>h.GetProperty("classId").GetString()==id);if(home.ValueKind==JsonValueKind.Object)box.SelectedItem=teachers.FirstOrDefault(t=>t.Id==home.GetProperty("teacherId").GetString());body.Children.Add(box);Action("이 학급 담임 저장",async()=>{if(box.SelectedItem is not Choice teacher)throw new InvalidOperationException("담임을 선택하세요.");await api.Send<JsonElement>(HttpMethod.Post,"api/admin/timetable-homerooms",new{classId=id,teacherId=teacher.Id});feedback.Text="담임 연결을 저장했습니다.";});}
     }
 }

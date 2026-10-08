@@ -44,7 +44,7 @@ public sealed class Timetables:BackgroundService
     {
         var api=app.MapGroup("/api/timetable").RequireAuthorization();
         api.MapGet("/setup",(HttpContext c)=>Safe(()=>Results.Ok(new{canManage=service.Manager(User(c)),isAdmin=service.school.GetUser(User(c))!.IsAdmin,
-            classes=service.Directory().Classes,teachers=service.school.Users().Where(u=>u.Active).Select(u=>new{u.Id,u.Name,u.Department}),homerooms=service.Data.Homerooms(),
+            classes=service.Directory().Classes,teachers=service.school.Users().Where(u=>u.Active).Select(u=>new{u.Id,u.Name,u.Department,u.Username}),homerooms=service.Data.Homerooms(),
             revision=service.Data.Revision,pending=service.Data.Query("SELECT COUNT(*) FROM TimetableBatches WHERE Delivered=0",r=>r.GetInt32(0))[0],error=service.bridgeError})));
         api.MapGet("/day",(string? date,string? classId,bool? mine,HttpContext c)=>Safe(()=>
         {
@@ -65,7 +65,7 @@ public sealed class Timetables:BackgroundService
         {await service.gate.WaitAsync(c.RequestAborted);try{return await service.Publish(request,User(c));}catch(FilePolicyException e){return Error(e);}finally{service.gate.Release();}});
         api.MapPost("/{id}/cancel",async Task<IResult>(string id,TimetableCommit request,HttpContext c)=>
         {await service.gate.WaitAsync(c.RequestAborted);try{return await service.Cancel(id,request.ClientId,User(c));}catch(FilePolicyException e){return Error(e);}finally{service.gate.Release();}});
-        app.MapGet("/api/admin/timetable-managers",()=>service.school.Users().Where(u=>u.Active).Select(u=>new{u.Id,u.Name,enabled=service.Manager(u.Id),u.IsAdmin})).RequireAuthorization("Admin");
+        app.MapGet("/api/admin/timetable-managers",()=>service.school.Users().Where(u=>u.Active).Select(u=>new{u.Id,u.Name,u.Username,u.Department,enabled=service.Manager(u.Id),u.IsAdmin})).RequireAuthorization("Admin");
         app.MapPost("/api/admin/timetable-managers",(ManagerChange request)=>Safe(()=>
         {
             if(service.school.GetUser(request.UserId) is not{Active:true})throw new FilePolicyException("활성 교직원을 선택하세요.");

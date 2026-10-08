@@ -4,6 +4,11 @@ using SchoolMessenger.Contracts;
 
 namespace SchoolMessenger.Mobile;
 
+public sealed partial class MessengerPage
+{
+    internal bool VerificationReady=>!busy&&!resuming&&!covered;
+}
+
 // Compiled only into the explicitly requested simulator verification build.
 internal static class IosRuntimeChecks
 {
@@ -37,8 +42,9 @@ internal static class IosRuntimeChecks
     }
     static async Task Tap(string text)
     {
-        await Wait(() => Controls.OfType<Button>().Any(b => b.Text == text && b.IsEnabled));
+        await Wait(() => Page.VerificationReady&&Controls.OfType<Button>().Any(b => b.Text == text && b.IsEnabled));
         ((IButtonController)Controls.OfType<Button>().Single(b => b.Text == text)).SendClicked();
+        await Wait(()=>Page.VerificationReady);
     }
     public static async Task Run(string phase)
     {
@@ -86,8 +92,7 @@ internal static class IosRuntimeChecks
                 Check(Has("가상 수학")&&Has("가상 국어"),"native iOS falls back to baseline when no dated workbook exists");
                 await Page.Navigation.PopAsync();await Wait(()=>Has("10월 현장체험학습 안내"));
                 var row = Controls.OfType<Button>().Single(b => b.Text?.Contains("10월 현장체험학습 안내") == true);
-                await Wait(() => row.IsEnabled);
-                ((IButtonController)row).SendClicked(); await Wait(() => Has("<svg onload=alert(1)>"));
+                await Tap(row.Text!);await Wait(() => Has("<svg onload=alert(1)>"));
                 Check(true, "native notice detail renders synthetic HTML literally and records receipt");
                 Page.Cover(); Check(Page.Navigation.NavigationStack.OfType<ContentPage>().All(p => !p.Content.IsVisible), "background cover hides every native content page");
                 await Page.Resume(); await Wait(() => Has("10월 현장체험학습 안내"));
