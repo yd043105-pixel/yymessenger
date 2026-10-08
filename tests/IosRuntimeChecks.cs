@@ -69,7 +69,7 @@ internal static class IosRuntimeChecks
                 Check(await SecureStorage.Default.GetAsync("ios-verification-marker") == "synthetic marker", "ordinary startup preserves this installation's Keychain data");
                 Preferences.Default.Remove("ios-install-initialized"); App.PrepareIosStorage();
                 Check(await SecureStorage.Default.GetAsync("ios-verification-marker") is null, "fresh installation clears inherited Keychain data");
-                Check(SecureStorage.Default is SecureStorageImplementation storage && storage.DefaultAccessible == Security.SecAccessible.WhenUnlockedThisDeviceOnly, "saved sessions use unlocked device-only Keychain protection");
+                Check(SecureStorage.DefaultAccessible == Security.SecAccessible.WhenUnlockedThisDeviceOnly, "saved sessions use unlocked device-only Keychain protection");
                 Check(notice.Version == "1.0.0", "native iOS includes bundled 1.0.0 release notes");
                 try { using var invalid = new MessengerApi("http://school.example", false); throw new InvalidOperationException("Remote HTTP accepted"); }
                 catch (InvalidOperationException error) when (error.Message.Contains("https://")) { Check(true, "non-local HTTP is rejected before sending credentials"); }
@@ -97,6 +97,8 @@ internal static class IosRuntimeChecks
                 var messages = await internalApi.Get("api/messages?box=received&offset=0");
                 Check(messages.EnumerateArray().Any(m => m.GetProperty("title").GetString() == "교직원 업무 메시지 검증"), "iOS office messages use an independent internal service and session");
                 await internalApi.Logout();
+                // The API checks intentionally switch portal accounts; restore the visible parent's saved session.
+                await Page.Resume(); await Wait(() => Has("10월 현장체험학습 안내"));
             }
             await File.WriteAllTextAsync(Path.Combine(Documents, "ios-" + phase + "-results.json"), JsonSerializer.Serialize(new { ok = true, passed }));
         }

@@ -15,8 +15,7 @@ public partial class App : Application
 #if IOS
     internal static void PrepareIosStorage()
     {
-        if (SecureStorage.Default is SecureStorageImplementation storage)
-            storage.DefaultAccessible = Security.SecAccessible.WhenUnlockedThisDeviceOnly;
+        SecureStorage.DefaultAccessible = Security.SecAccessible.WhenUnlockedThisDeviceOnly;
         // iOS Keychain survives uninstall. A fresh installation must not inherit a prior login.
         if (!Preferences.Default.ContainsKey("ios-install-initialized"))
         {

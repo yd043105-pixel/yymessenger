@@ -31,7 +31,7 @@ public class AppDelegate : MauiUIApplicationDelegate
     }
 
 #if DEBUG && IOS_VERIFY
-    public override bool FinishedLaunching(UIApplication application, NSDictionary launchOptions)
+    public override bool FinishedLaunching(UIApplication application, NSDictionary? launchOptions)
     {
         var launched = base.FinishedLaunching(application, launchOptions);
         if (Environment.GetEnvironmentVariable("YY_IOS_VERIFY") is { Length: > 0 } phase)

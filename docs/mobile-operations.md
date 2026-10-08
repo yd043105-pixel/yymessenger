@@ -36,7 +36,7 @@ Windows Defender는 운영 첨부 업로드의 필수 조건이다. 검사기 �
 
 Release 앱은 HTTPS만 허용한다. Debug 앱만 Android 에뮬레이터 `10.0.2.2`, localhost, 127.0.0.1의 개발 HTTP를 허용한다. 실제 학교 주소에는 신뢰되는 인증서를 사용한다.
 
-Android 실제 출시에는 학교의 Google Play 개발자 계정, 지속 사용할 서명 키와 백업, 버전 코드 관리, Release AAB와 실제 휴대폰 검증이 필요하다. iPhone 소스는 같은 MAUI 화면을 사용하지만 **Mac·Xcode·Apple 개발자 계정에서 빌드·서명·기기 검증해야 한다. Windows에서 iOS 배포 파일을 검증했다고 간주하지 않는다.** 설치·서명 계정은 이 작업에 제공되지 않았다.
+Android 실제 출시에는 학교의 Google Play 개발자 계정, 지속 사용할 서명 키와 백업, 버전 코드 관리, Release AAB와 실제 휴대폰 검증이 필요하다. iPhone·iPad는 같은 MAUI 화면을 사용하며 Mac 빌드 스크립트와 GitHub의 iPhone 시뮬레이터 검사를 추가했다. **실제 iPhone 설치·스토어 제출에는 Apple 개발자 계정의 서명과 기기 검증이 필요하다. 시뮬레이터 ZIP은 iPhone에 설치할 수 없다.** 설치·서명 계정은 이 작업에 제공되지 않았다. [iOS 운영 안내](ios-operations.md)를 참고한다.
 
 앱은 현재 사용자가 열거나 새로고침할 때 소식을 조회한다. FCM/APNs 백그라운드 푸시는 아직 구현하지 않았다. 푸시 자격 증명, 동의·철회, 잠금 화면에 본문을 표시하지 않는 설정, 실제 기기 검증을 다음 출시 준비에 포함한다. GitHub 릴리즈는 PC·서버 배포 경로이며 Play/App Store 업데이트를 대신하지 않는다.
 
