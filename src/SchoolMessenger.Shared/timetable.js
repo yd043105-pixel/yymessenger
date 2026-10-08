@@ -21,7 +21,7 @@ window.TimetableUI=(()=>{
     for(let i=0;i<(weekly?7:1);i++){const current=new Date(first);current.setUTCDate(current.getUTCDate()+i);const value=await request('timetable/day?date='+current.toISOString().slice(0,10)+(scope.value==='mine'?'&mine=true':'&classId='+encodeURIComponent(scope.value)));if(ticket!==epoch)return false;if(revision!==undefined&&revision!==value.revision)throw Error('조회 중 시간표가 변경되었습니다. 다시 조회하세요.');revision=value.revision;days.push(value);}
     for(const value of days){content.append(node('h3',value.date));if(value.publishedAt)content.append(node('small','최종 게시 '+new Date(value.publishedAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})+' · 버전 '+value.revision));if(value.missingClasses.length)content.append(node('p','아직 시간표가 등록되지 않은 학급이 있습니다.'));if(!value.slots.length)content.append(node('p','등록된 수업이 없습니다.'));
      for(const slot of value.slots){const row=node('p',slot.period+'교시 · '+slot.className+' · '+(slot.subject?slot.subject+' · '+slot.teacherName:'수업 없음'));if(slot.changed){row.className='timetable-changed';row.append(node('small','변경 전: '+(slot.beforeSubject?slot.beforeSubject+' · '+slot.beforeTeacher:'수업 없음')));}content.append(row);}
-     content.append(node('small',value.slots.some(s=>s.source==='daily')?'일자별 시간표 적용':'기초시간표 적용'));
+     if(value.slots.length)content.append(node('small',value.slots.some(s=>s.source==='daily')?'일자별 시간표 적용':'기초시간표 적용'));
     }return true;
    }catch(e){content.replaceChildren();if(ticket===epoch)error.textContent=e.message;return false;}
    finally{busy=false;day.disabled=week.disabled=false;}

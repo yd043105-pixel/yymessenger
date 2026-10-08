@@ -46,7 +46,7 @@ public sealed partial class MessengerPage
                         if(changed)label+="\n변경 전: "+(slot.GetProperty("beforeSubject").GetString() is{Length:>0} before?before+" · "+slot.GetProperty("beforeTeacher").GetString():"수업 없음");
                         var line=Text(label,15,changed);if(changed)line.TextColor=Blue;content.Add(line);
                     }
-                    content.Add(Text(slots.Any(s=>s.GetProperty("source").GetString()=="daily")?"일자별 시간표 적용":"기초시간표 적용",12));
+                    if(slots.Length>0)content.Add(Text(slots.Any(s=>s.GetProperty("source").GetString()=="daily")?"일자별 시간표 적용":"기초시간표 적용",12));
                 }
                 loaded=true;
             }
