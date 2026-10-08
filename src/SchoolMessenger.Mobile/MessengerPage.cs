@@ -63,6 +63,7 @@ public sealed partial class MessengerPage : ContentPage
             await Home();
         }
         Action("로그인",()=>Connect(false),true);Action("저장된 로그인으로 접속",()=>Connect(true));
+        Action("학생·학부모 회원가입",()=>mode.SelectedIndex==1?throw new InvalidOperationException("교직원 계정 신청은 PC 교무실에서 진행하세요."):Signup(address.Text??""));
         Action("학교 초대 코드로 가입",async()=>{if(mode.SelectedIndex==1)throw new InvalidOperationException("교직원 계정 신청은 PC 교무실에서 진행하세요.");var source=new MessengerApi(address.Text??"",false);var p=new ContentPage{Title="학교 초대로 가입",BackgroundColor=BackgroundColor};var stack=new VerticalStackLayout{Padding=24,Spacing=16};p.Content=new ScrollView{Content=stack};stack.Add(Text("이름·역할·자녀는 학교에서 확인합니다.",15));var code=new Entry{Placeholder="학교 초대 코드"};var id=new Entry{Placeholder="아이디 (3~32자)"};var pass=new Entry{Placeholder="비밀번호 (12~128자)",IsPassword=true};var error=Text("",13);stack.Add(code);stack.Add(id);stack.Add(pass);stack.Add(error);var join=new Button{Text="계정 등록",BackgroundColor=Blue,TextColor=Colors.White};join.Clicked+=async(_,_)=>{join.IsEnabled=false;try{await source.Refresh();await source.Send("api/register",new MobileRegistration(code.Text,id.Text,pass.Text));pass.Text="";await Navigation.PopAsync();feedback.Text="계정 등록 완료. 로그인하세요.";}catch(Exception e){error.Text=e.Message;}finally{join.IsEnabled=true;}};stack.Add(join);p.Disappearing+=(_,_)=>source.Dispose();await Navigation.PushAsync(p);});
     }
     public void Cover(){covered=true;epoch++;foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=false;}
@@ -75,6 +76,14 @@ public sealed partial class MessengerPage : ContentPage
         Action("업데이트 내역",()=>ShowUpdates(true));
         await ShowUpdates();
         if(!Current(source,version))return;
+        if(!source.Office&&user.GetProperty("role").GetString() is "parent" or "student")
+        {
+            var parent=user.GetProperty("role").GetString()=="parent";
+            Action(parent?"설정 · 자녀 연결":"설정 · 내 고유번호",AccountSettings);
+            if(parent&&user.TryGetProperty("membership",out var membership)&&membership.GetString()=="temporary")
+            {body.Add(Text("임시회원입니다. 설정에서 자녀 고유번호를 입력하면 바로 정회원으로 전환되고 학교 소식·시간표를 확인할 수 있습니다."));return;}
+            if(parent)body.Add(Text("정회원 · 연결된 자녀의 학교 소식을 확인하세요.",13));
+        }
         Action("시간표 · 내 수업 / 학급",()=>Timetable());
         var scheduleNotices=await source.Get("api/timetable/notices");if(!Current(source,version))return;
         foreach(var notice in scheduleNotices.EnumerateArray().Where(n=>n.GetProperty("readAt").ValueKind==JsonValueKind.Null))

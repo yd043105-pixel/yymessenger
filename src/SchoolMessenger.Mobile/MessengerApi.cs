@@ -88,11 +88,15 @@ public sealed class MessengerApi : IDisposable
 internal record MobileCookie(string Name,string Value,DateTime Expires);
 internal record MobileLogin(string Username,string Password,bool RememberLogin);
 internal record MobileRegistration(string? Code,string? Username,string? Password);
+internal record MobileSignup(string? Name,string? Username,string? Password,string Role,string? ClassId,int? StudentNumber);
+internal record MobileFamilyCode(string? Code);
 internal record MobileEmpty;
 [JsonSourceGenerationOptions(PropertyNamingPolicy=JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(MobileCookie[]))]
 [JsonSerializable(typeof(MobileLogin))]
 [JsonSerializable(typeof(MobileRegistration))]
+[JsonSerializable(typeof(MobileSignup))]
+[JsonSerializable(typeof(MobileFamilyCode))]
 [JsonSerializable(typeof(MobileEmpty))]
 [JsonSerializable(typeof(AnnouncementRequest))]
 [JsonSerializable(typeof(JsonElement))]

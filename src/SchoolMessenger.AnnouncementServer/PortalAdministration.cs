@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Data.Sqlite;
 using static SchoolMessenger.AnnouncementServer.PortalSecurity;
 
 namespace SchoolMessenger.AnnouncementServer;
 
-public record InviteRegistration(string? Code,string? Username,string? Password);
+public record InviteRegistration(string? Code,string? Username,string? Password,string? Name=null,string? Role=null,string? ClassId=null,int? StudentNumber=null);
 record NewClass(string? Name,int Grade);
 record NewPerson(string? Name,string? Role,string? ClassId,string? InternalUserId,string[]? ClassIds,bool CanBroadcast);
 record UpdatePerson(string? Name,bool Active,string? ClassId,string[]? ClassIds,bool CanBroadcast);
@@ -32,7 +33,7 @@ public static class PortalAdministration
         }
         catch(SqliteException e)when(e.SqliteErrorCode==19){return Error("사용 중인 아이디입니다.",409);}
     }
-    public static void Map(RouteGroupBuilder admin,PortalStore store)
+    public static void Map(RouteGroupBuilder admin,PortalStore store,IDataProtectionProvider protection)
     {
         admin.MapGet("/classes",()=>store.DirectorySnapshot().Classes);
         admin.MapPost("/classes",(NewClass request)=>
@@ -40,7 +41,7 @@ public static class PortalAdministration
             if(!Name(request.Name)||request.Grade is <1 or >3)return Error("학급명과 학년(1~3)을 확인하세요.");
             var id=Guid.NewGuid().ToString("N");store.Execute("INSERT INTO Classes VALUES($id,$name,$grade)",("$id",id),("$name",request.Name!.Trim()),("$grade",request.Grade));return Results.Ok(new{id});
         });
-        admin.MapGet("/people",()=>store.Query("SELECT * FROM People ORDER BY Role,Name",PortalStore.ReadAccount).Select(a=>new{a.Id,a.Username,a.Name,a.Role,a.ClassId,a.InternalUserId,a.Active,a.CanBroadcast,registered=a.PasswordHash is not null,classIds=store.Classes(a.Id)}));
+        admin.MapGet("/people",()=>store.Query("SELECT * FROM People ORDER BY Role,Name",PortalStore.ReadAccount).Select(a=>new{a.Id,a.Username,a.Name,a.Role,a.ClassId,a.InternalUserId,a.Active,a.CanBroadcast,registered=a.PasswordHash is not null,classIds=store.Classes(a.Id),membership=store.Regular(a)?"regular":"temporary",application=store.Query("SELECT StudentNumber,RequestedAt,ApprovedAt FROM StudentApplications WHERE PersonId=$id",r=>new{studentNumber=r.GetInt32(0),requestedAt=r.GetInt64(1),pending=r.IsDBNull(2)},("$id",a.Id)).FirstOrDefault()}));
         admin.MapPost("/people",(NewPerson request)=>
         {
             if(!Name(request.Name)||request.Role is not("teacher"or"student"or"parent")||request.ClassIds is null||request.ClassIds.Length>100)return Error("이름과 학교에서 확인한 역할·담당 범위를 입력하세요.");
@@ -73,6 +74,11 @@ public static class PortalAdministration
             }
             if(!request.Active){using var revoke=PortalStore.Command(db,"UPDATE Targets SET Revoked=1 WHERE UserId=$id",tx,("$id",id));revoke.ExecuteNonQuery();}
             using(var update=PortalStore.Command(db,"UPDATE People SET Name=$name,Active=$active,ClassId=$class,CanBroadcast=$all,ScopeVersion=ScopeVersion+CASE WHEN Active=1 AND $active=0 OR Role='student' AND ClassId!=$class THEN 1 ELSE 0 END,Version=Version+1 WHERE Id=$id",tx,("$name",request.Name!.Trim()),("$active",request.Active),("$class",request.ClassId),("$all",request.CanBroadcast),("$id",id)))update.ExecuteNonQuery();
+            if(person.Role=="student")
+            {
+                using var approve=PortalStore.Command(db,"UPDATE StudentApplications SET ApprovedAt=COALESCE(ApprovedAt,$now) WHERE PersonId=$id AND $active=1",tx,("$now",Now),("$id",id),("$active",request.Active));approve.ExecuteNonQuery();
+                if(!request.Active){using var revokeCode=PortalStore.Command(db,"UPDATE StudentCodes SET Active=0 WHERE StudentId=$id",tx,("$id",id));revokeCode.ExecuteNonQuery();}
+            }
             using(var remove=PortalStore.Command(db,"DELETE FROM TeacherClasses WHERE TeacherId=$id",tx,("$id",id)))remove.ExecuteNonQuery();
             foreach(var scope in request.ClassIds.Distinct()){using var add=PortalStore.Command(db,"INSERT INTO TeacherClasses VALUES($id,$class)",tx,("$id",id),("$class",scope));add.ExecuteNonQuery();}
             tx.Commit();return Results.Ok();
@@ -97,6 +103,7 @@ public static class PortalAdministration
             using(var unlink=PortalStore.Command(db,"DELETE FROM Families WHERE ParentId=$parent AND StudentId=$student",tx,("$parent",parent),("$student",student)))unlink.ExecuteNonQuery();
             using(var revoke=PortalStore.Command(db,"UPDATE Targets SET Revoked=1 WHERE UserId=$parent AND StudentId=$student",tx,("$parent",parent),("$student",student)))revoke.ExecuteNonQuery();
             using(var session=PortalStore.Command(db,"UPDATE People SET Version=Version+1 WHERE Id=$id",tx,("$id",parent)))session.ExecuteNonQuery();
+            if(store.Person(student) is{Role:"student",Active:true})PortalEnrollment.ReplaceCode(db,tx,protection,student);
             tx.Commit();return Results.Ok();
         });
         admin.MapGet("/status",()=>new{people=store.Query("SELECT COUNT(*) FROM People WHERE Active=1",r=>r.GetInt32(0))[0],

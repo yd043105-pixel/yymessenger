@@ -111,7 +111,32 @@ internal static class IosRuntimeChecks
                 var messages = await internalApi.Get("api/messages?box=received&offset=0");
                 Check(messages.EnumerateArray().Any(m => m.GetProperty("title").GetString() == "교직원 업무 메시지 검증"), "iOS office messages use an independent internal service and session");
                 await internalApi.Logout();
-                // The API checks intentionally switch portal accounts; restore the visible parent's saved session.
+                await Tap("설정 · 자녀 연결");await Wait(()=>CurrentPage.Title=="설정 · 자녀 연결");
+                Check(Has("가상학생 하나")&&Has("가상학생 둘"),"native parent settings shows both linked children");
+                await Page.Navigation.PopAsync();await Wait(()=>Has("10월 현장체험학습 안내"));await Tap("로그아웃");await Wait(()=>Has("우리 학교 소식"));
+                await Tap("학생·학부모 회원가입");await Wait(()=>CurrentPage.Title=="학생·학부모 회원가입");
+                var signup=Controls.OfType<Entry>().ToArray();signup[0].Text="iOS 가상 학부모";signup[1].Text="ios.parent";signup[2].Text=password;
+                await Tap("회원가입 신청");await Wait(()=>CurrentPage==Page&&Has("임시회원 가입 완료"));
+                Check(signup[2].Text=="","native individual signup clears its password and returns to login");
+                entries=Controls.OfType<Entry>().ToArray();entries[0].Text=portal;entries[1].Text="ios.parent";entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("임시회원입니다."));
+                Check(!Controls.OfType<Button>().Any(b=>b.Text=="시간표 · 내 수업 / 학급"),"native temporary parent has no school content or timetable action");
+                using var administrator=new MessengerApi(portal,false);await administrator.Login("admin",password,false);
+                var people=(await administrator.Get("api/admin/people")).EnumerateArray().ToArray();
+                var firstStudent=people.Single(p=>p.GetProperty("username").ValueKind==JsonValueKind.String&&p.GetProperty("username").GetString()==fixture.GetProperty("student").GetString());
+                var otherStudent=people.First(p=>p.GetProperty("role").GetString()=="student"&&p.GetProperty("id").GetString()!=firstStudent.GetProperty("id").GetString());
+                var firstCode=(await administrator.Get("api/admin/people/"+firstStudent.GetProperty("id").GetString()+"/student-code")).GetProperty("code").GetString();
+                var otherCode=(await administrator.Get("api/admin/people/"+otherStudent.GetProperty("id").GetString()+"/student-code")).GetProperty("code").GetString();
+                await Tap("설정 · 자녀 연결");await Wait(()=>CurrentPage.Title=="설정 · 자녀 연결");Controls.OfType<Entry>().Single().Text=firstCode;await Tap("자녀 연결");await Wait(()=>Has("자녀 연결 완료"));
+                Check(Has("정회원 · 연결된 자녀")&&Has("가상학생 하나"),"native code entry immediately upgrades temporary parent to regular member");
+                Controls.OfType<Entry>().Single().Text=otherCode;await Tap("자녀 연결");await Wait(()=>Has("가상학생 둘")&&Has("자녀 연결 완료"));
+                Check(Has("가상학생 하나")&&Controls.OfType<Entry>().Single().Text=="","native settings adds a second child and clears the entered secret");
+                await Page.Navigation.PopAsync();await Wait(()=>Controls.OfType<Button>().Any(b=>b.Text=="시간표 · 내 수업 / 학급"));await Tap("로그아웃");await Wait(()=>Has("우리 학교 소식"));
+                entries=Controls.OfType<Entry>().ToArray();entries[0].Text=portal;entries[1].Text=fixture.GetProperty("student").GetString();entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("10월 현장체험학습 안내"));
+                await Tap("설정 · 내 고유번호");await Wait(()=>CurrentPage.Title=="설정 · 내 고유번호");
+                Check(Controls.OfType<Entry>().Single(e=>e.IsReadOnly).Text==firstCode,"native student settings displays its own protected eight-character code");
+                await Page.Navigation.PopAsync();await Wait(()=>Has("10월 현장체험학습 안내"));await Tap("로그아웃");await Wait(()=>Has("우리 학교 소식"));
+                entries=Controls.OfType<Entry>().ToArray();entries[0].Text=portal;entries[1].Text=fixture.GetProperty("parent").GetString();entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("10월 현장체험학습 안내"));
+                // Leave the original fixture parent signed in for the process-restart check.
                 await Page.Resume(); await Wait(() => Has("10월 현장체험학습 안내"));
             }
             await File.WriteAllTextAsync(Path.Combine(Documents, "ios-" + phase + "-results.json"), JsonSerializer.Serialize(new { ok = true, passed }));

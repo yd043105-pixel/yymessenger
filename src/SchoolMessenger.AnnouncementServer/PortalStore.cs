@@ -24,6 +24,10 @@ public sealed class PortalStore
             CREATE TABLE IF NOT EXISTS TeacherClasses(TeacherId TEXT NOT NULL REFERENCES People(Id),ClassId TEXT NOT NULL REFERENCES Classes(Id),PRIMARY KEY(TeacherId,ClassId));
             CREATE TABLE IF NOT EXISTS Families(ParentId TEXT NOT NULL REFERENCES People(Id),StudentId TEXT NOT NULL REFERENCES People(Id),PRIMARY KEY(ParentId,StudentId));
             CREATE TABLE IF NOT EXISTS Invites(Hash TEXT PRIMARY KEY,PersonId TEXT NOT NULL REFERENCES People(Id),ExpiresAt INTEGER NOT NULL,UsedAt INTEGER);
+            CREATE TABLE IF NOT EXISTS StudentApplications(PersonId TEXT PRIMARY KEY REFERENCES People(Id),StudentNumber INTEGER NOT NULL,RequestedAt INTEGER NOT NULL,ApprovedAt INTEGER);
+            CREATE TABLE IF NOT EXISTS StudentCodes(Hash TEXT PRIMARY KEY,StudentId TEXT NOT NULL REFERENCES People(Id),ProtectedCode TEXT NOT NULL,Active INTEGER NOT NULL DEFAULT 1,CreatedAt INTEGER NOT NULL);
+            CREATE UNIQUE INDEX IF NOT EXISTS IX_StudentCodes_Active ON StudentCodes(StudentId) WHERE Active=1;
+            CREATE TABLE IF NOT EXISTS FamilyCodeAttempts(ParentId TEXT PRIMARY KEY REFERENCES People(Id),Failures INTEGER NOT NULL DEFAULT 0,LockedUntil INTEGER NOT NULL DEFAULT 0);
             CREATE TABLE IF NOT EXISTS TeacherProofs(PersonId TEXT PRIMARY KEY REFERENCES People(Id),Active INTEGER NOT NULL,CanBroadcast INTEGER NOT NULL,VerifiedAt INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS Notices(Id TEXT PRIMARY KEY,SenderId TEXT NOT NULL REFERENCES People(Id),ClientId TEXT NOT NULL,Fingerprint TEXT NOT NULL,
               Title TEXT NOT NULL,Body TEXT NOT NULL,Audience TEXT NOT NULL,PublishedAt INTEGER NOT NULL,Withdrawn INTEGER NOT NULL DEFAULT 0,UNIQUE(SenderId,ClientId));
@@ -53,7 +57,8 @@ public sealed class PortalStore
     public Account? Person(string id) => Query("SELECT * FROM People WHERE Id=$id",ReadAccount,("$id",id)).FirstOrDefault();
     public Account? Username(string name) => Query("SELECT * FROM People WHERE Username=$name",ReadAccount,("$name",name)).FirstOrDefault();
     public string[] Classes(string teacherId) => Query("SELECT ClassId FROM TeacherClasses WHERE TeacherId=$id ORDER BY ClassId",r=>r.GetString(0),("$id",teacherId)).ToArray();
-    public PortalUser Public(Account a) => new(a.Id,a.Name,a.Role,a.CanBroadcast&&PortalSecurity.VerifiedTeacher(this,a,true),Classes(a.Id));
+    public bool Regular(Account a) => a.Role!="parent" || Query("SELECT 1 FROM Families f JOIN People s ON s.Id=f.StudentId WHERE f.ParentId=$id AND s.Role='student' AND s.Active=1 AND s.ClassId IS NOT NULL LIMIT 1",r=>r.GetInt32(0),("$id",a.Id)).Count>0;
+    public PortalUser Public(Account a) => new(a.Id,a.Name,a.Role,a.CanBroadcast&&PortalSecurity.VerifiedTeacher(this,a,true),Classes(a.Id),Regular(a)?"regular":"temporary");
     public PortalDirectory DirectorySnapshot()
     {
         var rooms=Query("SELECT * FROM Classes ORDER BY Grade,Name",r=>new PortalClass(r.GetString(0),r.GetString(1),r.GetInt32(2))).ToArray();

@@ -44,6 +44,7 @@ builder.Services.AddRateLimiter(o=>
     o.GlobalLimiter=PartitionedRateLimiter.Create<HttpContext,string>(c=>RateLimitPartition.GetFixedWindowLimiter(c.User.Identity?.IsAuthenticated==true?"user:"+Id(c):"ip:"+c.Connection.RemoteIpAddress,_=>new FixedWindowRateLimiterOptions{PermitLimit=600,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
     o.AddPolicy("login",c=>RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString()??"local",_=>new FixedWindowRateLimiterOptions{PermitLimit=60,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
     o.AddPolicy("upload",_=>RateLimitPartition.GetConcurrencyLimiter("uploads",_=>new ConcurrencyLimiterOptions{PermitLimit=4,QueueLimit=0}));
+    o.AddPolicy("family-code",c=>RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString()??"local",_=>new FixedWindowRateLimiterOptions{PermitLimit=100,Window=TimeSpan.FromMinutes(15),QueueLimit=0}));
 });
 var app=builder.Build();
 var hasher=app.Services.GetRequiredService<PasswordHasher<Account>>();
@@ -79,6 +80,9 @@ app.Use(async(c,next)=>
     if(c.Request.Path.StartsWithSegments("/bridge")&&!Bridge(c,app.Configuration)){c.Response.StatusCode=401;return;}
     if(c.Request.Path.StartsWithSegments("/api")&&c.Request.Method is "POST" or "PATCH" or "DELETE")
         try{await c.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(c);}catch(AntiforgeryValidationException){await Error("요청 인증 만료. 다시 로그인하세요.").ExecuteAsync(c);return;}
+    if(c.User.Identity?.IsAuthenticated==true&&c.Request.Path.StartsWithSegments("/api")&&store.Person(Id(c)) is{Role:"parent"} parent&&!store.Regular(parent)
+        &&c.Request.Path!="/api/session"&&c.Request.Path!="/api/login"&&c.Request.Path!="/api/register"&&c.Request.Path!="/api/registration/classes"&&c.Request.Path!="/api/logout"&&c.Request.Path!="/api/children"&&!c.Request.Path.StartsWithSegments("/api/settings"))
+    {await Error("임시회원입니다. 설정에서 자녀 고유번호를 입력하면 학교 소식과 시간표를 볼 수 있습니다.",403).ExecuteAsync(c);return;}
     await next();
 });
 app.MapGet("/health",()=>Results.Ok(new{status="ok",service="announcements"}));
@@ -96,10 +100,13 @@ app.MapPost("/api/login",async Task<IResult>(Login request,HttpContext c)=>
     await c.SignInAsync(new ClaimsPrincipal(new ClaimsIdentity(new[]{new Claim(ClaimTypes.NameIdentifier,person.Id),new Claim(ClaimTypes.Name,person.Name),new Claim(ClaimTypes.Role,person.Role),new Claim("version",person.Version.ToString())},CookieAuthenticationDefaults.AuthenticationScheme)),new AuthenticationProperties{IsPersistent=request.RememberLogin,ExpiresUtc=DateTimeOffset.UtcNow.Add(request.RememberLogin?TimeSpan.FromDays(30):TimeSpan.FromHours(8))});
     return Results.Ok(store.Public(person));
 }).RequireRateLimiting("login");
-app.MapPost("/api/register",(InviteRegistration request)=>PortalAdministration.Register(store,hasher,request)).RequireRateLimiting("login");
+app.MapPost("/api/register",(InviteRegistration request)=>string.IsNullOrEmpty(request.Code)?PortalEnrollment.Register(store,hasher,request):PortalAdministration.Register(store,hasher,request)).RequireRateLimiting("login");
 var api=app.MapGroup("/api").RequireAuthorization();
 api.MapPost("/logout",async(HttpContext c)=>{store.Execute("UPDATE People SET Version=Version+1 WHERE Id=$id",("$id",Id(c)));await c.SignOutAsync();return Results.Ok();});
-PortalAdministration.Map(app.MapGroup("/api/admin").RequireAuthorization("Admin"),store);
+var admin=app.MapGroup("/api/admin").RequireAuthorization("Admin");
+var protection=app.Services.GetRequiredService<IDataProtectionProvider>();
+PortalAdministration.Map(admin,store,protection);
+PortalEnrollment.Map(app,api,admin,store,protection);
 PortalNotices.Map(api,app.MapGroup("/bridge"),store,app.Configuration,app.Environment);
 PortalTimetables.Map(api,app.MapGroup("/bridge"),store);
 app.Services.GetServices<IHostedService>().OfType<PortalMaintenance>().Single().Cleanup();

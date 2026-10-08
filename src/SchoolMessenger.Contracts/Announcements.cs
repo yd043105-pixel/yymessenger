@@ -16,5 +16,5 @@ public record PortalFile(string Id, string Name, long Size, long? ExpiresAt = nu
 public record PortalNotice(string Id, string Title, string Body, string SenderName, long PublishedAt, long? ReadAt, bool Withdrawn, int RecipientCount, int ReadCount);
 public record PortalReceipt(string UserId, string Name, string StudentName, long? ReadAt, bool Revoked, string ClassId);
 public record PortalNoticeDetail(PortalNotice Notice, PortalFile[] Attachments, PortalReceipt[]? Receipts);
-public record PortalUser(string Id, string Name, string Role, bool CanBroadcast, string[] Classes);
+public record PortalUser(string Id, string Name, string Role, bool CanBroadcast, string[] Classes, string Membership="regular");
 public record PortalSession(string SchoolName, string CsrfToken, PortalUser? User);
