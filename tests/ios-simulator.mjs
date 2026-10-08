@@ -39,9 +39,11 @@ try {
     for (let attempt = 0; attempt < 180 && !existsSync(report); attempt++) await delay(500);
     assert.ok(existsSync(report), 'iOS runtime report missing: ' + phase);
     const result = JSON.parse(readFileSync(report, 'utf8'));
-    assert.ok(result.ok, result.error ?? 'iOS runtime check failed');
-    for (const check of result.passed) { verified.push(check); console.log('PASS ' + check); }
+    copyFileSync(report,path.join(output,'ios-'+phase+'-results.json'));
     command(['simctl', 'io', device, 'screenshot', path.join(output, 'ios-' + phase + '-preview.png')]);
+    for (const check of result.passed) console.log('PASS '+check);
+    assert.ok(result.ok, result.error ?? 'iOS runtime check failed');
+    verified.push(...result.passed);
   }
   writeFileSync(path.join(output, 'ios-test-results.json'), JSON.stringify({ verifiedAt: new Date().toISOString(), simulator: type.name, runtime: runtime.version, passed: verified }, null, 2));
   console.log(verified.length + ' iOS runtime checks passed.');

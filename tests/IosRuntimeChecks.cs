@@ -28,7 +28,7 @@ internal static class IosRuntimeChecks
     static async Task Wait(Func<bool> condition)
     {
         for (var attempt = 0; attempt < 200; attempt++) { if (condition()) return; await Task.Delay(100); }
-        throw new InvalidOperationException("Native iOS state timed out");
+        throw new InvalidOperationException("Native iOS state timed out at "+CurrentPage.Title+"; controls: "+string.Join(" | ",Controls.OfType<Label>().Select(v=>v.Text).Concat(Controls.OfType<Button>().Select(v=>v.Text))));
     }
     static void Check(bool condition, string description)
     {

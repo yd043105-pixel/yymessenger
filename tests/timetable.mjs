@@ -32,7 +32,10 @@ try{
  const aPortal=await person(admin,'가상 교사 A','teacher',null,a.user.id,[rooms[0]]),bPortal=await person(admin,'가상 교사 B','teacher',null,b.user.id,[rooms[1]]);
  const studentId=await person(admin,'가상 학생','student',rooms[1]),otherId=await person(admin,'가상 다른 학생','student',rooms[0]),parentId=await person(admin,'가상 보호자','parent');await admin.req('admin/families','POST',{parentId,studentId});
  const parent=await claim(admin,parentId,'parent'),student=await claim(admin,studentId,'student'),other=await claim(admin,otherId,'other');
- await wait(async()=>(await owner.req('external-announcements/setup')).connected);const mobileA=await claim(admin,aPortal,'mobilea'),mobileB=await claim(admin,bPortal,'mobileb');
+ // A connected bridge can still hold a directory that predates these people.
+ // Each publisher appears only after its own fresh directory and teacher proof have arrived.
+ await wait(async()=>(await a.req('external-announcements/setup')).teacherId===aPortal&&(await b.req('external-announcements/setup')).teacherId===bPortal);
+ const mobileA=await claim(admin,aPortal,'mobilea'),mobileB=await claim(admin,bPortal,'mobileb');
  await new Client(office).req('timetable/day', 'GET',undefined,401);await a.req('timetable/import','POST',file('base.xlsx','base'),403);await a.req('admin/timetable-managers','POST',{userId:a.user.id,enabled:true},403);await owner.req('timetable/preview','POST',{},400,false);check('authentication, CSRF and dedicated manager permissions enforced');
  await owner.req('admin/timetable-managers','POST',{userId:a.user.id,enabled:true});assert.equal((await a.req('timetable/setup')).canManage,true);
  const imported=await a.req('timetable/import','POST',file('base.xlsx','base'));check('authorized manager uploads synthetic school workbook');
