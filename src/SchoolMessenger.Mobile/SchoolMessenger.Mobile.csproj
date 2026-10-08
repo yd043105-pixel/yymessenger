@@ -2,7 +2,9 @@
 
 	<PropertyGroup>
 		<TargetFrameworks>net10.0-android</TargetFrameworks>
-<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-android;net10.0-ios</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-ios</TargetFrameworks>
+        <NuGetLockFilePath Condition="$([MSBuild]::IsOSPlatform('osx'))">packages.ios.lock.json</NuGetLockFilePath>
+        <RuntimeIdentifiers Condition="$([MSBuild]::IsOSPlatform('osx'))">ios-arm64;iossimulator-arm64;iossimulator-x64</RuntimeIdentifiers>
 
 		<OutputType>Exe</OutputType>
 		<RootNamespace>SchoolMessenger.Mobile</RootNamespace>
@@ -29,6 +31,19 @@
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
 	</PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug' And '$(IosVerification)' == 'true'">
+        <DefineConstants>$(DefineConstants);IOS_VERIFY</DefineConstants>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'iossimulator-arm64' Or '$(RuntimeIdentifier)' == 'iossimulator-x64'">
+        <CodesignEntitlements>Platforms/iOS/Entitlements.Simulator.plist</CodesignEntitlements>
+        <CodesignRequireProvisioningProfile>false</CodesignRequireProvisioningProfile>
+        <CodesignKey>-</CodesignKey>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios' And '$(Configuration)' == 'Debug'">
+        <PartialAppManifest Include="Platforms/iOS/Info.Debug.plist" />
+        <Compile Include="../../tests/IosRuntimeChecks.cs" Link="IosRuntimeChecks.cs" Condition="'$(IosVerification)' == 'true'" />
+    </ItemGroup>
 
 	<ItemGroup>
 		<AndroidResource Include="Platforms/Android/Resources/xml/network_security_config.xml" Condition="'$(Configuration)' == 'Debug'" />

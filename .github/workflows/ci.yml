@@ -45,3 +45,41 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Mobile lock verification failed' }
           dotnet build src/SchoolMessenger.Mobile -f net10.0-android -c Release --no-restore "-p:AndroidSdkDirectory=$sdkDirectory" "-p:JavaSdkDirectory=$javaDirectory"
           if ($LASTEXITCODE -ne 0) { throw 'Release Android build failed' }
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.401
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Select Xcode and install the pinned iOS workload
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+          dotnet workload install maui-ios --version 10.0.401
+      - name: Bootstrap iOS package lock
+        run: dotnet restore src/SchoolMessenger.Mobile -p:RestoreLockedMode=false
+      - name: Build iOS simulator app
+        env:
+          IOS_VERIFICATION: 'true'
+        run: bash scripts/Build-iOS.sh simulator
+      - name: Build synthetic school and announcement services
+        run: |
+          dotnet build src/SchoolMessenger.Server -p:RestoreLockedMode=true --nologo
+          dotnet build src/SchoolMessenger.AnnouncementServer -p:RestoreLockedMode=true --nologo
+      - name: Verify native iPhone simulator
+        run: node tests/ios-simulator.mjs
+      - name: Save simulator app, screenshots and verification report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-simulator-1.0.0
+          path: |
+            artifacts/ios/
+            src/SchoolMessenger.Mobile/packages.ios.lock.json
+          if-no-files-found: error
+          retention-days: 7
