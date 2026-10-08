@@ -35,7 +35,7 @@ public sealed class MessengerApi : IDisposable
         configuration.URLCredentialStorage=null;
         configuration.TimeoutIntervalForRequest=90;
         configuration.TimeoutIntervalForResource=90;
-        var handler=new Foundation.NSUrlSessionHandler(configuration){CookieContainer=cookies,AllowAutoRedirect=false,DisableCaching=true};
+        var handler=new System.Net.Http.NSUrlSessionHandler(configuration){CookieContainer=cookies,AllowAutoRedirect=false,DisableCaching=true};
 #else
         var handler=new HttpClientHandler{CookieContainer=cookies,AllowAutoRedirect=false};
 #endif
