@@ -7,6 +7,7 @@ namespace SchoolMessenger.Mobile;
 public sealed partial class MessengerPage
 {
     internal bool VerificationReady=>!busy&&!resuming&&!covered;
+    internal MessengerApi VerificationApi=>api!;
 }
 
 // Compiled only into the explicitly requested simulator verification build.
@@ -111,6 +112,8 @@ internal static class IosRuntimeChecks
                 var messages = await internalApi.Get("api/messages?box=received&offset=0");
                 Check(messages.EnumerateArray().Any(m => m.GetProperty("title").GetString() == "교직원 업무 메시지 검증"), "iOS office messages use an independent internal service and session");
                 await internalApi.Logout();
+                await Page.VerificationApi.Refresh();
+                Check(Page.VerificationApi.Session.GetProperty("user").GetProperty("role").GetString()=="parent"&&(await Page.VerificationApi.Get("api/children")).GetArrayLength()==2,"separate native API clients preserve the visible parent identity and child relationships");
                 await Tap("설정 · 자녀 연결");await Wait(()=>CurrentPage.Title=="설정 · 자녀 연결");
                 Check(Has("가상학생 하나")&&Has("가상학생 둘"),"native parent settings shows both linked children");
                 await Page.Navigation.PopAsync();await Wait(()=>Has("10월 현장체험학습 안내"));await Tap("로그아웃");await Wait(()=>Has("우리 학교 소식"));

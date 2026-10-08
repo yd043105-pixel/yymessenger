@@ -28,7 +28,18 @@ public sealed class MessengerApi : IDisposable
 #endif
         if(uri.Scheme!="https"&&!localDebug)throw new InvalidOperationException("서버 주소는 https://로 시작해야 합니다.");
         Address=uri;Office=office;key="session-"+Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes((office?"office:":"portal:")+uri.AbsoluteUri)));
-        http=new HttpClient(new HttpClientHandler{CookieContainer=cookies,AllowAutoRedirect=false}){BaseAddress=uri,Timeout=TimeSpan.FromSeconds(90)};
+#if IOS
+        // Default NSURLSession shares native cookies across clients and app restarts.
+        // Each school space/account gets private native storage; only our Keychain data restores it.
+        using var configuration=Foundation.NSUrlSessionConfiguration.EphemeralSessionConfiguration;
+        configuration.URLCredentialStorage=null;
+        configuration.TimeoutIntervalForRequest=90;
+        configuration.TimeoutIntervalForResource=90;
+        var handler=new Foundation.NSUrlSessionHandler(configuration){CookieContainer=cookies,AllowAutoRedirect=false,DisableCaching=true};
+#else
+        var handler=new HttpClientHandler{CookieContainer=cookies,AllowAutoRedirect=false};
+#endif
+        http=new HttpClient(handler){BaseAddress=uri,Timeout=TimeSpan.FromSeconds(90)};
     }
     public async Task Restore()
     {
