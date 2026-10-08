@@ -6,4 +6,9 @@
     <PublishSingleFile>true</PublishSingleFile>
   </PropertyGroup>
   <ItemGroup><PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" /></ItemGroup>
+  <ItemGroup>
+    <Compile Include="../SchoolMessenger.Contracts/Timetables.cs" Link="Contracts/Timetables.cs" />
+    <Compile Include="../SchoolMessenger.Shared/ReleaseNotice.cs" Link="ReleaseNotice.cs" />
+    <EmbeddedResource Include="../SchoolMessenger.Shared/updates.json" LogicalName="SchoolMessenger.UpdateNotes.json" />
+  </ItemGroup>
 </Project>

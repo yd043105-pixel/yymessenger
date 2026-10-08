@@ -26,6 +26,10 @@ if (builder.Configuration["School:CertificateThumbprint"] is { Length: > 0 } thu
 }
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 105L * 1024 * 1024);
 builder.Services.AddSingleton<Store>();
+builder.Services.AddSingleton<ExternalAnnouncements>();
+builder.Services.AddHostedService(s => s.GetRequiredService<ExternalAnnouncements>());
+builder.Services.AddSingleton<Timetables>();
+builder.Services.AddHostedService(s => s.GetRequiredService<Timetables>());
 builder.Services.AddSingleton<Presence>();
 builder.Services.AddSingleton<RemoteSessions>();
 builder.Services.AddHostedService(s => s.GetRequiredService<RemoteSessions>());
@@ -65,7 +69,7 @@ builder.Services.AddRateLimiter(o =>
         RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString() ?? "local", _ =>
             new FixedWindowRateLimiterOptions { PermitLimit = 600, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     o.AddPolicy("login", c => RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString() ?? "local", _ =>
-        new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+        new FixedWindowRateLimiterOptions { PermitLimit = Math.Clamp(builder.Configuration.GetValue("School:LoginLimitPerMinute",120),20,300), Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     o.AddPolicy("upload", _ => RateLimitPartition.GetConcurrencyLimiter("uploads", _ => new ConcurrencyLimiterOptions { PermitLimit = 4, QueueLimit = 0 }));
     o.AddPolicy("zip", _ => RateLimitPartition.GetConcurrencyLimiter("zip", _ => new ConcurrencyLimiterOptions { PermitLimit = 2, QueueLimit = 0 }));
 });
@@ -86,10 +90,15 @@ var networks = (builder.Configuration["School:AllowedNetworks"] ?? "").Split(','
 // Never accept credentials over plain HTTP from another computer, including Development.
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/api") && !(context.Request.Method == "POST" && context.Request.Path == "/api/attachments"))
+    if (context.Request.Path.StartsWithSegments("/api") && !(context.Request.Method == "POST" && (context.Request.Path == "/api/attachments" || context.Request.Path == "/api/external-announcements/attachments" || context.Request.Path == "/api/timetable/import")))
     {
         var limit = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
         if (limit is { IsReadOnly: false }) limit.MaxRequestBodySize = context.Request.Path.StartsWithSegments("/api/surveys") ? 524_288 : 131_072;
+    }
+    if(context.Request.Path=="/api/timetable/import")
+    {
+        var limit=context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+        if(limit is{IsReadOnly:false})limit.MaxRequestBodySize=12_582_912;
     }
     if (!context.Request.IsHttps && context.Connection.RemoteIpAddress is { } ip && !System.Net.IPAddress.IsLoopback(ip))
     { context.Response.StatusCode = 400; await context.Response.WriteAsync("교내 접속에는 HTTPS가 필요합니다."); return; }
@@ -121,6 +130,8 @@ app.UseExceptionHandler(error => error.Run(async context =>
 }));
 app.UseDefaultFiles();
 app.UseStaticFiles();
+if (app.Environment.IsDevelopment() && Directory.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot")))
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "wwwroot")) });
 app.UseRouting();
 app.UseRateLimiter();
 app.UseAuthentication();
@@ -476,6 +487,8 @@ app.MapHub<MessageHub>("/hub", options => options.CloseOnAuthenticationExpiratio
 app.MapHub<RemoteHub>("/remote", options => { options.CloseOnAuthenticationExpiration = true; options.ApplicationMaxBufferSize = 4096; options.TransportMaxBufferSize = 4096; });
 // Cleanup before accepting connections also handles expiry while the server was offline.
 app.Services.GetRequiredService<Maintenance>().Cleanup();
+ExternalAnnouncements.Map(app, app.Services.GetRequiredService<ExternalAnnouncements>());
+Timetables.Map(app, app.Services.GetRequiredService<Timetables>());
 app.Run();
 
 static string UserId(HttpContext c) => c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;

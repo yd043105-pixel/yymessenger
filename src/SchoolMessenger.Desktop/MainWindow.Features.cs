@@ -14,10 +14,12 @@ public partial class MainWindow
     void NotifyFeature(string text, string target)
     { if (!DoNotDisturb.IsChecked) { notificationTarget = target; tray.ShowBalloonTip(4000, "온라인 교무실", text, System.Windows.Forms.ToolTipIcon.Info); if (!Quiet.IsChecked) System.Media.SystemSounds.Asterisk.Play(); } }
     void OpenNotification()
-    { if (notificationTarget == "chat") OpenChat(); else if (notificationTarget == "survey") OpenSurvey(); else OpenMailbox("unread"); }
+    { if (notificationTarget == "chat") OpenChat(); else if (notificationTarget == "survey") OpenSurvey(); else if(notificationTarget=="timetable"&&Api is not null)new TimetableWindow(this).Show();else OpenMailbox("unread"); }
     void OpenChatClick(object sender, RoutedEventArgs e) => OpenChat();
     void OpenSurveyClick(object sender, RoutedEventArgs e) => OpenSurvey();
     void OpenWorkClick(object sender, RoutedEventArgs e) { if (Api is not null) new WorkWindow(this).Show(); }
+    void OpenAnnouncementClick(object sender, RoutedEventArgs e) { if (Api is not null) new AnnouncementWindow(this).Show(); }
+    void OpenTimetableClick(object sender,RoutedEventArgs e){if(Api is not null)new TimetableWindow(this).Show();}
     void OpenChat(string[]? ids = null)
     {
         if (Api is null) return;

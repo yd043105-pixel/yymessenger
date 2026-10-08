@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>net10.0-android</TargetFrameworks>
+        <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('osx'))">net10.0-ios</TargetFrameworks>
+        <NuGetLockFilePath Condition="$([MSBuild]::IsOSPlatform('osx'))">packages.ios.lock.json</NuGetLockFilePath>
+        <RuntimeIdentifiers Condition="$([MSBuild]::IsOSPlatform('osx'))">ios-arm64;iossimulator-arm64;iossimulator-x64</RuntimeIdentifiers>
+
+		<OutputType>Exe</OutputType>
+		<RootNamespace>SchoolMessenger.Mobile</RootNamespace>
+		<UseMaui>true</UseMaui>
+		<SingleProject>true</SingleProject>
+		<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+		<UseDefaultPublishRuntimeIdentifier>false</UseDefaultPublishRuntimeIdentifier>
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+		<AndroidManifest Condition="'$(Configuration)' == 'Debug'">Platforms/Android/AndroidManifest.Debug.xml</AndroidManifest>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<!-- Display name -->
+		<ApplicationTitle>여양고 학교 소식</ApplicationTitle>
+
+		<!-- App Identifier -->
+		<ApplicationId>kr.school.yeoyang.messenger</ApplicationId>
+
+		<!-- Versions -->
+		<ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+		<ApplicationVersion>2</ApplicationVersion>
+
+
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+	</PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug' And '$(IosVerification)' == 'true'">
+        <DefineConstants>$(DefineConstants);IOS_VERIFY</DefineConstants>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'iossimulator-arm64' Or '$(RuntimeIdentifier)' == 'iossimulator-x64'">
+        <CodesignEntitlements>Platforms/iOS/Entitlements.Simulator.plist</CodesignEntitlements>
+        <CodesignRequireProvisioningProfile>false</CodesignRequireProvisioningProfile>
+        <CodesignKey>-</CodesignKey>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios' And '$(Configuration)' == 'Debug'">
+        <PartialAppManifest Include="Platforms/iOS/Info.Debug.plist" />
+        <Compile Include="../../tests/IosRuntimeChecks.cs" Link="IosRuntimeChecks.cs" Condition="'$(IosVerification)' == 'true'" />
+    </ItemGroup>
+
+	<ItemGroup>
+		<AndroidResource Include="Platforms/Android/Resources/xml/network_security_config.xml" Condition="'$(Configuration)' == 'Debug'" />
+		<!-- App Icon -->
+		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#1c334f" />
+
+		<!-- Splash Screen -->
+		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#1c334f" BaseSize="128,128" />
+
+		<!-- Images -->
+		<MauiImage Include="Resources\Images\*" />
+
+		<!-- Custom Fonts -->
+		<MauiFont Include="Resources\Fonts\*.ttf" />
+		<MauiAsset Include="Resources/Fonts/LICENSE-OpenSans.txt;Resources/Fonts/NOTICE-OpenSans.txt" LogicalName="licenses/%(Filename)%(Extension)" />
+
+		<!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
+		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Share the DTO source without inheriting the Windows service runtime graph. -->
+		<Compile Include="../SchoolMessenger.Contracts/Announcements.cs" Link="Contracts/Announcements.cs" />
+        <Compile Include="../SchoolMessenger.Shared/ReleaseNotice.cs" Link="ReleaseNotice.cs" />
+        <EmbeddedResource Include="../SchoolMessenger.Shared/updates.json" LogicalName="SchoolMessenger.UpdateNotes.json" />
+		<!-- The installed workload version must not silently change the locked app dependencies. -->
+		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+	</ItemGroup>
+
+</Project>

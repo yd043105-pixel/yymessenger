@@ -15,7 +15,7 @@
    </StackPanel></Border>
    <Border DockPanel.Dock="Left" Width="60" Background="{StaticResource Navy}"><DockPanel Margin="0,8">
     <Button DockPanel.Dock="Bottom" ToolTip="설정" Style="{StaticResource RailButton}" Click="OpenSettings"><StackPanel><Path Data="{StaticResource SettingsIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="설정" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel>
-     <Button.ContextMenu><ContextMenu><MenuItem x:Name="Quiet" Header="알림 소리 끄기" IsCheckable="True"/><MenuItem x:Name="DoNotDisturb" Header="방해금지" IsCheckable="True"/><MenuItem x:Name="AutoStartMenu" Header="Windows 로그인 시 자동 실행" IsCheckable="True" Checked="StartupChanged" Unchecked="StartupChanged"/><Separator/><MenuItem Header="내 비밀번호 변경" Click="ChangePassword"/><MenuItem x:Name="AdminButton" Header="교직원 · 서버 관리" Click="OpenAdmin" Visibility="Collapsed"/><Separator/><MenuItem Header="로그아웃" Click="Logout"/><MenuItem Header="프로그램 종료" Click="ExitApp"/></ContextMenu></Button.ContextMenu>
+     <Button.ContextMenu><ContextMenu><MenuItem x:Name="Quiet" Header="알림 소리 끄기" IsCheckable="True"/><MenuItem x:Name="DoNotDisturb" Header="방해금지" IsCheckable="True"/><MenuItem x:Name="AutoStartMenu" Header="Windows 로그인 시 자동 실행" IsCheckable="True" Checked="StartupChanged" Unchecked="StartupChanged"/><Separator/><MenuItem Header="업데이트 내역" Click="OpenUpdates"/><MenuItem Header="내 비밀번호 변경" Click="ChangePassword"/><MenuItem x:Name="AdminButton" Header="교직원 · 서버 관리" Click="OpenAdmin" Visibility="Collapsed"/><Separator/><MenuItem Header="로그아웃" Click="Logout"/><MenuItem Header="프로그램 종료" Click="ExitApp"/></ContextMenu></Button.ContextMenu>
     </Button>
     <StackPanel>
      <Button x:Name="OrganizationButton" Style="{StaticResource RailButton}" Background="{StaticResource Blue}" Foreground="White" Click="ShowOrganization"><StackPanel><Path Data="{StaticResource TreeIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="조직도" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
@@ -26,6 +26,8 @@
      <Button Style="{StaticResource RailButton}" Click="OpenChatClick"><StackPanel><Path Data="{StaticResource ChatIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="채팅" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
      <Button Style="{StaticResource RailButton}" Click="OpenSurveyClick"><StackPanel><Path Data="{StaticResource SurveyIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="설문" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
      <Button Style="{StaticResource RailButton}" Click="OpenWorkClick"><StackPanel><Path Data="{StaticResource FileIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="할 일·제출" FontSize="9" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
+     <Button Style="{StaticResource RailButton}" Click="OpenAnnouncementClick"><StackPanel><Path Data="{StaticResource MailIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="학교 공지" FontSize="9" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
+     <Button Style="{StaticResource RailButton}" Click="OpenTimetableClick"><StackPanel><Path Data="{StaticResource HistoryIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="시간표" FontSize="9" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
     </StackPanel>
    </DockPanel></Border>
    <DockPanel>

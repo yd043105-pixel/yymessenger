@@ -15,6 +15,7 @@ public sealed class Store
     public Store(IConfiguration config)
     {
         Root = Path.GetFullPath(config["School:DataDirectory"] ?? "data");
+        if(File.Exists(Path.Combine(Root,"announcements.db")))throw new InvalidOperationException("교직원 서버와 외부 공지 서버의 데이터 폴더를 분리하세요.");
         BackupDirectory = Path.GetFullPath(config["School:BackupDirectory"] ?? Path.Combine(Root, "backups"));
         Directory.CreateDirectory(Files);
         using var connection = Open();

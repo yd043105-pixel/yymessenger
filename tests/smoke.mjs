@@ -61,6 +61,9 @@ class Client {
 function check(label) { passed.push(label); console.log('PASS ' + label); }
 try {
   start(); await ready();
+  for (const asset of ['updates.json','update-notice.js','update-notice.css']) assert.equal((await fetch(address+'/'+asset)).status,200);
+  assert.equal((await (await fetch(address+'/updates.json')).json()).version,JSON.parse(readFileSync('src/SchoolMessenger.Shared/updates.json','utf8')).version);
+  check('school web serves bundled update notes and popup assets in development and packaged builds');
   const anonymous = new Client(), admin = new Client(), alice = new Client(), bob = new Client(), carol = new Client();
   await anonymous.request('/api/messages', 'GET', undefined, 401); check('unauthenticated mailbox blocked');
   await admin.login('admin');
@@ -182,6 +185,9 @@ try {
     assert.equal(existsSync(path.join(data, 'client/login.dat')), false);
     assert.equal(JSON.parse(readFileSync(path.join(data, 'client/preferences.json'), 'utf8')).AutoLogin, false);
     check('native registration, DPAPI automatic login, logout cleanup and startup settings');
+    assert.equal(JSON.parse(readFileSync('artifacts/update-notice-check.json', 'utf8')).checks, 6);
+    assert.ok(existsSync('artifacts/update-notice-preview.png'));
+    check('native update popup confirms once, preserves deferred notice, handles older/newer versions and manual history');
     assert.ok(existsSync('artifacts/tasks-preview.png') && existsSync('artifacts/submissions-preview.png'));
     assert.ok((await admin.request('/api/todos')).some(t => t.title === 'Windows 업무 창에서 등록한 할 일'));
     assert.ok((await admin.request('/api/submission-requests')).some(r => r.title === 'Windows 제출 요청 검증'));
@@ -195,6 +201,6 @@ try {
     }
   }
   await workChecks({ Client, admin, password, address, data, check, start, stop, ready });
-  writeFileSync('artifacts/test-results.json', JSON.stringify({ verifiedAt: new Date().toISOString(), mode: packaged ? 'self-contained Windows executables' : 'development build', passed, skipped: skipNativeInput ? ['actual Windows keyboard injection: pending Windows firewall consent dialog prevents verification-window focus'] : [], testData: data }, null, 2));
+  writeFileSync('artifacts/test-results.json', JSON.stringify({ verifiedAt: new Date().toISOString(), mode: packaged ? 'self-contained Windows executables' : 'development build', passed, skipped: skipNativeInput ? ['actual Windows keyboard injection: another foreground Windows dialog prevents verification-window focus'] : [], testData: data }, null, 2));
   console.log(`${passed.length} checks passed.`);
 } finally { await stop(); }
