@@ -58,6 +58,7 @@ try {
     Copy-Item -LiteralPath 'docs\web-tasks-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-operations.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\ios-operations.md','docs\ios-verification.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\releases.md' -Destination $packageDocs
     Set-Content -LiteralPath (Join-Path $packageDirectory 'VERSION.txt') -Value $Version -Encoding ASCII
     $privateFiles = Get-ChildItem -LiteralPath $packageDirectory -Recurse -File | Where-Object { $_.Name -match '(?i)(\.db($|-)|\.sqlite3?($|-)|\.pfx$|\.pem$|\.key$|^login\.dat$|^\.env|^appsettings\.Production\.json$)' }

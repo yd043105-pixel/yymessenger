@@ -10,6 +10,8 @@ macOS 26.2 이상과 Xcode 26.6, .NET SDK 10.0.401을 준비하고 `dotnet workl
 
 GitHub Verify의 iOS 작업은 Mac에서 네이티브 앱을 빌드하고 별도 가상 교직원·학급·보호자·공지 서버와 새 iPhone 시뮬레이터를 사용한다. 검사 전용 코드는 `IosVerification=true`인 Debug 빌드에만 포함하며 Release·일반 앱에는 포함하지 않는다. 결과 JSON과 시뮬레이터 화면을 Actions artifact에 저장한다. 비밀번호·세션·가상 서버 DB·연결 키는 artifact에 포함하지 않는다.
 
+최종 Mac 실행 검사 14개와 Release 번들 검사가 통과했다. 실제 기기 시험과의 차이, 사용한 버전과 실행 링크는 [iOS 시운행 기록](ios-verification.md)에 있다.
+
 ## 로그인·화면 보호
 
 iOS 세션은 잠금이 풀린 해당 기기에 한정하는 Keychain 접근 등급을 사용한다. iOS Keychain 항목이 앱 제거 뒤에도 남을 수 있으므로, 최초 실행 표시가 없는 새 설치는 앱의 이전 보안 저장 항목을 지운다. 보통의 앱 재실행에서는 로그인 정보를 유지하고 로그아웃하면 서버 세션과 로컬 저장을 제거한다. [Microsoft 보안 저장소 안내](https://learn.microsoft.com/en-us/dotnet/maui/platform-integration/storage/secure-storage?view=net-maui-10.0)
