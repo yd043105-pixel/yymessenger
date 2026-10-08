@@ -71,6 +71,25 @@ jobs:
           dotnet build src/SchoolMessenger.AnnouncementServer -p:RestoreLockedMode=true --nologo
       - name: Verify native iPhone simulator
         run: node tests/ios-simulator.mjs
+      - name: Verify Release build and transport settings
+        run: |
+          runtime=iossimulator-x64
+          [[ "$(uname -m)" != arm64 ]] || runtime=iossimulator-arm64
+          dotnet build src/SchoolMessenger.Mobile -f net10.0-ios -c Release -r "$runtime" --no-restore --nologo
+          python3 - "$runtime" <<'PY'
+          import plistlib, sys
+          from pathlib import Path
+          bundle = Path('src/SchoolMessenger.Mobile/bin/Release/net10.0-ios') / sys.argv[1] / 'SchoolMessenger.Mobile.app'
+          info = plistlib.loads((bundle / 'Info.plist').read_bytes())
+          assert info['CFBundleShortVersionString'] == '1.0.0'
+          assert info['CFBundleVersion'] == '2'
+          assert info.get('NSLocalNetworkUsageDescription')
+          assert info.get('NSPhotoLibraryAddUsageDescription') and info.get('NSPhotoLibraryUsageDescription')
+          assert not info.get('NSAppTransportSecurity', {}).get('NSAllowsArbitraryLoads', False)
+          assert 'localhost' not in info.get('NSAppTransportSecurity', {}).get('NSExceptionDomains', {})
+          assert (bundle / 'PrivacyInfo.xcprivacy').exists()
+          print('PASS iOS Release bundle version, permission descriptions, privacy manifest and exclusion of Debug HTTP exception')
+          PY
       - name: Save simulator app, screenshots and verification report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -16,7 +16,9 @@ iOS 세션은 잠금이 풀린 해당 기기에 한정하는 Keychain 접근 등
 
 비활성화 시 기본 창 전체를 가려 최근 앱 화면의 제목·본문·팝업 노출을 줄인다. 백그라운드 복귀는 기존 모바일 앱의 세션 재확인 절차를 사용한다. iOS의 사용자가 직접 촬영하는 스크린샷까지 차단한다고 보장하지 않는다.
 
-교내 Wi-Fi·학교 VPN의 HTTPS 서버에 연결할 때 필요한 로컬 네트워크 접근 목적을 한국어로 표시한다. 카메라·사진첩 전체 접근은 요청하지 않으며 첨부 선택은 기본 문서 선택기, 저장·공유는 기본 공유 창을 사용한다. Release는 HTTPS만 허용한다. Debug의 ATS 예외는 `localhost` 시험 서버에 한정하며 인증서 검증을 끄지 않는다.
+교내 Wi-Fi·학교 VPN의 HTTPS 서버에 연결할 때 필요한 로컬 네트워크 접근 목적을 한국어로 표시한다. 카메라 접근을 요청하지 않으며 첨부 선택은 기본 문서 선택기, 저장·공유는 기본 공유 창을 사용한다. 사용자가 이미지 첨부의 사진 앱 저장·공유를 선택할 때 필요한 사진 접근 목적도 한국어로 표시한다. 앱 시작 때 사진 권한을 일괄 요청하지 않는다. [Microsoft 공유 API 안내](https://learn.microsoft.com/en-us/dotnet/maui/platform-integration/data/share?view=net-maui-10.0)
+
+Release는 HTTPS만 허용한다. Debug의 ATS 예외는 `localhost` 시험 서버에 한정하며 인증서 검증을 끄지 않는다. CI는 Release 시뮬레이터 빌드와 실제 번들 버전·권한 문구·Debug ATS 예외의 제외도 검사한다.
 
 ## 실제 iPhone·TestFlight 준비
 
