@@ -80,7 +80,8 @@ public sealed partial class MessengerPage : ContentPage
         foreach(var notice in scheduleNotices.EnumerateArray().Where(n=>n.GetProperty("readAt").ValueKind==JsonValueKind.Null))
         {
             var revision=notice.GetProperty("revision").GetInt64();var day=notice.GetProperty("date").GetString();
-            Action("● "+notice.GetProperty("title").GetString()+" · "+day,async()=>{if(await Timetable(day)&&Current(source,version))await source.Send($"api/timetable/notices/{revision}/read");});
+            var room=notice.GetProperty("classIds").EnumerateArray().Select(c=>c.GetString()).FirstOrDefault();
+            Action("● "+notice.GetProperty("title").GetString()+" · "+day,async()=>{if(await Timetable(day,room)&&Current(source,version))await source.Send($"api/timetable/notices/{revision}/read");});
         }
         if(source.Office)
         {

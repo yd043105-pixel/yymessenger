@@ -27,7 +27,7 @@ window.TimetableUI=(()=>{
    finally{busy=false;day.disabled=week.disabled=false;}
   }
   day.onclick=()=>show();week.onclick=()=>show(true);
-  try{for(const notice of await request('timetable/notices'))if(!notice.readAt){const button=node('button','● '+notice.title+' · '+notice.date);button.type='button';button.onclick=async()=>{if(busy)return;date.value=notice.date;if(await show())try{await request('timetable/notices/'+notice.revision+'/read','POST');if(ticket===epoch)button.remove();}catch(e){error.textContent=e.message;}};notices.append(button);}}catch(e){if(ticket===epoch)error.textContent=e.message;}
+  try{for(const notice of await request('timetable/notices'))if(!notice.readAt){const button=node('button','● '+notice.title+' · '+notice.date);button.type='button';button.onclick=async()=>{if(busy)return;date.value=notice.date;if([...scope.options].some(o=>o.value===notice.classIds[0]))scope.value=notice.classIds[0];if(await show())try{await request('timetable/notices/'+notice.revision+'/read','POST');if(ticket===epoch)button.remove();}catch(e){error.textContent=e.message;}};notices.append(button);}}catch(e){if(ticket===epoch)error.textContent=e.message;}
   if(ticket===epoch)await show();
  }
  return{open,reset};

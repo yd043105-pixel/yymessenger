@@ -151,13 +151,14 @@ public sealed class Timetables:BackgroundService
     }
     TimetableNotice[] Notifications(TimetableBatch batch,Change[] changes)
     {
-        var directory=Directory();var classes=changes.Select(c=>c.ClassId).Distinct().ToArray();var users=changes.SelectMany(c=>new[]{c.BeforeTeacherId,c.TeacherId}).Where(id=>id.Length>0).ToHashSet();
-        foreach(var home in Data.Homerooms().Where(h=>classes.Contains(h.ClassId)))if(school.GetUser(home.TeacherId) is{Active:true})users.Add(home.TeacherId);
-        var recipients=new HashSet<string>(users);
-        foreach(var teacher in directory.People.Where(p=>p.Role=="teacher"&&p.InternalUserId is not null&&users.Contains(p.InternalUserId)))recipients.Add(teacher.Id);
+        var directory=Directory();var classes=changes.Select(c=>c.ClassId).Distinct().ToArray();var recipients=new Dictionary<string,HashSet<string>>();
+        void Add(string user,string room){if(user.Length==0)return;if(!recipients.TryGetValue(user,out var scope))recipients[user]=scope=[];scope.Add(room);}
+        foreach(var change in changes){Add(change.BeforeTeacherId,change.ClassId);Add(change.TeacherId,change.ClassId);}
+        foreach(var home in Data.Homerooms().Where(h=>classes.Contains(h.ClassId)))if(school.GetUser(home.TeacherId) is{Active:true})Add(home.TeacherId,home.ClassId);
+        foreach(var (user,scope) in recipients.ToArray())foreach(var teacher in directory.People.Where(p=>p.Role=="teacher"&&p.InternalUserId==user))foreach(var room in scope)Add(teacher.Id,room);
         foreach(var student in directory.People.Where(p=>p.Role=="student"&&p.ClassId is not null&&classes.Contains(p.ClassId)))
-        {recipients.Add(student.Id);foreach(var parent in directory.People.Where(p=>p.Role=="parent"&&p.Children.Contains(student.Id)))recipients.Add(parent.Id);}
-        return recipients.Select(id=>new TimetableNotice(batch.Revision,id,batch.Start,classes,batch.Withdrawn?"시간표 등록이 취소되었습니다":"학교 시간표가 변경되었습니다",batch.PublishedAt)).ToArray();
+        {Add(student.Id,student.ClassId!);foreach(var parent in directory.People.Where(p=>p.Role=="parent"&&p.Children.Contains(student.Id)))Add(parent.Id,student.ClassId!);}
+        return recipients.Select(r=>new TimetableNotice(batch.Revision,r.Key,batch.Start,r.Value.ToArray(),batch.Withdrawn?"시간표 등록이 취소되었습니다":"학교 시간표가 변경되었습니다",batch.PublishedAt)).ToArray();
     }
     async Task<IResult> Publish(TimetableCommit request,string owner)
     {

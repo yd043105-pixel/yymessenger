@@ -41,7 +41,7 @@ public sealed class TimetableWindow:Window
         var choices=new[]{new Choice("mine","내 수업")}.Concat(setup.GetProperty("classes").EnumerateArray().Select(r=>new Choice(r.GetProperty("id").GetString()!,r.GetProperty("name").GetString()!))).ToArray();
         scope.ItemsSource=choices;scope.SelectedIndex=0;body.Children.Add(scope);Action("선택한 날짜 보기",()=>Show(false));Action("선택한 주 보기",()=>Show(true));
         var notices=await api.Get<TimetableNotice[]>("api/timetable/notices");
-        foreach(var n in notices.Where(n=>n.ReadAt is null))Action(n.Title+" · "+n.Date,async()=>{date.SelectedDate=DateTime.Parse(n.Date);await Show(false);await api.Send<JsonElement>(HttpMethod.Post,$"api/timetable/notices/{n.Revision}/read");});
+        foreach(var n in notices.Where(n=>n.ReadAt is null))Action(n.Title+" · "+n.Date,async()=>{date.SelectedDate=DateTime.Parse(n.Date);var choice=choices.FirstOrDefault(c=>n.ClassIds.Contains(c.Id));if(choice is not null)scope.SelectedItem=choice;await Show(false);await api.Send<JsonElement>(HttpMethod.Post,$"api/timetable/notices/{n.Revision}/read");});
         if(setup.GetProperty("canManage").GetBoolean()){Action("학기 기초시간표 올리기",()=>Choose("base"));Action("일자별 시간표 올리기",()=>Choose("daily"));Action("게시 이력 · 취소",History);}
         if(setup.GetProperty("isAdmin").GetBoolean())Action("수업 담당자 권한 · 담임 연결",Administration);
         var pending=setup.GetProperty("pending").GetInt32();if(pending>0)body.Children.Add(Text("앱 전달 대기 "+pending+"건 · 외부 연결이 복구되면 재시도합니다."));

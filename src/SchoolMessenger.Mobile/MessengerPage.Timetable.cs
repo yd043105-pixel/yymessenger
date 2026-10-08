@@ -5,7 +5,7 @@ namespace SchoolMessenger.Mobile;
 
 public sealed partial class MessengerPage
 {
-    async Task<bool> Timetable(string? selectedDate=null)
+    async Task<bool> Timetable(string? selectedDate=null,string? selectedClass=null)
     {
         var source=api!;var version=epoch;var setup=await source.Get("api/timetable/setup");if(!Current(source,version))return false;
         var teacher=source.Office||source.Session.GetProperty("user").GetProperty("role").GetString()=="teacher";
@@ -15,6 +15,7 @@ public sealed partial class MessengerPage
         var date=new DatePicker{Date=selectedDate is null?DateTime.UtcNow.AddHours(9).Date:DateTime.ParseExact(selectedDate,"yyyy-MM-dd",CultureInfo.InvariantCulture)};
         var scopes=(teacher?new[]{"내 수업"}:Array.Empty<string>()).Concat(rooms.Select(r=>r.GetProperty("name").GetString()!)).ToArray();
         var scope=new Picker{Title="조회할 시간표",ItemsSource=scopes,SelectedIndex=scopes.Length>0?0:-1};
+        if(selectedClass is not null){var index=Array.FindIndex(rooms,r=>r.GetProperty("id").GetString()==selectedClass);if(index>=0)scope.SelectedIndex=index+(teacher?1:0);}
         stack.Add(Text(teacher?"본인 수업 또는 학급을 선택하세요.":"학생별 수강 목록 등록 전에는 학급 시간표를 보여줍니다.",13));stack.Add(date);stack.Add(scope);
         var error=Text("",13);stack.Add(error);var dayButton=new Button{Text="선택한 날짜 보기",BackgroundColor=Blue,TextColor=Colors.White};var weekButton=new Button{Text="선택한 주 보기"};stack.Add(dayButton);stack.Add(weekButton);
         var content=new VerticalStackLayout{Spacing=14};stack.Add(content);bool loading=false,loaded=false;
