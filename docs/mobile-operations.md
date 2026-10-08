@@ -60,4 +60,4 @@ Android 실제 출시에는 학교의 Google Play 개발자 계정, 지속 사�
 
 실제 Windows 키보드 입력 검사는 앞에 열린 Windows 파일 선택 창이 검사 창의 포커스를 막아 별도 보류했다. 해당 입력을 다른 창에 보내지 않았으며, 직접 연결의 화면·입력 패킷·권한 회수 검사와 WPF 화면 검사는 통과했다. 실제 두 교직원 PC 사이의 학교 망 검사, Android 실기기·iPhone, 실제 외부 도메인 접속과 스토어 심사는 별도 운영 준비다.
 
-재현 명령은 `scripts/Build.ps1 -HeadlessTests -Version 0.1.0-beta.2`, `node tests/smoke.mjs --ui --package`, `scripts/Build-Mobile.ps1`, `node tests/portal-preview.mjs` 후 전용 에뮬레이터에서 `node tests/mobile-ui.mjs`다. 실제 입력을 제외하려면 명시적으로 `--skip-native-input`을 사용한다. 결과 JSON은 로컬 `artifacts`에 기록하며 운영 데이터·초대 코드·연결 키·서명 개인키와 함께 Git에 올리지 않는다.
+현재 재현 명령은 `scripts/Build.ps1 -HeadlessTests -Version 1.0.0`, `node tests/smoke.mjs --ui --package`, `scripts/Build-Mobile.ps1`, `node tests/portal-preview.mjs` 후 전용 에뮬레이터에서 `node tests/mobile-ui.mjs`다. 이전 시험판 버전의 검사 기록은 당시 결과를 보존한다. 실제 입력을 제외하려면 명시적으로 `--skip-native-input`을 사용한다. 결과 JSON은 로컬 `artifacts`에 기록하며 운영 데이터·초대 코드·연결 키·서명 개인키와 함께 Git에 올리지 않는다.

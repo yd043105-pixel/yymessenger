@@ -22,7 +22,7 @@
 		<ApplicationId>kr.school.yeoyang.messenger</ApplicationId>
 
 		<!-- Versions -->
-		<ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+		<ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
 		<ApplicationVersion>2</ApplicationVersion>
 
 
