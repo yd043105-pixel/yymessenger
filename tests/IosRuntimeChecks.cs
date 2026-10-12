@@ -32,10 +32,11 @@ internal static class IosRuntimeChecks
     static ContentPage CurrentPage => (ContentPage)Page.Navigation.NavigationStack.Last();
     static IEnumerable<View> Controls => Views(CurrentPage.Content);
     static bool Has(string text) => Controls.OfType<Label>().Any(v => v.Text?.Contains(text) == true) || Controls.OfType<Button>().Any(v => v.Text?.Contains(text) == true);
-    static async Task Wait(Func<bool> condition)
+    static async Task Wait(Func<bool> condition,int timeoutMilliseconds=20000)
     {
-        for (var attempt = 0; attempt < 200; attempt++) { if (condition()) return; await Task.Delay(100); }
-        throw new InvalidOperationException("Native iOS state timed out at "+CurrentPage.Title+"; controls: "+string.Join(" | ",Controls.OfType<Label>().Select(v=>v.Text).Concat(Controls.OfType<Button>().Select(v=>v.Text))));
+        var elapsed=System.Diagnostics.Stopwatch.StartNew();
+        while(elapsed.ElapsedMilliseconds<timeoutMilliseconds){if(condition())return;await Task.Delay(100);}
+        throw new InvalidOperationException("Native iOS state timed out at "+CurrentPage.Title+"; ready: "+Page.VerificationReady+"; controls: "+string.Join(" | ",Controls.OfType<Label>().Select(v=>v.Text).Concat(Controls.OfType<Button>().Select(v=>v.Text))));
     }
     static void Check(bool condition, string description)
     {
@@ -48,7 +49,8 @@ internal static class IosRuntimeChecks
     {
         await Wait(() => Page.VerificationReady&&Controls.OfType<Button>().Any(b => b.Text == text && b.IsEnabled));
         ((IButtonController)Controls.OfType<Button>().Single(b => b.Text == text)).SendClicked();
-        await Wait(()=>Page.VerificationReady);
+        // A cold simulator may need several sequential login, session, and home requests.
+        await Wait(()=>Page.VerificationReady,60000);
     }
     static async Task TapAccount(string text)
     {

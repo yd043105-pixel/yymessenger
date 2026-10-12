@@ -40,7 +40,7 @@ try {
     if (phase === 'restore') command(['simctl', 'terminate', device, id]);
     command(['simctl', 'launch', device, id], { ...process.env, SIMCTL_CHILD_YY_IOS_VERIFY: phase });
     const report = path.join(documents, 'ios-' + phase + '-results.json');
-    for (let attempt = 0; attempt < 360 && !existsSync(report); attempt++) await delay(500);
+    for (let attempt = 0; attempt < 480 && !existsSync(report); attempt++) await delay(500);
     if(!existsSync(report)){
       const progress=path.join(documents,'ios-progress.json');
       if(existsSync(progress))copyFileSync(progress,path.join(output,'ios-timeout-progress.json'));
