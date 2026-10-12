@@ -70,7 +70,7 @@ public sealed partial class MessengerPage
     async Task Home()
     {
         var source=api!;var user=source.Session.GetProperty("user");var version=++epoch;
-        var name=user.GetProperty("name").GetString()!;var role=user.GetProperty("role").GetString();
+        var name=user.GetProperty("name").GetString()!;var role=source.Office?"teacher":user.GetProperty("role").GetString();
         Header(name+"님, 안녕하세요",homeTab=="account"?"내 정보":source.Office?"온라인 교무실":"학교 소식");NavigationTabs(source.Office);
         await ShowUpdates();if(!Current(source,version))return;
         if(homeTab=="account")

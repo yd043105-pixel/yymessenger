@@ -156,6 +156,13 @@ internal static class IosRuntimeChecks
                 await TapAccount("설정 · 내 고유번호");await Wait(()=>CurrentPage.Title=="설정 · 내 고유번호");
                 Check(Controls.OfType<Entry>().Single(e=>e.IsReadOnly).Text==firstCode,"native student settings displays its own protected eight-character code");
                 await Page.Navigation.PopAsync();await Tap("홈");await Wait(()=>Has("10월 현장체험학습 안내"));await TapAccount("로그아웃");await Wait(()=>Has("우리 학교 소식"));
+                Controls.OfType<Picker>().Single().SelectedIndex=1;
+                entries=Controls.OfType<Entry>().ToArray();entries[0].Text=office;entries[1].Text=fixture.GetProperty("admin").GetString();entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("교직원 업무 메시지 검증"));
+                Check(Has("온라인 교무실")&&Has("메시지"),"native office home renders the internal account schema without requiring a public portal role");
+                await Tap("교직원 업무 메시지 검증");await Wait(()=>Has("교직원 전용 메시지입니다"));
+                Check(!Has("현장체험학습 안내"),"native office detail displays internal messages independently of the public school feed");
+                await Page.Navigation.PopAsync();await TapAccount("로그아웃");await Wait(()=>Has("우리 학교 소식"));
+                Controls.OfType<Picker>().Single().SelectedIndex=0;
                 entries=Controls.OfType<Entry>().ToArray();entries[0].Text=portal;entries[1].Text=fixture.GetProperty("parent").GetString();entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("10월 현장체험학습 안내"));
                 // Leave the original fixture parent signed in for the process-restart check.
                 await Page.Resume(); await Wait(() => Has("10월 현장체험학습 안내"));
