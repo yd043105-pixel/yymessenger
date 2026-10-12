@@ -9,7 +9,7 @@ for(const base of [fixture.office,fixture.portal])assert.ok(['localhost','127.0.
 const adb=process.env.YY_ADB??path.join(root,'.tools/android/platform-tools/adb.exe'),serial=process.env.YY_ANDROID_SERIAL??'emulator-5556',port=process.env.YY_ADB_PORT??'5039';
 const work=path.join(root,'.test-data/app-preview'),screens=path.join(root,'artifacts/app-screens'),passed=[];mkdirSync(work,{recursive:true});mkdirSync(screens,{recursive:true});
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
-function cmd(...args){const result=spawnSync(adb,['-P',port,'-s',serial,...args],{encoding:'utf8',windowsHide:true,timeout:240000});if(result.status!==0)throw Error((result.stderr||result.error?.message||'adb failed').slice(-700));return result.stdout;}
+function cmd(...args){const result=spawnSync(adb,['-P',port,'-s',serial,...args],{encoding:'utf8',windowsHide:true,timeout:240000});if(result.status!==0)throw Error((result.stderr||result.stdout||result.error?.message||'adb failed').slice(-700));return result.stdout;}
 const decode=s=>s.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&');
 function dump(){cmd('shell','uiautomator','dump','/sdcard/yy-office.xml');cmd('pull','/sdcard/yy-office.xml',path.join(work,'office-ui.xml'));return [...readFileSync(path.join(work,'office-ui.xml'),'utf8').matchAll(/<node\s+([^>]+)>?/g)].map(m=>Object.fromEntries([...m[1].matchAll(/([\w-]+)="([^"]*)"/g)].map(a=>[a[1],decode(a[2])])));}
 async function find(predicate){for(let n=0;n<25;n++){try{const value=dump().find(predicate);if(value)return value;}catch{}await delay(500);}throw Error('Native control missing: '+dump().map(v=>v.text).filter(Boolean).join(' | '));}
