@@ -35,3 +35,6 @@ artifacts/
 *.ipa
 *.apk
 *.aab
+.stitch/designs/
+.stitch/metadata.json
+*.dpapi

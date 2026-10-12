@@ -167,6 +167,7 @@ internal static class IosRuntimeChecks
                 Controls.OfType<Picker>().Single().SelectedIndex=1;
                 entries=Controls.OfType<Entry>().ToArray();entries[0].Text=office;entries[1].Text=fixture.GetProperty("admin").GetString();entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("교직원 업무 메시지 검증"));
                 Check(Has("온라인 교무실")&&Has("메시지"),"native office home renders the internal account schema without requiring a public portal role");
+                Check(Controls.OfType<Label>().Any(l=>l.Text=="미확인 메시지"),"native iOS office home renders the received-message unread state");
                 await Tap("학사력 · 행사 · 학교 일정");await Wait(()=>Has("교직원 학사일정 검증"));
                 Check(Controls.OfType<DatePicker>().Any()&&Has("학교 일정 등록"),"native teacher calendar displays authenticated school events and manager actions");
                 await Tap("학교 일정 등록");await Wait(()=>Controls.OfType<Entry>().Any(e=>e.Placeholder=="제목"));Controls.OfType<Entry>().Single(e=>e.Placeholder=="제목").Text="iOS 학교 행사 저장 검증";
@@ -176,7 +177,9 @@ internal static class IosRuntimeChecks
                 await Page.Navigation.PopAsync();
                 await Tap("교직원 업무 메시지 검증");await Wait(()=>Has("교직원 전용 메시지입니다"));
                 Check(!Has("현장체험학습 안내"),"native office detail displays internal messages independently of the public school feed");
-                await Page.Navigation.PopAsync();await TapAccount("로그아웃");await Wait(()=>Has("우리 학교 소식"));
+                await Page.Navigation.PopAsync();await Wait(()=>Page.VerificationReady&&Has("교직원 업무 메시지 검증"));
+                Check(!Controls.OfType<Label>().Any(l=>l.Text=="미확인 메시지"),"native iOS opening a received message persists its read state, including a self-recipient");
+                await TapAccount("로그아웃");await Wait(()=>Has("우리 학교 소식"));
                 Controls.OfType<Picker>().Single().SelectedIndex=0;
                 entries=Controls.OfType<Entry>().ToArray();entries[0].Text=portal;entries[1].Text=fixture.GetProperty("parent").GetString();entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("10월 현장체험학습 안내"));
                 // Leave the original fixture parent signed in for the process-restart check.

@@ -29,7 +29,7 @@ public sealed class MessengerApi : IDisposable
         if(uri.Scheme!="https"&&!localDebug)throw new InvalidOperationException("서버 주소는 https://로 시작해야 합니다.");
         Address=uri;Office=office;key="session-"+Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes((office?"office:":"portal:")+uri.AbsoluteUri)));
 #if FAMILY_APP
-        if(office)throw new InvalidOperationException("가족 앱은 학교 소식 서버만 사용할 수 있습니다.");
+        if(office)throw new InvalidOperationException("학생·학부모용 학교 앱은 학교 소식 서버만 사용할 수 있습니다.");
 #elif TEACHER_APP
         if(!office)throw new InvalidOperationException("교사 앱은 교직원 교무실 서버를 사용하세요.");
 #endif
@@ -67,7 +67,7 @@ public sealed class MessengerApi : IDisposable
         else await Persist();
         if(Office&&Session.GetProperty("user").ValueKind==JsonValueKind.Object&&!Session.GetProperty("user").TryGetProperty("department",out _)){await Logout();throw new InvalidOperationException("교사 앱에는 교직원 교무실 서버 주소와 교직원 계정을 사용하세요.");}
 #if FAMILY_APP
-        if(Session.GetProperty("user").ValueKind==JsonValueKind.Object&&(!Session.GetProperty("user").TryGetProperty("role",out var familyRole)||familyRole.GetString() is not("parent" or "student"))){await Logout();throw new InvalidOperationException("가족 앱은 학교 소식 서버의 학생·학부모 계정으로 로그인하세요.");}
+        if(Session.GetProperty("user").ValueKind==JsonValueKind.Object&&(!Session.GetProperty("user").TryGetProperty("role",out var familyRole)||familyRole.GetString() is not("parent" or "student"))){await Logout();throw new InvalidOperationException("학생·학부모용 학교 앱은 학교 소식 서버의 학생·학부모 계정으로 로그인하세요.");}
 #endif
     }
     public async Task<JsonElement> Get(string path)

@@ -12,10 +12,10 @@ public sealed partial class MessengerPage
         Stroke=color is null?Color.FromArgb("#FFFFFFFF"):Colors.Transparent,StrokeThickness=1,StrokeShape=new RoundRectangle{CornerRadius=20},
         Shadow=new Shadow{Brush=new SolidColorBrush(Navy),Opacity=.045f,Radius=16,Offset=new Point(0,4)}
     };
-    static View Brand()
+    static View Brand(string subtitle="학교와 일상을 잇다")
     {
         var name=new VerticalStackLayout{Spacing=2,VerticalOptions=LayoutOptions.Center};
-        name.Add(Text("여양고등학교",14,true));var caption=Text("학교와 일상을 잇다",10);caption.TextColor=Muted;name.Add(caption);
+        name.Add(Text("여양고등학교",14,true));var caption=Text(subtitle,11);caption.TextColor=Muted;name.Add(caption);
         var logo=Text("여",19,true);logo.TextColor=Colors.White;logo.HorizontalTextAlignment=TextAlignment.Center;logo.VerticalTextAlignment=TextAlignment.Center;
         var grid=new Grid{ColumnDefinitions={new(GridLength.Auto),new(GridLength.Star)},ColumnSpacing=10,Margin=new Thickness(0,0,0,8)};
         grid.Add(new Border{Content=logo,WidthRequest=36,HeightRequest=36,BackgroundColor=Blue,StrokeThickness=0,StrokeShape=new RoundRectangle{CornerRadius=12}});
@@ -85,7 +85,7 @@ public sealed partial class MessengerPage
         var source=api!;var user=source.Session.GetProperty("user");var version=++epoch;
         if(source.Office&&user.TryGetProperty("activationRequired",out var initial)&&initial.GetBoolean()){await ActivateStaff();return;}
         var name=user.GetProperty("name").GetString()!;var role=source.Office?"teacher":user.GetProperty("role").GetString();
-        Header(name+"님, 안녕하세요",homeTab=="account"?"내 정보":source.Office?"온라인 교무실":"학교 소식");NavigationTabs(source.Office);
+        Header(name+"님, 안녕하세요",homeTab=="account"?"내 정보":source.Office?"온라인 교무실":"학교 소식",true);NavigationTabs(source.Office);
         await ShowUpdates();if(!Current(source,version))return;
         if(homeTab=="account")
         {
@@ -145,7 +145,12 @@ public sealed partial class MessengerPage
                 var picker=new Picker{ClassId="school-field",Title="업무",ItemsSource=new[]{"받은 메시지","보낸 메시지","미확인 메시지"},SelectedIndex=view=="sent"?1:view=="unread"?2:0};body.Add(Card(picker,6));picker.SelectedIndexChanged+=async(_,_)=>{view=picker.SelectedIndex==1?"sent":picker.SelectedIndex==2?"unread":"received";offset=0;await Run(Home);};
             }
             var rows=await source.Get("api/messages?box="+(homeTab=="home"?"received":view)+"&offset="+(homeTab=="home"?0:offset));if(!Current(source,version))return;
-            foreach(var row in homeTab=="home"?rows.EnumerateArray().Take(3):rows.EnumerateArray()){var id=row.GetProperty("id").GetString()!;Story(row.GetProperty("title").GetString()!,row.GetProperty("senderName").GetString()!,"교직원",false,()=>OfficeDetail(id));}
+            foreach(var row in homeTab=="home"?rows.EnumerateArray().Take(3):rows.EnumerateArray())
+            {
+                var id=row.GetProperty("id").GetString()!;
+                var fresh=(homeTab=="home"||view!="sent")&&row.GetProperty("readAt").ValueKind==JsonValueKind.Null;
+                Story(row.GetProperty("title").GetString()!,row.GetProperty("senderName").GetString()!,Date(row.GetProperty("createdAt").GetInt64()),fresh,()=>OfficeDetail(id));
+            }
             if(rows.GetArrayLength()==0)Empty("받은 메시지가 없습니다","새 업무 메시지가 도착하면 여기에 표시됩니다.");if(homeTab=="notices"&&rows.GetArrayLength()==100)Action("다음 목록",async()=>{offset+=100;await Home();});
             if(homeTab=="home"&&rows.GetArrayLength()>3)Action("메시지 전체 보기",async()=>{homeTab="notices";offset=0;await Home();});
             Action("학생·보호자 공지 작성 / 발송 현황",()=>Compose(true),true);return;
@@ -170,10 +175,11 @@ public sealed partial class MessengerPage
     void Story(string title,string sender,string date,bool fresh,Func<Task> action)
     {
         var content=new VerticalStackLayout{Spacing=4};
-        var tag=Text(api?.Office==true?"업무 메시지":fresh?"새 소식":"학교 소식",11,true);tag.TextColor=fresh?Blue:Muted;
-        content.Add(tag);
-        var button=MakeAction(title,action);button.ClassId="school-story";button.BackgroundColor=Colors.Transparent;button.FontSize=16;button.FontAttributes=FontAttributes.Bold;button.Padding=0;button.LineBreakMode=LineBreakMode.WordWrap;button.HorizontalOptions=LayoutOptions.Fill;content.Add(button);
-        var metadata=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Auto)},ColumnSpacing=8};var author=Text(sender,11);author.TextColor=Muted;author.LineBreakMode=LineBreakMode.TailTruncation;author.MaxLines=1;var stamp=Text(date,11);stamp.TextColor=Muted;metadata.Add(author);metadata.Add(stamp,1);content.Add(metadata);body.Add(Card(content));
+        var metadata=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Auto)},ColumnSpacing=8};
+        var tag=Text(api?.Office==true?(fresh?"미확인 메시지":"업무 메시지"):fresh?"새 소식":"학교 소식",11,true);tag.TextColor=fresh?Blue:Muted;
+        var stamp=Text(date,11);stamp.TextColor=Muted;metadata.Add(tag);metadata.Add(stamp,1);content.Add(metadata);
+        var button=MakeAction(title,action);button.ClassId="school-story";button.BackgroundColor=Colors.Transparent;button.FontSize=15;button.FontAttributes=FontAttributes.Bold;button.Padding=0;button.LineBreakMode=LineBreakMode.WordWrap;button.HorizontalOptions=LayoutOptions.Fill;content.Add(button);
+        var author=Text(sender,11);author.TextColor=Muted;author.LineBreakMode=LineBreakMode.TailTruncation;author.MaxLines=1;content.Add(author);body.Add(Card(content,14,fresh?Pale:null));
     }
     void Empty(string title,string description)
     {

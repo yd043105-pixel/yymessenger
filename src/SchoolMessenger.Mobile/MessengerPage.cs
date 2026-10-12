@@ -46,7 +46,12 @@ public sealed partial class MessengerPage : ContentPage
             await Run(async()=>{await source.Refresh();if(source.Session.GetProperty("user").ValueKind!=JsonValueKind.Null)await Home();});
     }
     static Label Text(string value,int size=15,bool bold=false)=>new(){Text=value,TextColor=Navy,FontSize=size,FontAttributes=bold?FontAttributes.Bold:FontAttributes.None,LineBreakMode=LineBreakMode.WordWrap};
-    void Header(string caption,string title){body.Clear();body.Add(Brand());var note=Text(caption,12);note.TextColor=Muted;body.Add(note);body.Add(Text(title,25,true));body.Add(feedback);feedback.Text="";}
+    void Header(string caption,string title,bool signedIn=false)
+    {
+        body.Clear();body.Add(Brand(signedIn?(api?.Office==true?"교사용 학교 앱":"학생·학부모용 학교 앱"):"학교와 일상을 잇다"));
+        var heading=new VerticalStackLayout{Spacing=3};heading.Add(Text(title,signedIn?20:25,true));
+        var note=Text(caption,12);note.TextColor=Muted;heading.Add(note);body.Add(heading);body.Add(feedback);feedback.Text="";
+    }
     Entry Input(string title,bool password=false,string? value=null){var field=new VerticalStackLayout{Spacing=4};field.Add(Text(title,12,true));var input=new Entry{ClassId="school-field",Placeholder=title,IsPassword=password,Text=value,TextColor=Navy,BackgroundColor=Colors.Transparent};var border=Card(input);border.Padding=new Thickness(12,0);input.Focused+=(_,_)=>border.Stroke=Blue;input.Unfocused+=(_,_)=>border.Stroke=Line;field.Add(border);body.Add(field);return input;}
     void EnableActions(bool value){foreach(var button in body.Children.OfType<Button>())button.IsEnabled=value;tabs.IsEnabled=value;}
     Button Action(string label,Func<Task> action,bool primary=false){var b=MakeAction(label,action,primary);body.Add(b);return b;}
@@ -77,7 +82,8 @@ public sealed partial class MessengerPage : ContentPage
     {
         var source=api!;var version=epoch;var value=await source.Get("api/messages/"+id);if(!Current(source,version))return;
         var page=Detail(value.GetProperty("message").GetProperty("title").GetString()!,value.GetProperty("message").GetProperty("body").GetString()!,value.GetProperty("attachments"),source);
-        if(value.GetProperty("message").GetProperty("senderId").GetString()!=source.Session.GetProperty("user").GetProperty("id").GetString())await source.Send("api/messages/"+id+"/read");if(Current(source,version))await Navigation.PushAsync(page);
+        var userId=source.Session.GetProperty("user").GetProperty("id").GetString();
+        if(value.GetProperty("recipients").EnumerateArray().Any(r=>r.GetProperty("id").GetString()==userId))await source.Send("api/messages/"+id+"/read");if(Current(source,version))await Navigation.PushAsync(page);
     }
     ContentPage Detail(string title,string text,JsonElement files,MessengerApi source)
     {
