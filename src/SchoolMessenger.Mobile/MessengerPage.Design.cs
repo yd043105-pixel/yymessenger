@@ -32,7 +32,7 @@ public sealed partial class MessengerPage
         for(var index=0;index<options.Length;index++)
         {
             var (key,label,icon)=options[index];var selected=homeTab==key;
-            var item=new Grid{HeightRequest=56,BackgroundColor=selected?Pale:Colors.Transparent};
+            var item=new Grid{MinimumHeightRequest=56,BackgroundColor=selected?Pale:Colors.Transparent};
             item.Add(new Image{Source=icon,HeightRequest=20,WidthRequest=20,VerticalOptions=LayoutOptions.Start,HorizontalOptions=LayoutOptions.Center,Margin=new Thickness(0,7,0,0)});
             var button=MakeAction(label,async()=>{homeTab=key;offset=0;await Home();});
             button.BackgroundColor=Colors.Transparent;button.TextColor=selected?Blue:Muted;button.FontSize=11;button.FontAttributes=selected?FontAttributes.Bold:FontAttributes.None;button.Padding=new Thickness(2,26,2,2);item.Add(button);
@@ -44,7 +44,7 @@ public sealed partial class MessengerPage
         homeTab="home";tabs.IsVisible=false;updateNoticeOffered=false;
         Header("우리 학교의 하루를 함께","우리 학교 소식");
         var help=Text("가정통신문부터 시간표까지,\n필요한 학교 소식을 한곳에서 확인하세요.",14);help.TextColor=Muted;help.Margin=new Thickness(0,0,0,6);body.Add(help);
-        var mode=new Picker{Title="접속할 공간",ItemsSource=new[]{"학교 소식 · 학생/보호자/교사","교직원 교무실 · 교내망/VPN"},SelectedIndex=Preferences.Default.Get("mode",0)};body.Add(Card(mode,8));
+        var mode=new Picker{ClassId="school-field",Title="접속할 공간",ItemsSource=new[]{"학교 소식 · 학생/보호자/교사","교직원 교무실 · 교내망/VPN"},SelectedIndex=Preferences.Default.Get("mode",0)};body.Add(Card(mode,8));
         var address=Input("학교에서 안내한 서버 주소",value:Preferences.Default.Get("address-"+mode.SelectedIndex,""));address.Keyboard=Keyboard.Url;
         mode.SelectedIndexChanged+=(_,_)=>{address.Text=Preferences.Default.Get("address-"+mode.SelectedIndex,"");help.Text=mode.SelectedIndex==1?"교직원 업무 메시지는 교내망 또는\n학교 VPN에 연결한 뒤 확인하세요.":"가정통신문부터 시간표까지,\n필요한 학교 소식을 한곳에서 확인하세요.";};
         var username=Input("아이디");username.Keyboard=Keyboard.Text;var password=Input("비밀번호",true);
@@ -92,7 +92,7 @@ public sealed partial class MessengerPage
         if(!source.Office&&role=="parent")
         {
             var children=await source.Get("api/children");if(!Current(source,version))return;
-            var options=children.EnumerateArray().ToArray();var picker=new Picker{Title="자녀",ItemsSource=new[]{"전체 자녀"}.Concat(options.Select(x=>x.GetProperty("name").GetString()+" · "+x.GetProperty("className").GetString())).ToArray(),SelectedIndex=Array.FindIndex(options,x=>x.GetProperty("id").GetString()==child)+1};
+            var options=children.EnumerateArray().ToArray();var picker=new Picker{ClassId="school-field",Title="자녀",ItemsSource=new[]{"전체 자녀"}.Concat(options.Select(x=>x.GetProperty("name").GetString()+" · "+x.GetProperty("className").GetString())).ToArray(),SelectedIndex=Array.FindIndex(options,x=>x.GetProperty("id").GetString()==child)+1};
             body.Add(Card(picker,6));picker.SelectedIndexChanged+=async(_,_)=>{child=picker.SelectedIndex<=0?"":options[picker.SelectedIndex-1].GetProperty("id").GetString()!;offset=0;await Run(Home);};
         }
         if(homeTab=="home")
@@ -114,7 +114,7 @@ public sealed partial class MessengerPage
         var refresh=MakeAction("새로고침",async()=>{await source.Refresh();await Home();});refresh.BackgroundColor=Colors.Transparent;refresh.TextColor=Muted;refresh.FontSize=12;refresh.Padding=0;heading.Add(refresh,1);body.Add(heading);
         if(source.Office)
         {
-            var picker=new Picker{Title="업무",ItemsSource=new[]{"받은 메시지","보낸 메시지","미확인 메시지"},SelectedIndex=view=="sent"?1:view=="unread"?2:0};body.Add(Card(picker,6));picker.SelectedIndexChanged+=async(_,_)=>{view=picker.SelectedIndex==1?"sent":picker.SelectedIndex==2?"unread":"received";offset=0;await Run(Home);};
+            var picker=new Picker{ClassId="school-field",Title="업무",ItemsSource=new[]{"받은 메시지","보낸 메시지","미확인 메시지"},SelectedIndex=view=="sent"?1:view=="unread"?2:0};body.Add(Card(picker,6));picker.SelectedIndexChanged+=async(_,_)=>{view=picker.SelectedIndex==1?"sent":picker.SelectedIndex==2?"unread":"received";offset=0;await Run(Home);};
             var rows=await source.Get("api/messages?box="+view+"&offset="+offset);if(!Current(source,version))return;
             foreach(var row in rows.EnumerateArray()){var id=row.GetProperty("id").GetString()!;Story(row.GetProperty("title").GetString()!,row.GetProperty("senderName").GetString()!,"교직원",false,()=>OfficeDetail(id));}
             if(rows.GetArrayLength()==0)Empty("받은 메시지가 없습니다","새 업무 메시지가 도착하면 여기에 표시됩니다.");if(rows.GetArrayLength()==100)Action("다음 목록",async()=>{offset+=100;await Home();});
@@ -140,7 +140,7 @@ public sealed partial class MessengerPage
     void Story(string title,string sender,string date,bool fresh,Func<Task> action)
     {
         var content=new VerticalStackLayout{Spacing=4};
-        var tag=Text(fresh?"새 소식":"학교 소식",10,true);tag.TextColor=fresh?Blue:Muted;
+        var tag=Text(api?.Office==true?"업무 메시지":fresh?"새 소식":"학교 소식",11,true);tag.TextColor=fresh?Blue:Muted;
         content.Add(tag);
         var button=MakeAction(title,action);button.BackgroundColor=Colors.Transparent;button.FontSize=16;button.FontAttributes=FontAttributes.Bold;button.Padding=0;button.LineBreakMode=LineBreakMode.WordWrap;button.HorizontalOptions=LayoutOptions.Start;content.Add(button);
         var metadata=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Auto)},ColumnSpacing=8};var author=Text(sender,11);author.TextColor=Muted;author.LineBreakMode=LineBreakMode.TailTruncation;author.MaxLines=1;var stamp=Text(date,11);stamp.TextColor=Muted;metadata.Add(author);metadata.Add(stamp,1);content.Add(metadata);body.Add(Card(content));
