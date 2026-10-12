@@ -146,7 +146,7 @@ public sealed partial class MessengerPage
             }
             var rows=await source.Get("api/messages?box="+(homeTab=="home"?"received":view)+"&offset="+(homeTab=="home"?0:offset));if(!Current(source,version))return;
             foreach(var row in homeTab=="home"?rows.EnumerateArray().Take(3):rows.EnumerateArray()){var id=row.GetProperty("id").GetString()!;Story(row.GetProperty("title").GetString()!,row.GetProperty("senderName").GetString()!,"교직원",false,()=>OfficeDetail(id));}
-            if(rows.GetArrayLength()==0)Empty("받은 메시지가 없습니다","새 업무 메시지가 도착하면 여기에 표시됩니다.");if(rows.GetArrayLength()==100)Action("다음 목록",async()=>{offset+=100;await Home();});
+            if(rows.GetArrayLength()==0)Empty("받은 메시지가 없습니다","새 업무 메시지가 도착하면 여기에 표시됩니다.");if(homeTab=="notices"&&rows.GetArrayLength()==100)Action("다음 목록",async()=>{offset+=100;await Home();});
             if(homeTab=="home"&&rows.GetArrayLength()>3)Action("메시지 전체 보기",async()=>{homeTab="notices";offset=0;await Home();});
             Action("학생·보호자 공지 작성 / 발송 현황",()=>Compose(true),true);return;
         }
@@ -161,7 +161,7 @@ public sealed partial class MessengerPage
         }
         if(visible.Length==0)Empty(unread?"모든 소식을 확인했어요":"아직 도착한 소식이 없어요","학교에서 전달한 소식이 이곳에 표시됩니다.");
         if(homeTab=="home"&&visible.Length>4)Action("학교 소식 전체 보기",async()=>{homeTab="notices";await Home();});
-        if(notices.GetArrayLength()==100)Action("다음 목록",async()=>{homeTab="notices";offset+=100;await Home();});
+        if(homeTab=="notices"&&notices.GetArrayLength()==100)Action("다음 목록",async()=>{offset+=100;await Home();});
     }
     void SettingRow(string label,Func<Task> action)
     {

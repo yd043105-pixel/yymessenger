@@ -239,15 +239,18 @@ public partial class MainWindow : Window
                 panel.ColumnDefinitions.Add(new ColumnDefinition()); panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 panel.Children.Add(check);
                 var avatar = new Grid { Width = 27, Height = 27, Margin = new Thickness(5, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
-                avatar.Children.Add(new System.Windows.Shapes.Ellipse { Fill = (Brush)FindResource("Pale") });
-                avatar.Children.Add(new TextBlock { Text = person.Name[..1], FontSize = 10, Foreground = (Brush)FindResource("Blue"), FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+                var circle = new System.Windows.Shapes.Ellipse(); circle.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "Pale"); avatar.Children.Add(circle);
+                var initial = new TextBlock { Text = person.Name[..1], FontSize = 10, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                initial.SetResourceReference(TextBlock.ForegroundProperty, "Blue"); avatar.Children.Add(initial);
                 avatar.Children.Add(new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Fill = person.Online ? new SolidColorBrush(Color.FromRgb(33, 180, 137)) : new SolidColorBrush(Color.FromRgb(173, 183, 199)), Stroke = Brushes.White, StrokeThickness = 2, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom });
                 Grid.SetColumn(avatar, 1); panel.Children.Add(avatar);
                 var name = new TextBlock { Text = person.Name + (Favorites.Contains(person.Id) ? " ★" : ""), FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("Ink"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+                name.SetResourceReference(TextBlock.ForegroundProperty, "Ink");
                 Grid.SetColumn(name, 2); panel.Children.Add(name);
                 var badge = new Border { Background = person.Online ? new SolidColorBrush(Color.FromRgb(231, 249, 241)) : new SolidColorBrush(Color.FromRgb(240, 242, 245)), CornerRadius = new CornerRadius(5), Padding = new Thickness(5, 3, 5, 3), Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
                     Child = new TextBlock { Text = person.Online ? "접속" : "로그아웃", FontSize = 9, Foreground = person.Online ? new SolidColorBrush(Color.FromRgb(21, 127, 97)) : (Brush)FindResource("Muted") } };
                 Grid.SetColumn(badge, 3); panel.Children.Add(badge);
+                if (!person.Online) ((TextBlock)badge.Child).SetResourceReference(TextBlock.ForegroundProperty, "Muted");
                 var contact = new TreeViewItem { Header = panel, Tag = person, ToolTip = person.Department + " · " + person.Presence, ContextMenu = PersonMenu(person) };
                 contact.PreviewMouseRightButtonDown += (_, _) => contact.IsSelected = true;
                 contact.MouseDoubleClick += async (_, e) => { if (e.ChangedButton != MouseButton.Left) return; e.Handled = true; await WriteMessage(person.Id); };
@@ -268,7 +271,7 @@ public partial class MainWindow : Window
         var menu = new ContextMenu();
         menu.Items.Add(new MenuItem { Header = person.Online ? "접속 중" : "로그아웃 상태", IsEnabled = false });
         menu.Items.Add(new Separator());
-        void Add(string text, RoutedEventHandler action) { var key = text.StartsWith("메시지 보내기") ? "MailIcon" : text.StartsWith("파일") ? "FileIcon" : text.StartsWith("메시지 관리") ? "HistoryIcon" : text.StartsWith("사용자") ? "UserIcon" : "StarIcon"; var item = new MenuItem { Header = text, Icon = new System.Windows.Shapes.Path { Data = (Geometry)FindResource(key), Stroke = (Brush)FindResource("Blue"), StrokeThickness = 1.5, Stretch = Stretch.Uniform, Width = 15, Height = 15 } }; item.Click += action; menu.Items.Add(item); }
+        void Add(string text, RoutedEventHandler action) { var key = text.StartsWith("메시지 보내기") ? "MailIcon" : text.StartsWith("파일") ? "FileIcon" : text.StartsWith("메시지 관리") ? "HistoryIcon" : text.StartsWith("사용자") ? "UserIcon" : "StarIcon"; var icon = new System.Windows.Shapes.Path { Data = (Geometry)FindResource(key), StrokeThickness = 1.5, Stretch = Stretch.Uniform, Width = 15, Height = 15 }; icon.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "Blue"); var item = new MenuItem { Header = text, Icon = icon }; item.Click += action; menu.Items.Add(item); }
         Add("메시지 보내기(_M)", async (_, _) => await WriteMessage(person.Id));
         Add("파일 보내기(_F)", async (_, _) => await WriteMessage(person.Id, filesOnly: true));
         Add("채팅하기(_C)", (_, _) => OpenChat([person.Id]));
