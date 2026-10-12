@@ -29,10 +29,11 @@ public sealed partial class MessengerPage
         var setup=await source.Get("api/office/setup");if(!Current(source,version))return;
         var page=new ContentPage{Title=reservations?"특별실 예약":"학사력 · 학교 일정",BackgroundColor=BackgroundColor};
         var stack=new VerticalStackLayout{Padding=20,Spacing=12};page.Content=new ScrollView{Content=stack};
-        var date=new DatePicker{Date=DateTime.UtcNow.AddHours(9).Date};stack.Add(Text(reservations?"함께 쓰는 특별실":"우리 학교 일정",22,true));stack.Add(date);
+        var date=new DatePicker{ClassId="school-field",Date=DateTime.UtcNow.AddHours(9).Date,Format="yyyy.MM.dd"};stack.Add(Text(reservations?"함께 쓰는 특별실":"우리 학교 일정",24,true));
+        var filter=new VerticalStackLayout{Spacing=6};filter.Add(Text(reservations?"예약을 확인할 날짜":"일정을 확인할 달",12,true));filter.Add(date);stack.Add(Card(filter));
         var rooms=setup.GetProperty("rooms").EnumerateArray().Where(r=>r.GetProperty("active").GetBoolean()).ToArray();
-        var room=new Picker{Title="특별실",ItemsSource=new[]{"모든 특별실"}.Concat(rooms.Select(r=>r.GetProperty("name").GetString()!)).ToArray(),SelectedIndex=0};if(reservations)stack.Add(room);
-        var list=new VerticalStackLayout{Spacing=12};var error=Text("",13);stack.Add(error);bool loading=false;
+        var room=new Picker{ClassId="school-field",Title="특별실",ItemsSource=new[]{"모든 특별실"}.Concat(rooms.Select(r=>r.GetProperty("name").GetString()!)).ToArray(),SelectedIndex=0};if(reservations)filter.Add(room);
+        var list=new VerticalStackLayout{Spacing=12};var error=Text("",13);error.TextColor=Color.FromArgb("#A53A38");stack.Add(error);bool loading=false;
         async Task Load()
         {
             if(loading||!Current(source,version))return;loading=true;error.Text="";list.Clear();
@@ -49,8 +50,9 @@ public sealed partial class MessengerPage
                     var canEdit=reservations?row.GetProperty("ownerId").GetString()==setup.GetProperty("userId").GetString()||setup.GetProperty("roomManager").GetBoolean():setup.GetProperty("calendarManager").GetBoolean();
                     if(canEdit)
                     {
-                        details.Add(MakeAction("일정 변경",()=>OfficeEditor(source,setup,reservations,row,async()=>{await Load();})));
-                        details.Add(MakeAction("취소",async()=>{if(await page.DisplayAlertAsync("취소 확인","이 항목을 취소할까요?","취소하기","돌아가기")){await source.Send("api/office/"+(reservations?"bookings":"events")+"/"+row.GetProperty("id").GetString()+"/cancel",new OfficeRevision(row.GetProperty("revision").GetInt32()));await Load();}}));
+                        var actions=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Star)},ColumnSpacing=8};
+                        actions.Add(MakeAction("일정 변경",()=>OfficeEditor(source,setup,reservations,row,async()=>{await Load();})));
+                        var cancel=MakeAction("취소",async()=>{if(await page.DisplayAlertAsync("취소 확인","이 항목을 취소할까요?","취소하기","돌아가기")){await source.Send("api/office/"+(reservations?"bookings":"events")+"/"+row.GetProperty("id").GetString()+"/cancel",new OfficeRevision(row.GetProperty("revision").GetInt32()));await Load();}});cancel.TextColor=Color.FromArgb("#A53A38");actions.Add(cancel,1);details.Add(actions);
                     }
                     list.Add(Card(details));
                 }
@@ -58,8 +60,9 @@ public sealed partial class MessengerPage
             }
             catch(Exception e){error.Text=e.Message;}finally{loading=false;}
         }
-        stack.Add(MakeAction(reservations?"날짜 조회":"선택한 달 조회",Load));
-        if(reservations||setup.GetProperty("calendarManager").GetBoolean())stack.Add(MakeAction(reservations?"특별실 예약하기":"학교 일정 등록",()=>OfficeEditor(source,setup,reservations,null,Load),true));
+        var tools=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Star)},ColumnSpacing=10};
+        tools.Add(MakeAction(reservations?"날짜 조회":"선택한 달 조회",Load));
+        if(reservations||setup.GetProperty("calendarManager").GetBoolean())tools.Add(MakeAction(reservations?"특별실 예약하기":"학교 일정 등록",()=>OfficeEditor(source,setup,reservations,null,Load),true),1);stack.Add(tools);
         if(reservations&&setup.GetProperty("roomManager").GetBoolean())stack.Add(MakeAction("특별실 등록",async()=>
         {
             var name=await page.DisplayPromptAsync("특별실 등록","특별실 이름을 입력하세요.");if(string.IsNullOrWhiteSpace(name))return;
@@ -73,13 +76,18 @@ public sealed partial class MessengerPage
         var page=new ContentPage{Title=booking?"특별실 예약":"학교 일정",BackgroundColor=BackgroundColor};var stack=new VerticalStackLayout{Padding=20,Spacing=12};page.Content=new ScrollView{Content=stack};
         var start=existing is{} value?DateTimeOffset.FromUnixTimeMilliseconds(value.GetProperty("start").GetInt64()).ToOffset(TimeSpan.FromHours(9)):DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(9)).AddHours(1);
         var end=existing is{} endValue?DateTimeOffset.FromUnixTimeMilliseconds(endValue.GetProperty("end").GetInt64()).ToOffset(TimeSpan.FromHours(9)):start.AddHours(1);
-        var title=new Entry{Placeholder="제목",Text=existing?.GetProperty("title").GetString()};stack.Add(title);
-        var description=new Editor{Placeholder="행사·일정 안내",AutoSize=EditorAutoSizeOption.TextChanges,Text=!booking&&existing is{} ev?ev.GetProperty("description").GetString():""};if(!booking)stack.Add(description);
-        var first=new DatePicker{Date=start.Date};var last=new DatePicker{Date=end.Date};var firstTime=new TimePicker{Time=start.TimeOfDay};var lastTime=new TimePicker{Time=end.TimeOfDay};
-        stack.Add(Text("시작 · 한국 시간",13));stack.Add(first);stack.Add(firstTime);stack.Add(Text("종료 · 한국 시간",13));stack.Add(last);stack.Add(lastTime);
-        var allDay=new CheckBox{IsChecked=!booking&&existing is{} day&&day.GetProperty("allDay").GetBoolean()};if(!booking)stack.Add(new HorizontalStackLayout{Children={allDay,Text("종일 · 종료 날짜는 마지막 날의 다음 날",12)}});
-        var rooms=setup.GetProperty("rooms").EnumerateArray().Where(r=>r.GetProperty("active").GetBoolean()).ToArray();var room=new Picker{Title="특별실",ItemsSource=rooms.Select(r=>r.GetProperty("name").GetString()!).ToArray(),SelectedIndex=booking&&existing is{} old?Array.FindIndex(rooms,r=>r.GetProperty("id").GetString()==old.GetProperty("roomId").GetString()):rooms.Length>0?0:-1};if(booking)stack.Add(room);
-        var error=Text("",13);stack.Add(error);var client=existing is{} previous&&previous.TryGetProperty("clientId",out var oldClient)?oldClient.GetString()!:Guid.NewGuid().ToString("N");
+        stack.Add(Text(booking?"예약할 공간과 시간":"학교 일정 작성",24,true));
+        var title=new Entry{ClassId="school-field",Placeholder="제목",Text=existing?.GetProperty("title").GetString()};stack.Add(Text("제목",12,true));stack.Add(Card(title,10));
+        var description=new Editor{Placeholder="행사·일정 안내",AutoSize=EditorAutoSizeOption.TextChanges,Text=!booking&&existing is{} ev?ev.GetProperty("description").GetString():""};if(!booking){stack.Add(Text("안내 내용",12,true));stack.Add(Card(description,10));}
+        var first=new DatePicker{ClassId="school-field",Date=start.Date,Format="yyyy.MM.dd"};var last=new DatePicker{ClassId="school-field",Date=end.Date,Format="yyyy.MM.dd"};var firstTime=new TimePicker{ClassId="school-field",Time=start.TimeOfDay,Format="HH:mm"};var lastTime=new TimePicker{ClassId="school-field",Time=end.TimeOfDay,Format="HH:mm"};
+        View TimeFields(string label,DatePicker day,TimePicker time)
+        {
+            var fields=new VerticalStackLayout{Spacing=6};fields.Add(Text(label,12,true));var row=new Grid{ColumnDefinitions={new(new GridLength(1.5,GridUnitType.Star)),new(GridLength.Star)},ColumnSpacing=8};row.Add(day);row.Add(time,1);fields.Add(row);return Card(fields);
+        }
+        stack.Add(TimeFields("시작 · 한국 시간",first,firstTime));stack.Add(TimeFields("종료 · 한국 시간",last,lastTime));
+        var allDay=new CheckBox{IsChecked=!booking&&existing is{} day&&day.GetProperty("allDay").GetBoolean()};if(!booking){stack.Add(new HorizontalStackLayout{Children={allDay,Text("종일 · 종료 날짜는 마지막 날의 다음 날",12)}});firstTime.IsEnabled=lastTime.IsEnabled=!allDay.IsChecked;allDay.CheckedChanged+=(_,e)=>firstTime.IsEnabled=lastTime.IsEnabled=!e.Value;}
+        var rooms=setup.GetProperty("rooms").EnumerateArray().Where(r=>r.GetProperty("active").GetBoolean()).ToArray();var room=new Picker{ClassId="school-field",Title="특별실",ItemsSource=rooms.Select(r=>r.GetProperty("name").GetString()!).ToArray(),SelectedIndex=booking&&existing is{} old?Array.FindIndex(rooms,r=>r.GetProperty("id").GetString()==old.GetProperty("roomId").GetString()):rooms.Length>0?0:-1};if(booking){stack.Add(Text("특별실",12,true));stack.Add(Card(room,10));}
+        var error=Text("",13);error.TextColor=Color.FromArgb("#A53A38");stack.Add(error);var client=existing is{} previous&&previous.TryGetProperty("clientId",out var oldClient)?oldClient.GetString()!:Guid.NewGuid().ToString("N");
         object? pending=null;var save=new Button{Text="저장",BackgroundColor=Blue,TextColor=Colors.White};
         save.Clicked+=async(_,_)=>
         {

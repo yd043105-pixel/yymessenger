@@ -2,6 +2,16 @@ using System.Windows;
 namespace SchoolMessenger.Desktop;
 public partial class App : System.Windows.Application
 {
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+        Appearance.Apply(Appearance.Selected, Appearance.Glass);
+        SystemParameters.StaticPropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SystemParameters.HighContrast))
+                Dispatcher.Invoke(() => Appearance.Apply(Appearance.Selected, Appearance.Glass));
+        };
+    }
     void MinimizeWindow(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(Window.GetWindow((DependencyObject)sender));
     void MaximizeWindow(object sender, RoutedEventArgs e)
     {

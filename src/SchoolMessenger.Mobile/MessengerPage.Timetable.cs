@@ -12,12 +12,13 @@ public sealed partial class MessengerPage
         var rooms=setup.GetProperty("classes").EnumerateArray().ToArray();
         var page=new ContentPage{Title=teacher?"시간표 · 내 수업":"우리 학급 시간표",BackgroundColor=BackgroundColor};
         var stack=new VerticalStackLayout{Padding=24,Spacing=16};page.Content=new ScrollView{Content=stack};
-        var date=new DatePicker{Date=selectedDate is null?DateTime.UtcNow.AddHours(9).Date:DateTime.ParseExact(selectedDate,"yyyy-MM-dd",CultureInfo.InvariantCulture)};
+        var date=new DatePicker{ClassId="school-field",Format="yyyy.MM.dd",Date=selectedDate is null?DateTime.UtcNow.AddHours(9).Date:DateTime.ParseExact(selectedDate,"yyyy-MM-dd",CultureInfo.InvariantCulture)};
         var scopes=(teacher?new[]{"내 수업"}:Array.Empty<string>()).Concat(rooms.Select(r=>r.GetProperty("name").GetString()!)).ToArray();
-        var scope=new Picker{Title="조회할 시간표",ItemsSource=scopes,SelectedIndex=scopes.Length>0?0:-1};
+        var scope=new Picker{ClassId="school-field",Title="조회할 시간표",ItemsSource=scopes,SelectedIndex=scopes.Length>0?0:-1};
         if(selectedClass is not null){var index=Array.FindIndex(rooms,r=>r.GetProperty("id").GetString()==selectedClass);if(index>=0)scope.SelectedIndex=index+(teacher?1:0);}
-        stack.Add(Text(teacher?"본인 수업 또는 학급을 선택하세요.":"학생별 수강 목록 등록 전에는 학급 시간표를 보여줍니다.",13));stack.Add(date);stack.Add(scope);
-        var error=Text("",13);stack.Add(error);var dayButton=new Button{Text="선택한 날짜 보기",BackgroundColor=Blue,TextColor=Colors.White};var weekButton=new Button{Text="선택한 주 보기"};stack.Add(dayButton);stack.Add(weekButton);
+        stack.Add(Text(teacher?"내 수업과 학급 시간표":"우리 학급의 하루",24,true));
+        stack.Add(Text(teacher?"본인 수업 또는 학급을 선택하세요.":"학생별 수강 목록 등록 전에는 학급 시간표를 보여줍니다.",13));var filters=new VerticalStackLayout{Spacing=6};filters.Add(date);filters.Add(scope);stack.Add(Card(filters));
+        var error=Text("",13);error.TextColor=Color.FromArgb("#A53A38");stack.Add(error);var dayButton=new Button{Text="선택한 날짜 보기",BackgroundColor=Blue,TextColor=Colors.White};var weekButton=new Button{Text="선택한 주 보기"};var actions=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Star)},ColumnSpacing=10};actions.Add(dayButton);actions.Add(weekButton,1);stack.Add(actions);
         var content=new VerticalStackLayout{Spacing=14};stack.Add(content);bool loading=false,loaded=false;
         async Task Show(bool weekly)
         {
@@ -44,7 +45,7 @@ public sealed partial class MessengerPage
                         var subject=slot.GetProperty("subject").GetString();var changed=slot.GetProperty("changed").GetBoolean();
                         var label=slot.GetProperty("period").GetInt32()+"교시 · "+(mine?slot.GetProperty("className").GetString()+" · ":"")+(string.IsNullOrEmpty(subject)?"수업 없음":subject+" · "+slot.GetProperty("teacherName").GetString());
                         if(changed)label+="\n변경 전: "+(slot.GetProperty("beforeSubject").GetString() is{Length:>0} before?before+" · "+slot.GetProperty("beforeTeacher").GetString():"수업 없음");
-                        var line=Text(label,15,changed);if(changed)line.TextColor=Blue;content.Add(line);
+                        var line=Text(label,15,changed);if(changed)line.TextColor=Blue;content.Add(Card(line,14,changed?Pale:null));
                     }
                     if(slots.Length>0)content.Add(Text(slots.Any(s=>s.GetProperty("source").GetString()=="daily")?"일자별 시간표 적용":"기초시간표 적용",12));
                 }

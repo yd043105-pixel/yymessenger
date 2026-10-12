@@ -17,6 +17,23 @@ public static class MauiProgram
         {
             if(view is Picker{ClassId:"school-field"})handler.PlatformView.BackgroundTintList=Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);
         });
+        Microsoft.Maui.Handlers.DatePickerHandler.Mapper.AppendToMapping("SchoolField",(handler,view)=>
+        {
+            if(view is DatePicker{ClassId:"school-field"})handler.PlatformView.BackgroundTintList=Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);
+        });
+        Microsoft.Maui.Handlers.TimePickerHandler.Mapper.AppendToMapping("SchoolField",(handler,view)=>
+        {
+            if(view is TimePicker{ClassId:"school-field"})handler.PlatformView.BackgroundTintList=Android.Content.Res.ColorStateList.ValueOf(Android.Graphics.Color.Transparent);
+        });
+        Microsoft.Maui.Handlers.ButtonHandler.Mapper.AppendToMapping("SchoolStory",(handler,view)=>
+        {
+            if(view is Button{ClassId:"school-story"})handler.PlatformView.Gravity=Android.Views.GravityFlags.Left|Android.Views.GravityFlags.CenterVertical;
+        });
+#elif IOS
+        Microsoft.Maui.Handlers.ButtonHandler.Mapper.AppendToMapping("SchoolStory",(handler,view)=>
+        {
+            if(view is Button{ClassId:"school-story"})handler.PlatformView.ContentHorizontalAlignment=UIKit.UIControlContentHorizontalAlignment.Left;
+        });
 #endif
 		builder
 			.UseMauiApp<App>()

@@ -44,7 +44,7 @@ public partial class MainWindow : Window
         {
             var file = Path.Combine(LocalDirectory, "preferences.json");
             if (File.Exists(file) && JsonSerializer.Deserialize<Preferences>(File.ReadAllText(file)) is { } preferences)
-            { ServerAddress.Text = preferences.ServerAddress; UsernameBox.Text = preferences.Username; Quiet.IsChecked = preferences.Quiet; DoNotDisturb.IsChecked = preferences.DoNotDisturb; RememberLogin.IsChecked = preferences.AutoLogin; Favorites = preferences.Favorites.ToHashSet(); }
+            { ServerAddress.Text = preferences.ServerAddress; UsernameBox.Text = preferences.Username; Quiet.IsChecked = preferences.Quiet; DoNotDisturb.IsChecked = preferences.DoNotDisturb; RememberLogin.IsChecked = preferences.AutoLogin; Favorites = preferences.Favorites.ToHashSet(); Appearance.Apply(preferences.ThemeId, preferences.Glass); }
         }
         catch (Exception error) when (error is IOException or JsonException) { LoginError.Text = "설정을 읽지 못했습니다. 서버 주소를 확인하세요."; }
         loginOptionsReady = true;
@@ -69,7 +69,20 @@ public partial class MainWindow : Window
             if (RememberLogin.IsChecked == true) { await TryAutomaticLogin(); if (savedLogin.Exists) timer.Start(); }
         };
     }
-    public void SavePreferences() => File.WriteAllText(Path.Combine(LocalDirectory, "preferences.json"), JsonSerializer.Serialize(new Preferences(ServerAddress.Text, UsernameBox.Text, Quiet.IsChecked, Favorites.ToArray(), DoNotDisturb.IsChecked, RememberLogin.IsChecked == true)));
+    public void SavePreferences() => File.WriteAllText(Path.Combine(LocalDirectory, "preferences.json"), JsonSerializer.Serialize(new Preferences(ServerAddress.Text, UsernameBox.Text, Quiet.IsChecked, Favorites.ToArray(), DoNotDisturb.IsChecked, RememberLogin.IsChecked == true, Appearance.Selected, Appearance.Glass)));
+    void OpenAppearance(object sender, RoutedEventArgs e) => new AppearanceWindow(this).ShowDialog();
+    public void RefreshAppearance()
+    {
+        AllFilter.SetResourceReference(System.Windows.Controls.Button.BackgroundProperty, onlineOnly ? "Soft" : "Pale");
+        AllFilter.SetResourceReference(System.Windows.Controls.Button.ForegroundProperty, onlineOnly ? "Muted" : "Blue");
+        OnlineFilter.SetResourceReference(System.Windows.Controls.Button.BackgroundProperty, onlineOnly ? "Pale" : "Soft");
+        OnlineFilter.SetResourceReference(System.Windows.Controls.Button.ForegroundProperty, onlineOnly ? "Blue" : "Muted");
+        OrganizationButton.SetResourceReference(System.Windows.Controls.Button.BackgroundProperty, favoritesOnly ? "Glass" : "Blue");
+        FavoritesButton.SetResourceReference(System.Windows.Controls.Button.BackgroundProperty, favoritesOnly ? "Blue" : "Glass");
+        OrganizationButton.SetResourceReference(System.Windows.Controls.Button.ForegroundProperty, favoritesOnly ? "Muted" : "OnAccent");
+        FavoritesButton.SetResourceReference(System.Windows.Controls.Button.ForegroundProperty, favoritesOnly ? "OnAccent" : "Muted");
+        RenderTree();
+    }
     void RememberChanged(object sender, RoutedEventArgs e)
     {
         if (!loginOptionsReady) return;
@@ -226,8 +239,8 @@ public partial class MainWindow : Window
                 panel.ColumnDefinitions.Add(new ColumnDefinition()); panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 panel.Children.Add(check);
                 var avatar = new Grid { Width = 27, Height = 27, Margin = new Thickness(5, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
-                avatar.Children.Add(new System.Windows.Shapes.Ellipse { Fill = new SolidColorBrush(Color.FromRgb(231, 238, 249)) });
-                avatar.Children.Add(new TextBlock { Text = person.Name[..1], FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(68, 98, 150)), FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+                avatar.Children.Add(new System.Windows.Shapes.Ellipse { Fill = (Brush)FindResource("Pale") });
+                avatar.Children.Add(new TextBlock { Text = person.Name[..1], FontSize = 10, Foreground = (Brush)FindResource("Blue"), FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
                 avatar.Children.Add(new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Fill = person.Online ? new SolidColorBrush(Color.FromRgb(33, 180, 137)) : new SolidColorBrush(Color.FromRgb(173, 183, 199)), Stroke = Brushes.White, StrokeThickness = 2, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom });
                 Grid.SetColumn(avatar, 1); panel.Children.Add(avatar);
                 var name = new TextBlock { Text = person.Name + (Favorites.Contains(person.Id) ? " ★" : ""), FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("Ink"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -277,17 +290,10 @@ public partial class MainWindow : Window
     void ToggleSort(object sender, RoutedEventArgs e) { onlineFirst = !onlineFirst; SortButton.Content = onlineFirst ? "이름순 ↕" : "접속순 ↕"; SortButton.ToolTip = onlineFirst ? "현재 접속자 우선 · 클릭하면 이름순" : "현재 이름순 · 클릭하면 접속자 우선"; RenderTree(); }
     void FilterAll(object sender, RoutedEventArgs e) { onlineOnly = false; UpdateFilters(); }
     void FilterOnline(object sender, RoutedEventArgs e) { onlineOnly = true; UpdateFilters(); }
-    void UpdateFilters()
-    {
-        AllFilter.Background = (Brush)FindResource(onlineOnly ? "Soft" : "Pale"); AllFilter.Foreground = (Brush)FindResource(onlineOnly ? "Muted" : "Blue");
-        OnlineFilter.Background = (Brush)FindResource(onlineOnly ? "Pale" : "Soft"); OnlineFilter.Foreground = (Brush)FindResource(onlineOnly ? "Blue" : "Muted"); RenderTree();
-    }
-    void UpdateNavigation()
-    {
-        OrganizationButton.Background = favoritesOnly ? Brushes.Transparent : (Brush)FindResource("Blue"); FavoritesButton.Background = favoritesOnly ? (Brush)FindResource("Blue") : Brushes.Transparent;
-    }
-    void ShowOrganization(object sender, RoutedEventArgs e) { favoritesOnly = false; PeopleSearch.Clear(); UpdateNavigation(); RenderTree(); }
-    void ToggleFavorites(object sender, RoutedEventArgs e) { favoritesOnly = !favoritesOnly; UpdateNavigation(); RenderTree(); }
+    void UpdateFilters() => RefreshAppearance();
+    void UpdateNavigation() => RefreshAppearance();
+    void ShowOrganization(object sender, RoutedEventArgs e) { favoritesOnly = false; PeopleSearch.Clear(); UpdateNavigation(); }
+    void ToggleFavorites(object sender, RoutedEventArgs e) { favoritesOnly = !favoritesOnly; UpdateNavigation(); }
     async void Compose(object sender, RoutedEventArgs e) => await WriteMessage();
     async void SendFilesClick(object sender, RoutedEventArgs e) => await WriteMessage(filesOnly: true);
     public async Task WriteMessage(string? recipient = null, string? title = null, bool filesOnly = false)
@@ -402,6 +408,24 @@ public partial class MainWindow : Window
             if (System.Windows.Shell.WindowChrome.GetWindowChrome(this)?.CaptionHeight != 44) throw new InvalidOperationException("제목줄 적용 실패");
             var output = Environment.GetEnvironmentVariable("SCHOOL_UI_OUTPUT") ?? "artifacts/client-preview.png";
             var directory = Path.GetDirectoryName(Path.GetFullPath(output))!; Directory.CreateDirectory(directory); SavePreview(this, output);
+            var originalTheme = Appearance.Selected; var originalGlass = Appearance.Glass;
+            var themeDialog = new AppearanceWindow(this); themeDialog.Show();
+            var choices = ((StackPanel)themeDialog.Content).Children.OfType<ComboBox>().Single();
+            var glass = ((StackPanel)themeDialog.Content).Children.OfType<System.Windows.Controls.CheckBox>().Single();
+            foreach (var palette in Appearance.Palettes)
+            {
+                choices.SelectedIndex = Array.IndexOf(Appearance.Palettes, palette);
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+                var preferences = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(Path.Combine(LocalDirectory, "preferences.json")))!;
+                if (preferences.ThemeId != palette.Id || ((SolidColorBrush)FindResource("Blue")).Color != (Color)ColorConverter.ConvertFromString(palette.Accent)) throw new InvalidOperationException("화면 색상 적용·저장 실패");
+                SavePreview(this, Path.Combine(directory, "theme-" + palette.Id + ".png"));
+            }
+            glass.IsChecked = false;
+            if (JsonSerializer.Deserialize<Preferences>(File.ReadAllText(Path.Combine(LocalDirectory, "preferences.json")))!.Glass || ((SolidColorBrush)FindResource("Glass")).Color.A != 255) throw new InvalidOperationException("유리 효과 해제·저장 실패");
+            SavePreview(themeDialog, Path.Combine(directory, "appearance-preview.png")); themeDialog.Close();
+            Appearance.Apply("unknown-theme", true);
+            if (Appearance.Selected != "blue") throw new InvalidOperationException("잘못된 색상 설정 복구 실패");
+            Appearance.Apply(originalTheme, originalGlass); RefreshAppearance(); SavePreferences();
             foreach (var state in new[] { false, true })
             {
                 var menu = PersonMenu(people[0] with { Online = state });
@@ -446,4 +470,4 @@ public partial class MainWindow : Window
         catch (Exception error) { Directory.CreateDirectory("artifacts"); File.WriteAllText("artifacts/ui-error.txt", error.ToString()); exiting = true; System.Windows.Application.Current.Shutdown(1); }
     }
 }
-record Preferences(string ServerAddress, string Username, bool Quiet, string[] Favorites, bool DoNotDisturb = false, bool AutoLogin = false);
+record Preferences(string ServerAddress, string Username, bool Quiet, string[] Favorites, bool DoNotDisturb = false, bool AutoLogin = false, string ThemeId = "blue", bool Glass = true);

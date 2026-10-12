@@ -3,20 +3,20 @@
  StartupUri="MainWindow.xaml"><Application.Resources>
  <ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Theme.xaml"/></ResourceDictionary.MergedDictionaries>
   <Style x:Key="SchoolWindow" TargetType="Window">
-   <Setter Property="FontFamily" Value="Malgun Gothic"/><Setter Property="FontSize" Value="12"/><Setter Property="Foreground" Value="{StaticResource Ink}"/><Setter Property="Background" Value="White"/>
+   <Setter Property="FontFamily" Value="Malgun Gothic"/><Setter Property="FontSize" Value="12"/><Setter Property="Foreground" Value="{DynamicResource Ink}"/><Setter Property="Background" Value="{DynamicResource Canvas}"/>
    <Setter Property="WindowStyle" Value="None"/><Setter Property="UseLayoutRounding" Value="True"/>
    <Setter Property="shell:WindowChrome.WindowChrome"><Setter.Value><shell:WindowChrome CaptionHeight="44" ResizeBorderThickness="6" GlassFrameThickness="0" CornerRadius="12" UseAeroCaptionButtons="False"/></Setter.Value></Setter>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Window">
-    <Border x:Name="Frame" Background="White" BorderBrush="#CAD3E1" BorderThickness="1" CornerRadius="11">
+    <Border x:Name="Frame" Background="{DynamicResource Canvas}" BorderBrush="{DynamicResource GlassLine}" BorderThickness="1" CornerRadius="11">
      <Grid><Grid.RowDefinitions><RowDefinition Height="44"/><RowDefinition/></Grid.RowDefinitions>
-      <Border Background="{StaticResource Navy}" CornerRadius="10,10,0,0">
+      <Border Background="{DynamicResource Glass}" CornerRadius="10,10,0,0" BorderBrush="{DynamicResource GlassLine}" BorderThickness="0,0,0,1">
        <Grid Margin="13,0,6,0"><Grid.ColumnDefinitions><ColumnDefinition Width="35"/><ColumnDefinition/><ColumnDefinition Width="96"/></Grid.ColumnDefinitions>
-        <Border Width="27" Height="27" Background="{StaticResource Blue}" CornerRadius="8" HorizontalAlignment="Left"><TextBlock Text="여" Foreground="White" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-        <TextBlock Grid.Column="1" Text="{TemplateBinding Title}" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+        <Border Width="27" Height="27" Background="{DynamicResource Blue}" CornerRadius="8" HorizontalAlignment="Left"><TextBlock Text="여" Foreground="{DynamicResource OnAccent}" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+        <TextBlock Grid.Column="1" Text="{TemplateBinding Title}" Foreground="{DynamicResource Ink}" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
         <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" shell:WindowChrome.IsHitTestVisibleInChrome="True">
-         <Button x:Name="MinimizeAction" Style="{StaticResource ChromeButton}" ToolTip="최소화" AutomationProperties.Name="최소화" Click="MinimizeWindow"><Path Data="M0,0 L10,0" Stroke="#B9C6DA" StrokeThickness="1" Width="10"/></Button>
-         <Button x:Name="MaximizeAction" Style="{StaticResource ChromeButton}" ToolTip="최대화 · 복원" AutomationProperties.Name="최대화 또는 복원" Click="MaximizeWindow"><Rectangle Width="9" Height="9" Stroke="#B9C6DA" StrokeThickness="1"/></Button>
-         <Button x:Name="CloseAction" Style="{StaticResource ChromeButton}" ToolTip="닫기" AutomationProperties.Name="닫기" Click="CloseWindow"><Path Data="M0,0 L8,8 M8,0 L0,8" Stroke="#B9C6DA" StrokeThickness="1" Width="9" Height="9"/></Button>
+         <Button x:Name="MinimizeAction" Style="{StaticResource ChromeButton}" ToolTip="최소화" AutomationProperties.Name="최소화" Click="MinimizeWindow"><Path Data="M0,0 L10,0" Stroke="{DynamicResource Muted}" StrokeThickness="1" Width="10"/></Button>
+         <Button x:Name="MaximizeAction" Style="{StaticResource ChromeButton}" ToolTip="최대화 · 복원" AutomationProperties.Name="최대화 또는 복원" Click="MaximizeWindow"><Rectangle Width="9" Height="9" Stroke="{DynamicResource Muted}" StrokeThickness="1"/></Button>
+         <Button x:Name="CloseAction" Style="{StaticResource ChromeButton}" ToolTip="닫기" AutomationProperties.Name="닫기" Click="CloseWindow"><Path Data="M0,0 L8,8 M8,0 L0,8" Stroke="{DynamicResource Muted}" StrokeThickness="1" Width="9" Height="9"/></Button>
         </StackPanel>
        </Grid>
       </Border>

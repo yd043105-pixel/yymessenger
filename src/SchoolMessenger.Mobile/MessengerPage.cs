@@ -6,9 +6,9 @@ namespace SchoolMessenger.Mobile;
 public sealed partial class MessengerPage : ContentPage
 {
     public static MessengerPage? Active{get;private set;}
-    static readonly Color Navy=Color.FromArgb("#17243b"),Blue=Color.FromArgb("#2563eb"),Muted=Color.FromArgb("#64748b"),Line=Color.FromArgb("#e2e8f0"),Pale=Color.FromArgb("#eef4ff");
-    readonly VerticalStackLayout body=new(){Spacing=8,Padding=new Thickness(20,18)};
-    readonly Grid tabs=new(){ColumnDefinitions={new(GridLength.Star),new(GridLength.Star),new(GridLength.Star)},Padding=new Thickness(12,6),ColumnSpacing=6,BackgroundColor=Colors.White,IsVisible=false};
+    static readonly Color Navy=Color.FromArgb("#203048"),Blue=Color.FromArgb("#245bc6"),Muted=Color.FromArgb("#5a6b81"),Line=Color.FromArgb("#dce3ed"),Pale=Color.FromArgb("#e7effb");
+    readonly VerticalStackLayout body=new(){Spacing=12,Padding=new Thickness(20,16)};
+    readonly Grid tabs=new(){ColumnDefinitions={new(GridLength.Star),new(GridLength.Star),new(GridLength.Star)},Padding=new Thickness(6,4),ColumnSpacing=4,IsVisible=false};
     readonly Label feedback=new(){TextColor=Color.FromArgb("#a53a38"),FontSize=13,IsVisible=false};
     string homeTab="home";
     MessengerApi? api;
@@ -20,10 +20,11 @@ public sealed partial class MessengerPage : ContentPage
     bool unread;
     public MessengerPage()
     {
-        MessengerApi.CleanupShares();Active=this;Title="여양고 · 학교 소식";BackgroundColor=Color.FromArgb("#f5f7fb");
+        MessengerApi.CleanupShares();Active=this;Title="여양고 · 학교 소식";BackgroundColor=Color.FromArgb("#f3f6fb");
+        Background=new LinearGradientBrush{StartPoint=new Point(0,0),EndPoint=new Point(1,1),GradientStops={new GradientStop(Pale,0),new GradientStop(Color.FromArgb("#f6f8fc"),.42f),new GradientStop(Color.FromArgb("#edf2f8"),1)}};
         NavigationPage.SetHasNavigationBar(this,false);
         var layout=new Grid{RowDefinitions={new(GridLength.Star),new(GridLength.Auto)}};
-        layout.Add(new ScrollView{Content=body});layout.Add(tabs,0,1);Content=layout;
+        layout.Add(new ScrollView{Content=body});var navigation=Card(tabs,0);navigation.Margin=new Thickness(16,0,16,10);navigation.SetBinding(IsVisibleProperty,new Binding(nameof(IsVisible),source:tabs));layout.Add(navigation,0,1);Content=layout;
         feedback.PropertyChanged+=(_,e)=>{if(e.PropertyName==nameof(Label.Text))feedback.IsVisible=!string.IsNullOrEmpty(feedback.Text);};Login();
     }
     protected override async void OnAppearing()
@@ -45,7 +46,7 @@ public sealed partial class MessengerPage : ContentPage
             await Run(async()=>{await source.Refresh();if(source.Session.GetProperty("user").ValueKind!=JsonValueKind.Null)await Home();});
     }
     static Label Text(string value,int size=15,bool bold=false)=>new(){Text=value,TextColor=Navy,FontSize=size,FontAttributes=bold?FontAttributes.Bold:FontAttributes.None,LineBreakMode=LineBreakMode.WordWrap};
-    void Header(string caption,string title){body.Clear();body.Add(Brand());var note=Text(caption,12);note.TextColor=Muted;body.Add(note);body.Add(Text(title,24,true));body.Add(feedback);feedback.Text="";}
+    void Header(string caption,string title){body.Clear();body.Add(Brand());var note=Text(caption,12);note.TextColor=Muted;body.Add(note);body.Add(Text(title,25,true));body.Add(feedback);feedback.Text="";}
     Entry Input(string title,bool password=false,string? value=null){var field=new VerticalStackLayout{Spacing=4};field.Add(Text(title,12,true));var input=new Entry{ClassId="school-field",Placeholder=title,IsPassword=password,Text=value,TextColor=Navy,BackgroundColor=Colors.Transparent};var border=Card(input);border.Padding=new Thickness(12,0);input.Focused+=(_,_)=>border.Stroke=Blue;input.Unfocused+=(_,_)=>border.Stroke=Line;field.Add(border);body.Add(field);return input;}
     void EnableActions(bool value){foreach(var button in body.Children.OfType<Button>())button.IsEnabled=value;tabs.IsEnabled=value;}
     Button Action(string label,Func<Task> action,bool primary=false){var b=MakeAction(label,action,primary);body.Add(b);return b;}
