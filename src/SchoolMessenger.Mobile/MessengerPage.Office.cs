@@ -22,7 +22,7 @@ public sealed partial class MessengerPage
         Action("로그아웃",async()=>{try{await source.Logout();}finally{source.Dispose();api=null;Login();}});
     }
     static string OfficeDate(JsonElement row,string field)=>DateTimeOffset.FromUnixTimeMilliseconds(row.GetProperty(field).GetInt64()).ToOffset(TimeSpan.FromHours(9)).ToString("M/d HH:mm");
-    static string OfficeTimestamp(DateTime date,TimeSpan time)=>new DateTimeOffset(date.Date.Add(time),TimeSpan.FromHours(9)).ToString("yyyy-MM-dd'T'HH:mm:sszzz",CultureInfo.InvariantCulture);
+    static string OfficeTimestamp(DateTime date,TimeSpan time)=>new DateTimeOffset(DateTime.SpecifyKind(date.Date,DateTimeKind.Unspecified).Add(time),TimeSpan.FromHours(9)).ToString("yyyy-MM-dd'T'HH:mm:sszzz",CultureInfo.InvariantCulture);
     async Task OfficeSchedule(bool reservations)
     {
         var source=api!;var version=epoch;if(!source.Office)throw new InvalidOperationException("교사용 교무실 기능입니다.");
