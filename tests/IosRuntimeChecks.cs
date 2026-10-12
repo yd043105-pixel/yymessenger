@@ -54,6 +54,12 @@ internal static class IosRuntimeChecks
     {
         await Tap("내 정보");await Tap(text);
     }
+    static async Task SaveReport(string phase,bool ok,string? error=null)
+    {
+        var file=Path.Combine(Documents,"ios-"+phase+"-results.json");
+        await File.WriteAllTextAsync(file+".tmp",JsonSerializer.Serialize(new{ok,passed,error}));
+        File.Move(file+".tmp",file,true);
+    }
     public static async Task Run(string phase)
     {
         try
@@ -176,11 +182,11 @@ internal static class IosRuntimeChecks
                 // Leave the original fixture parent signed in for the process-restart check.
                 await Page.Resume(); await Wait(() => Has("10월 현장체험학습 안내"));
             }
-            await File.WriteAllTextAsync(Path.Combine(Documents, "ios-" + phase + "-results.json"), JsonSerializer.Serialize(new { ok = true, passed }));
+            await SaveReport(phase,true);
         }
         catch (Exception error)
         {
-            await File.WriteAllTextAsync(Path.Combine(Documents, "ios-" + phase + "-results.json"), JsonSerializer.Serialize(new { ok = false, passed, error = error.Message }));
+            await SaveReport(phase,false,error.Message);
         }
     }
 }
