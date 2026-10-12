@@ -30,6 +30,23 @@ public static class MauiProgram
             if(view is Button{ClassId:"school-story"})handler.PlatformView.Gravity=Android.Views.GravityFlags.Left|Android.Views.GravityFlags.CenterVertical;
         });
 #elif IOS
+        // Match the Android form: the surrounding card supplies the only border.
+        Microsoft.Maui.Handlers.EntryHandler.Mapper.AppendToMapping("SchoolField",(handler,view)=>
+        {
+            if(view is Entry{ClassId:"school-field"})handler.PlatformView.BorderStyle=UIKit.UITextBorderStyle.None;
+        });
+        Microsoft.Maui.Handlers.PickerHandler.Mapper.AppendToMapping("SchoolField",(handler,view)=>
+        {
+            if(view is Picker{ClassId:"school-field"})handler.PlatformView.BorderStyle=UIKit.UITextBorderStyle.None;
+        });
+        Microsoft.Maui.Handlers.DatePickerHandler.Mapper.AppendToMapping("SchoolField",(handler,view)=>
+        {
+            if(view is DatePicker{ClassId:"school-field"})handler.PlatformView.BorderStyle=UIKit.UITextBorderStyle.None;
+        });
+        Microsoft.Maui.Handlers.TimePickerHandler.Mapper.AppendToMapping("SchoolField",(handler,view)=>
+        {
+            if(view is TimePicker{ClassId:"school-field"})handler.PlatformView.BorderStyle=UIKit.UITextBorderStyle.None;
+        });
         Microsoft.Maui.Handlers.ButtonHandler.Mapper.AppendToMapping("SchoolStory",(handler,view)=>
         {
             if(view is Button{ClassId:"school-story"})handler.PlatformView.HorizontalAlignment=UIKit.UIControlContentHorizontalAlignment.Left;
