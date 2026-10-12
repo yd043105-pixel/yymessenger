@@ -25,7 +25,7 @@ try {
   command(['simctl', 'boot', device]); command(['simctl', 'bootstatus', device, '-b']);
   fixture = spawn(process.execPath, ['tests/portal-preview.mjs'], { cwd: root });
   fixture.stdout.on('data', data => { serverLog += data; }); fixture.stderr.on('data', data => { serverLog += data; });
-  for (let attempt = 0; attempt < 120 && !serverLog.includes('timetable fixture ready.'); attempt++) {
+  for (let attempt = 0; attempt < 240 && !serverLog.includes('timetable fixture ready.'); attempt++) {
     writeFileSync(path.join(output,'fixture.log'),serverLog);
     assert.equal(fixture.exitCode, null, 'Synthetic servers failed: '+serverLog);
     await delay(500);
