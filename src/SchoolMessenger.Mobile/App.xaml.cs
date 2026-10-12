@@ -10,6 +10,7 @@ public partial class App : Application
         PrepareIosStorage();
 #endif
 		InitializeComponent();
+        UserAppTheme=AppTheme.Light;
 	}
 
 #if IOS
@@ -27,7 +28,7 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		var window = new Window(new NavigationPage(new MessengerPage()) { BarBackgroundColor = Color.FromArgb("#1c334f"), BarTextColor = Colors.White });
+		var window = new Window(new NavigationPage(new MessengerPage()) { BarBackgroundColor = Colors.White, BarTextColor = Color.FromArgb("#17243b") });
 		window.Stopped += (_, _) => MessengerPage.Active?.Cover();
 		window.Resumed += async (_, _) => { if (MessengerPage.Active is { } page) await page.Resume(); };
 		return window;

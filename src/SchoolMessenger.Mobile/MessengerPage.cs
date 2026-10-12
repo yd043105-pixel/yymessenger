@@ -6,9 +6,11 @@ namespace SchoolMessenger.Mobile;
 public sealed partial class MessengerPage : ContentPage
 {
     public static MessengerPage? Active{get;private set;}
-    static readonly Color Navy=Color.FromArgb("#1c334f"),Blue=Color.FromArgb("#2864df");
-    readonly VerticalStackLayout body=new(){Spacing=16,Padding=new Thickness(24,26)};
-    readonly Label feedback=new(){TextColor=Color.FromArgb("#a53a38"),FontSize=13};
+    static readonly Color Navy=Color.FromArgb("#17243b"),Blue=Color.FromArgb("#2563eb"),Muted=Color.FromArgb("#64748b"),Line=Color.FromArgb("#e2e8f0"),Pale=Color.FromArgb("#eef4ff");
+    readonly VerticalStackLayout body=new(){Spacing=8,Padding=new Thickness(20,18)};
+    readonly Grid tabs=new(){ColumnDefinitions={new(GridLength.Star),new(GridLength.Star),new(GridLength.Star)},Padding=new Thickness(12,6),ColumnSpacing=6,BackgroundColor=Colors.White,IsVisible=false};
+    readonly Label feedback=new(){TextColor=Color.FromArgb("#a53a38"),FontSize=13,IsVisible=false};
+    string homeTab="home";
     MessengerApi? api;
     bool busy,covered,restored,resuming,preserveComposerOnResume;
     ContentPage? composer;
@@ -18,7 +20,11 @@ public sealed partial class MessengerPage : ContentPage
     bool unread;
     public MessengerPage()
     {
-        MessengerApi.CleanupShares();Active=this;Title="여양고 · 학교 소식";BackgroundColor=Color.FromArgb("#f3f6fa");Content=new ScrollView{Content=body};Login();
+        MessengerApi.CleanupShares();Active=this;Title="여양고 · 학교 소식";BackgroundColor=Color.FromArgb("#f5f7fb");
+        NavigationPage.SetHasNavigationBar(this,false);
+        var layout=new Grid{RowDefinitions={new(GridLength.Star),new(GridLength.Auto)}};
+        layout.Add(new ScrollView{Content=body});layout.Add(tabs,0,1);Content=layout;
+        feedback.PropertyChanged+=(_,e)=>{if(e.PropertyName==nameof(Label.Text))feedback.IsVisible=!string.IsNullOrEmpty(feedback.Text);};Login();
     }
     protected override async void OnAppearing()
     {
@@ -39,80 +45,15 @@ public sealed partial class MessengerPage : ContentPage
             await Run(async()=>{await source.Refresh();if(source.Session.GetProperty("user").ValueKind!=JsonValueKind.Null)await Home();});
     }
     static Label Text(string value,int size=15,bool bold=false)=>new(){Text=value,TextColor=Navy,FontSize=size,FontAttributes=bold?FontAttributes.Bold:FontAttributes.None,LineBreakMode=LineBreakMode.WordWrap};
-    void Header(string caption,string title){body.Clear();body.Add(Text(caption,12));body.Add(Text(title,28,true));body.Add(feedback);feedback.Text="";}
-    Entry Input(string title,bool password=false,string? value=null){body.Add(Text(title,13,true));var input=new Entry{Placeholder=title,IsPassword=password,Text=value,TextColor=Navy,BackgroundColor=Colors.White};body.Add(input);return input;}
-    void EnableActions(bool value){foreach(var button in body.Children.OfType<Button>())button.IsEnabled=value;}
-    void Action(string label,Func<Task> action,bool primary=false){var b=new Button{IsEnabled=!busy&&!resuming,Text=label,BackgroundColor=primary?Blue:Colors.White,TextColor=primary?Colors.White:Navy,CornerRadius=10,Padding=new Thickness(16,12)};b.Clicked+=async(_,_)=>await Run(action);body.Add(b);}
+    void Header(string caption,string title){body.Clear();body.Add(Brand());var note=Text(caption,12);note.TextColor=Muted;body.Add(note);body.Add(Text(title,24,true));body.Add(feedback);feedback.Text="";}
+    Entry Input(string title,bool password=false,string? value=null){var field=new VerticalStackLayout{Spacing=4};field.Add(Text(title,12,true));var input=new Entry{Placeholder=title,IsPassword=password,Text=value,TextColor=Navy,BackgroundColor=Colors.Transparent};var border=Card(input);border.Padding=new Thickness(12,0);field.Add(border);body.Add(field);return input;}
+    void EnableActions(bool value){foreach(var button in body.Children.OfType<Button>())button.IsEnabled=value;tabs.IsEnabled=value;}
+    Button Action(string label,Func<Task> action,bool primary=false){var b=MakeAction(label,action,primary);body.Add(b);return b;}
     async Task Run(Func<Task> action){if(busy||resuming)return;busy=true;body.IsEnabled=false;EnableActions(false);feedback.Text="";try{await action();}catch(Exception e){feedback.Text=e is HttpRequestException?"학교 서버에 연결할 수 없습니다. 주소·인터넷·교내망/VPN을 확인하세요.":e.Message;}finally{busy=false;body.IsEnabled=!resuming;EnableActions(!resuming);}}
     bool Current(MessengerApi source,int version)=>api==source&&version==epoch&&!covered;
     void Invalidate(){epoch++;MainThread.BeginInvokeOnMainThread(()=>{while(Navigation.NavigationStack.Count>1)Navigation.RemovePage(Navigation.NavigationStack.Last());Login();});}
-    void Login()
-    {
-        updateNoticeOffered=false;
-        Header("학교에서 전하는 이야기","우리 학교 소식");body.Add(Text("가정통신문과 공지를 확인하세요. 교직원 업무 메시지는 교내망 또는 학교 VPN에서 열 수 있습니다.",14));
-        var mode=new Picker{Title="접속할 공간",ItemsSource=new[]{"학교 소식 · 학생/보호자/교사","교직원 교무실 · 교내망/VPN"},SelectedIndex=Preferences.Default.Get("mode",0)};body.Add(mode);
-        var address=Input("학교에서 안내한 서버 주소",value:Preferences.Default.Get("address-"+mode.SelectedIndex,""));address.Keyboard=Keyboard.Url;
-        mode.SelectedIndexChanged+=(_,_)=>address.Text=Preferences.Default.Get("address-"+mode.SelectedIndex,"");
-        var username=Input("아이디");username.Keyboard=Keyboard.Text;var password=Input("비밀번호",true);var remember=new Switch{IsToggled=true};body.Add(Text("자동 로그인 · 비밀번호는 저장하지 않습니다.",12));body.Add(remember);
-        async Task Connect(bool restore)
-        {
-            api?.Dispose();epoch++;var source=new MessengerApi(address.Text??"",mode.SelectedIndex==1);api=source;source.Invalidated+=()=>{if(api==source)Invalidate();};
-            Preferences.Default.Set("mode",mode.SelectedIndex);Preferences.Default.Set("address-"+mode.SelectedIndex,source.Address.AbsoluteUri);
-            if(restore){await source.Restore();await source.Refresh();if(source.Session.GetProperty("user").ValueKind==JsonValueKind.Null)throw new InvalidOperationException("저장된 로그인이 없습니다. 아이디·비밀번호로 로그인하세요.");}
-            else{try{await source.Login(username.Text??"",password.Text??"",remember.IsToggled);}finally{password.Text="";}}
-            await Home();
-        }
-        Action("로그인",()=>Connect(false),true);Action("저장된 로그인으로 접속",()=>Connect(true));
-        Action("학생·학부모 회원가입",()=>mode.SelectedIndex==1?throw new InvalidOperationException("교직원 계정 신청은 PC 교무실에서 진행하세요."):Signup(address.Text??""));
-        Action("학교 초대 코드로 가입",()=>mode.SelectedIndex==1?throw new InvalidOperationException("교직원 계정 신청은 PC 교무실에서 진행하세요."):InviteSignup(address.Text??""));
-    }
     public void Cover(){covered=true;epoch++;foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=false;}
     public async Task Resume(){var preserve=preserveComposerOnResume&&composer is not null&&Navigation.NavigationStack.Contains(composer);covered=false;if(api is null){foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=true;return;}resuming=true;body.IsEnabled=false;EnableActions(false);try{await api.Refresh();if(api.Session.ValueKind!=JsonValueKind.Undefined&&api.Session.GetProperty("user").ValueKind!=JsonValueKind.Null){if(!preserve){while(Navigation.NavigationStack.Count>1)await Navigation.PopAsync(false);await Home();}}}catch(Exception e){Invalidate();feedback.Text=e.Message;}finally{preserveComposerOnResume=false;resuming=false;body.IsEnabled=!busy;EnableActions(!busy);foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=true;}}
-    async Task Home()
-    {
-        var source=api!;var user=source.Session.GetProperty("user");var version=++epoch;
-        Header(user.GetProperty("name").GetString()!,source.Office?"온라인 교무실":"학교 소식");
-        Action("새로고침",async()=>{await source.Refresh();await Home();});Action("로그아웃",async()=>{try{await source.Logout();}finally{source.Dispose();if(api==source)api=null;Login();}});
-        Action("업데이트 내역",()=>ShowUpdates(true));
-        Action("약관·개인정보 안내",PolicyMenu);
-        await ShowUpdates();
-        if(!Current(source,version))return;
-        if(!source.Office&&user.GetProperty("role").GetString() is "parent" or "student")
-        {
-            var parent=user.GetProperty("role").GetString()=="parent";
-            Action(parent?"설정 · 자녀 연결":"설정 · 내 고유번호",AccountSettings);
-            if(parent&&user.TryGetProperty("membership",out var membership)&&membership.GetString()=="temporary")
-            {body.Add(Text("임시회원입니다. 설정에서 자녀 고유번호를 입력하면 바로 정회원으로 전환되고 학교 소식·시간표를 확인할 수 있습니다."));return;}
-            if(parent)body.Add(Text("정회원 · 연결된 자녀의 학교 소식을 확인하세요.",13));
-        }
-        Action("시간표 · 내 수업 / 학급",()=>Timetable());
-        var scheduleNotices=await source.Get("api/timetable/notices");if(!Current(source,version))return;
-        foreach(var notice in scheduleNotices.EnumerateArray().Where(n=>n.GetProperty("readAt").ValueKind==JsonValueKind.Null))
-        {
-            var revision=notice.GetProperty("revision").GetInt64();var day=notice.GetProperty("date").GetString();
-            var room=notice.GetProperty("classIds").EnumerateArray().Select(c=>c.GetString()).FirstOrDefault();
-            Action("● "+notice.GetProperty("title").GetString()+" · "+day,async()=>{if(await Timetable(day,room)&&Current(source,version))await source.Send($"api/timetable/notices/{revision}/read");});
-        }
-        if(source.Office)
-        {
-            var picker=new Picker{Title="업무",ItemsSource=new[]{"받은 메시지","보낸 메시지","미확인 메시지"},SelectedIndex=view=="sent"?1:view=="unread"?2:0};body.Add(picker);picker.SelectedIndexChanged+=async(_,_)=>{view=picker.SelectedIndex==1?"sent":picker.SelectedIndex==2?"unread":"received";offset=0;await Run(Home);};
-            var rows=await source.Get("api/messages?box="+view+"&offset="+offset);if(!Current(source,version))return;
-            foreach(var row in rows.EnumerateArray()){var id=row.GetProperty("id").GetString()!;Action(row.GetProperty("title").GetString()!+"\n"+row.GetProperty("senderName").GetString(),()=>OfficeDetail(id));}
-            if(rows.GetArrayLength()==0)body.Add(Text("표시할 메시지가 없습니다."));if(rows.GetArrayLength()==100)Action("다음 목록",async()=>{offset+=100;await Home();});
-            Action("학생·보호자 공지 작성 / 발송 현황",()=>Compose(true));return;
-        }
-        var role=user.GetProperty("role").GetString();
-        if(role=="admin"){body.Add(Text("계정·학급·보호자 연결은 학교 소식 관리자 웹 화면에서 관리하세요."));Action("관리 화면 열기",()=>Launcher.Default.OpenAsync(source.Address).ContinueWith(_=>{}));return;}
-        if(role=="parent")
-        {
-            var children=await source.Get("api/children");if(!Current(source,version))return;var options=children.EnumerateArray().ToArray();var picker=new Picker{Title="자녀",ItemsSource=new[]{"전체 자녀"}.Concat(options.Select(x=>x.GetProperty("name").GetString()+" · "+x.GetProperty("className").GetString())).ToArray(),SelectedIndex=Array.FindIndex(options,x=>x.GetProperty("id").GetString()==child)+1};body.Add(picker);picker.SelectedIndexChanged+=async(_,_)=>{child=picker.SelectedIndex<=0?"":options[picker.SelectedIndex-1].GetProperty("id").GetString()!;offset=0;await Run(Home);};
-        }
-        var filter=new Switch{IsToggled=unread};body.Add(Text("미확인 공지만 보기",12));body.Add(filter);filter.Toggled+=async(_,e)=>{unread=e.Value;await Run(Home);};
-        if(role=="teacher")Action("새 공지 작성",()=>Compose(false),true);
-        var notices=await source.Get("api/announcements?offset="+offset+(child.Length>0?"&childId="+child:""));if(!Current(source,version))return;var visible=0;
-        foreach(var row in notices.EnumerateArray()){if(unread&&row.GetProperty("readAt").ValueKind!=JsonValueKind.Null)continue;visible++;var id=row.GetProperty("id").GetString()!;Action((row.GetProperty("readAt").ValueKind==JsonValueKind.Null?"● ":"")+row.GetProperty("title").GetString()+"\n"+row.GetProperty("senderName").GetString()+" · "+Date(row.GetProperty("publishedAt").GetInt64()),()=>NoticeDetail(id));}
-        if(visible==0)body.Add(Text("표시할 공지가 없습니다. 새로고침으로 학교 소식을 확인하세요."));if(notices.GetArrayLength()==100)Action("다음 목록",async()=>{offset+=100;await Home();});
-    }
     static string Date(long value)=>DateTimeOffset.FromUnixTimeMilliseconds(value).ToLocalTime().ToString("MM.dd HH:mm");
     async Task ShowUpdates(bool manual=false)
     {
