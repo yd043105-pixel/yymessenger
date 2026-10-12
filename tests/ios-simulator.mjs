@@ -40,8 +40,14 @@ try {
     if (phase === 'restore') command(['simctl', 'terminate', device, id]);
     command(['simctl', 'launch', device, id], { ...process.env, SIMCTL_CHILD_YY_IOS_VERIFY: phase });
     const report = path.join(documents, 'ios-' + phase + '-results.json');
-    for (let attempt = 0; attempt < 180 && !existsSync(report); attempt++) await delay(500);
-    assert.ok(existsSync(report), 'iOS runtime report missing: ' + phase);
+    for (let attempt = 0; attempt < 360 && !existsSync(report); attempt++) await delay(500);
+    if(!existsSync(report)){
+      const progress=path.join(documents,'ios-progress.json');
+      if(existsSync(progress))copyFileSync(progress,path.join(output,'ios-timeout-progress.json'));
+      command(['simctl','io',device,'screenshot',path.join(output,'ios-timeout-preview.png')]);
+      const diagnostics=spawnSync('xcrun',['simctl','spawn',device,'log','show','--last','3m','--style','compact','--predicate','process == "SchoolMessenger.Mobile"'],{encoding:'utf8',timeout:30000});writeFileSync(path.join(output,'ios-timeout-log.txt'),diagnostics.stdout??diagnostics.stderr??'');
+      assert.fail('iOS runtime report missing: '+phase+'; progress: '+(existsSync(progress)?readFileSync(progress,'utf8'):'none'));
+    }
     const result = JSON.parse(readFileSync(report, 'utf8'));
     copyFileSync(report,path.join(output,'ios-'+phase+'-results.json'));
     command(['simctl', 'io', device, 'screenshot', path.join(output, 'ios-' + phase + '-preview.png')]);

@@ -41,6 +41,8 @@ internal static class IosRuntimeChecks
     {
         if (!condition) throw new InvalidOperationException(description);
         passed.Add(description);
+        var progress=Path.Combine(Documents,"ios-progress.json");
+        File.WriteAllText(progress+".tmp",JsonSerializer.Serialize(new{passed,updatedAt=DateTimeOffset.UtcNow}));File.Move(progress+".tmp",progress,true);
     }
     static async Task Tap(string text)
     {
