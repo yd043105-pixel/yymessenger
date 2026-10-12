@@ -91,8 +91,9 @@ public partial class MailboxWindow : Window
     {
         foreach (var tab in new[] { ReceivedTab, UnreadTab, SentTab })
         {
-            tab.Foreground = (System.Windows.Media.Brush)FindResource((string)tab.Tag == box ? "Blue" : "Muted");
-            tab.BorderBrush = (string)tab.Tag == box ? (System.Windows.Media.Brush)FindResource("Blue") : System.Windows.Media.Brushes.Transparent;
+            tab.SetResourceReference(System.Windows.Controls.Button.ForegroundProperty, (string)tab.Tag == box ? "Blue" : "Muted");
+            tab.ClearValue(System.Windows.Controls.Button.BorderBrushProperty);
+            if ((string)tab.Tag == box) tab.SetResourceReference(System.Windows.Controls.Button.BorderBrushProperty, "Blue");
         }
     }
     async void NewMessage(object sender, RoutedEventArgs e) => await main.WriteMessage();

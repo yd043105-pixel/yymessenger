@@ -409,6 +409,7 @@ public partial class MainWindow : Window
             var output = Environment.GetEnvironmentVariable("SCHOOL_UI_OUTPUT") ?? "artifacts/client-preview.png";
             var directory = Path.GetDirectoryName(Path.GetFullPath(output))!; Directory.CreateDirectory(directory); SavePreview(this, output);
             var originalTheme = Appearance.Selected; var originalGlass = Appearance.Glass;
+            var themedInbox = OpenMailbox("received"); await themedInbox.Reload();
             var themeDialog = new AppearanceWindow(this); themeDialog.Show();
             var choices = ((StackPanel)themeDialog.Content).Children.OfType<ComboBox>().Single();
             var glass = ((StackPanel)themeDialog.Content).Children.OfType<System.Windows.Controls.CheckBox>().Single();
@@ -418,11 +419,12 @@ public partial class MainWindow : Window
                 await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
                 var preferences = JsonSerializer.Deserialize<Preferences>(File.ReadAllText(Path.Combine(LocalDirectory, "preferences.json")))!;
                 if (preferences.ThemeId != palette.Id || ((SolidColorBrush)FindResource("Blue")).Color != (Color)ColorConverter.ConvertFromString(palette.Accent)) throw new InvalidOperationException("화면 색상 적용·저장 실패");
+                if (((SolidColorBrush)themedInbox.ReceivedTab.Foreground).Color != ((SolidColorBrush)FindResource("Blue")).Color) throw new InvalidOperationException("열린 메시지 창의 테마 변경 실패");
                 SavePreview(this, Path.Combine(directory, "theme-" + palette.Id + ".png"));
             }
             glass.IsChecked = false;
             if (JsonSerializer.Deserialize<Preferences>(File.ReadAllText(Path.Combine(LocalDirectory, "preferences.json")))!.Glass || ((SolidColorBrush)FindResource("Glass")).Color.A != 255) throw new InvalidOperationException("유리 효과 해제·저장 실패");
-            SavePreview(themeDialog, Path.Combine(directory, "appearance-preview.png")); themeDialog.Close();
+            SavePreview(themeDialog, Path.Combine(directory, "appearance-preview.png")); themeDialog.Close(); themedInbox.Close();
             Appearance.Apply("unknown-theme", true);
             if (Appearance.Selected != "blue") throw new InvalidOperationException("잘못된 색상 설정 복구 실패");
             Appearance.Apply(originalTheme, originalGlass); RefreshAppearance(); SavePreferences();

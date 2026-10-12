@@ -32,7 +32,7 @@ public static class MauiProgram
 #elif IOS
         Microsoft.Maui.Handlers.ButtonHandler.Mapper.AppendToMapping("SchoolStory",(handler,view)=>
         {
-            if(view is Button{ClassId:"school-story"})handler.PlatformView.ContentHorizontalAlignment=UIKit.UIControlContentHorizontalAlignment.Left;
+            if(view is Button{ClassId:"school-story"})handler.PlatformView.HorizontalAlignment=UIKit.UIControlContentHorizontalAlignment.Left;
         });
 #endif
 		builder
