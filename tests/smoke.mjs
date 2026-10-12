@@ -8,6 +8,7 @@ import net from 'node:net';
 import { featureChecks } from './features.mjs';
 import { securityChecks } from './security.mjs';
 import { workChecks } from './work.mjs';
+import { officeChecks } from './office.mjs';
 
 const root = process.cwd();
 const localDotnet = path.join(root, '.tools/dotnet/dotnet.exe');
@@ -203,6 +204,7 @@ try {
     }
   }
   await workChecks({ Client, admin, password, address, data, check, start, stop, ready });
+  await officeChecks({Client,admin,password,address,data,check});
   writeFileSync('artifacts/test-results.json', JSON.stringify({ verifiedAt: new Date().toISOString(), mode: packaged ? 'self-contained Windows executables' : 'development build', passed, skipped: skipNativeInput ? ['actual Windows keyboard injection: another foreground Windows dialog prevents verification-window focus'] : [], testData: data }, null, 2));
   console.log(`${passed.length} checks passed.`);
 } finally { await stop(); }

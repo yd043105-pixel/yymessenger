@@ -16,10 +16,11 @@ public sealed class Api : IDisposable
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     public Api(string address)
     {
-        Address = new Uri(address.TrimEnd('/') + '/');
+        if(!Uri.TryCreate(address.TrimEnd('/')+'/',UriKind.Absolute,out var uri)||uri.AbsolutePath!="/"||uri.UserInfo.Length>0||uri.Query.Length>0||uri.Fragment.Length>0)throw new InvalidOperationException("학교에서 안내한 서버 기본 주소를 입력하세요.");
+        Address = uri;
         if (Address.Scheme != "https" && !(Address.Scheme == "http" && Address.IsLoopback))
             throw new InvalidOperationException("교내 서버 주소는 HTTPS여야 합니다. HTTP는 이 PC의 개발 서버에만 허용됩니다.");
-        Http = new HttpClient(new HttpClientHandler { CookieContainer = Cookies }) { BaseAddress = Address, Timeout = TimeSpan.FromSeconds(90) };
+        Http = new HttpClient(new HttpClientHandler { CookieContainer = Cookies, AllowAutoRedirect=false }) { BaseAddress = Address, Timeout = TimeSpan.FromSeconds(90) };
     }
     public async Task RefreshSession(CancellationToken cancellationToken = default) => Session = await Get<Session>("api/session", cancellationToken);
     public async Task<T> Get<T>(string path, CancellationToken cancellationToken = default)
@@ -85,7 +86,7 @@ public sealed class Api : IDisposable
     }
     public void Dispose() => Http.Dispose();
 }
-public record UserInfo(string Id, string Username, string Name, string Department, bool IsAdmin, bool CanBroadcast, bool Active);
+public record UserInfo(string Id, string Username, string Name, string Department, bool IsAdmin, bool CanBroadcast, bool Active, bool ActivationRequired=false, string? SeatIp=null);
 public record Session(string SchoolName, string CsrfToken, UserInfo? User);
 public record Person(string Id, string Name, string Department, bool Online)
 {

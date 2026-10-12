@@ -17,7 +17,7 @@
     <Button DockPanel.Dock="Bottom" ToolTip="설정" Style="{StaticResource RailButton}" Click="OpenSettings"><StackPanel><Path Data="{StaticResource SettingsIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="설정" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel>
      <Button.ContextMenu><ContextMenu><MenuItem x:Name="Quiet" Header="알림 소리 끄기" IsCheckable="True"/><MenuItem x:Name="DoNotDisturb" Header="방해금지" IsCheckable="True"/><MenuItem x:Name="AutoStartMenu" Header="Windows 로그인 시 자동 실행" IsCheckable="True" Checked="StartupChanged" Unchecked="StartupChanged"/><Separator/><MenuItem Header="업데이트 내역" Click="OpenUpdates"/><MenuItem Header="약관·개인정보 안내" Click="OpenPolicies"/><MenuItem Header="내 비밀번호 변경" Click="ChangePassword"/><MenuItem x:Name="AdminButton" Header="교직원 · 서버 관리" Click="OpenAdmin" Visibility="Collapsed"/><Separator/><MenuItem Header="로그아웃" Click="Logout"/><MenuItem Header="프로그램 종료" Click="ExitApp"/></ContextMenu></Button.ContextMenu>
     </Button>
-    <StackPanel>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel>
      <Button x:Name="OrganizationButton" Style="{StaticResource RailButton}" Background="{StaticResource Blue}" Foreground="White" Click="ShowOrganization"><StackPanel><Path Data="{StaticResource TreeIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="조직도" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
      <Button Style="{StaticResource RailButton}" Tag="received" Click="OpenMailboxClick"><StackPanel><Path Data="{StaticResource MailIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="받은함" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
      <Button Style="{StaticResource RailButton}" Tag="unread" Click="OpenMailboxClick"><StackPanel><Path Data="{StaticResource MailIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="미확인" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
@@ -28,7 +28,8 @@
      <Button Style="{StaticResource RailButton}" Click="OpenWorkClick"><StackPanel><Path Data="{StaticResource FileIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="할 일·제출" FontSize="9" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
      <Button Style="{StaticResource RailButton}" Click="OpenAnnouncementClick"><StackPanel><Path Data="{StaticResource MailIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="학교 공지" FontSize="9" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
      <Button Style="{StaticResource RailButton}" Click="OpenTimetableClick"><StackPanel><Path Data="{StaticResource HistoryIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="시간표" FontSize="9" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
-    </StackPanel>
+     <Button Style="{StaticResource RailButton}" Click="OpenOfficeClick"><StackPanel><Path Data="{StaticResource HistoryIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="일정·예약" FontSize="9" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel></Button>
+    </StackPanel></ScrollViewer>
    </DockPanel></Border>
    <DockPanel>
     <Border DockPanel.Dock="Top" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="12,13,12,10"><StackPanel>
@@ -49,7 +50,7 @@
    <Border Width="45" Height="45" Background="{StaticResource Blue}" CornerRadius="12" HorizontalAlignment="Left" Margin="0,0,0,16"><TextBlock Text="여" Foreground="White" FontSize="23" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
    <TextBlock Text="여양 교무실" FontSize="26" FontWeight="Bold"/><TextBlock Text="우리 학교 선생님들의 온라인 교무실" Foreground="{StaticResource Muted}" Margin="0,9,0,26"/>
    <TextBlock Text="학교 서버 주소" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,0,7"/><TextBox x:Name="ServerAddress" Text="http://localhost:5080"/>
-   <TextBlock Text="아이디" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,15,0,7"/><TextBox x:Name="UsernameBox"/>
+   <TextBlock Text="교사 로그인 이름 · 학교에서 등록한 아이디" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,15,0,7"/><TextBox x:Name="UsernameBox"/>
    <TextBlock Text="비밀번호" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,15,0,7"/><PasswordBox x:Name="PasswordBox" KeyDown="PasswordKeyDown"/>
    <CheckBox x:Name="AutoStartCheck" Content="Windows 로그인 시 자동 실행" FontSize="11" Margin="0,17,0,0" Checked="StartupChanged" Unchecked="StartupChanged"/>
    <CheckBox x:Name="RememberLogin" Content="이 Windows 계정에서 자동 로그인" FontSize="11" Margin="0,9,0,0" Checked="RememberChanged" Unchecked="RememberChanged"/>

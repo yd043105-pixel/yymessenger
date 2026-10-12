@@ -11,22 +11,12 @@ public static class PortalNotices
 {
     public static AnnouncementTarget[] Audience(PortalDirectory directory,DirectoryPerson teacher,AnnouncementRequest request)
     {
-        var classes=request.All?directory.Classes.Select(c=>c.Id).ToArray():request.ClassIds.Distinct().ToArray();
-        if(!request.All&&classes.Any(id=>!teacher.Classes.Contains(id)))throw new FilePolicyException("담당하지 않은 학급입니다.",403);
-        if(request.All&&!teacher.CanBroadcast)throw new FilePolicyException("학교 전체 발송 권한이 없습니다.",403);
-        var students=directory.People.Where(p=>p.Role=="student"&&p.ClassId is not null&&classes.Contains(p.ClassId)).ToArray();
-        var result=new List<AnnouncementTarget>();
-        foreach(var student in students)
-        {
-            if(request.Audience is "students"or"both")result.Add(new(student.Id,student.Id,student.ClassId!,AnnouncementScopes.Stamp(student)));
-            if(request.Audience is "parents"or"both")foreach(var parent in directory.People.Where(p=>p.Role=="parent"&&p.Children.Contains(student.Id)))result.Add(new(parent.Id,student.Id,student.ClassId!,AnnouncementScopes.Stamp(student,parent)));
-        }
-        return result.OrderBy(t=>t.UserId,StringComparer.Ordinal).ThenBy(t=>t.StudentId,StringComparer.Ordinal).ToArray();
+        try{return AnnouncementAudience.Build(directory,teacher,request);}catch(InvalidOperationException e){throw new FilePolicyException(e.Message,403);}
     }
     public static string? Invalid(AnnouncementRequest r)
     {
         if(!Guid.TryParseExact(r.ClientId,"N",out _)||string.IsNullOrWhiteSpace(r.Title)||r.Title.Length>200||string.IsNullOrWhiteSpace(r.Body)||r.Body.Length>10000||r.Audience is not("students"or"parents"or"both"))return "제목·내용·수신 대상을 확인하세요.";
-        if(r.ClassIds is null||r.ClassIds.Length>100||r.ClassIds.Any(id=>!Guid.TryParseExact(id,"N",out _))||!r.All&&r.ClassIds.Length==0||r.All&&r.ClassIds.Length>0)return "학급 또는 전체 학교 중 하나를 선택하세요.";
+        if(r.ClassIds is null||r.ClassIds.Length>100||r.ClassIds.Any(id=>!Guid.TryParseExact(id,"N",out _))||r.SectionIds?.Length>100||r.SectionIds?.Any(id=>!Guid.TryParseExact(id,"N",out _))==true||!r.All&&r.ClassIds.Length==0&&(r.SectionIds?.Length??0)==0||r.All&&(r.ClassIds.Length>0||(r.SectionIds?.Length??0)>0))return "학급·분반 또는 전체 학교 중 하나를 선택하세요.";
         if(r.AttachmentIds is null||r.AttachmentIds.Length>10||r.AttachmentIds.Any(id=>!Guid.TryParseExact(id,"N",out _))||r.AttachmentIds.Distinct().Count()!=r.AttachmentIds.Length)return "첨부파일은 최대 10개이며 같은 파일을 중복할 수 없습니다.";
         return null;
     }
@@ -90,12 +80,12 @@ public static class PortalNotices
         if(captured?.Length>10000)return Error("발송 대상이 너무 많습니다.");
         using var db=store.Open();using var tx=db.BeginTransaction();
         var teacher=store.Person(teacherId);if(teacher is null||!VerifiedTeacher(store,teacher,request.All))return Error("활성 교직원 연결 확인과 발송 권한이 필요합니다.",403);
-        var directory=store.DirectorySnapshot();var publisher=directory.People.First(p=>p.Id==teacherId);
+        var directory=store.DirectorySnapshot();var publisher=directory.People.First(p=>p.Id==teacherId) with{CanBroadcast=VerifiedTeacher(store,teacher,true)};
         AnnouncementTarget[] valid;
         try{valid=Audience(directory,publisher,request);}catch(FilePolicyException error){return Error(error.Message,error.Status);}
         var targets=(captured??valid).Distinct().OrderBy(t=>t.UserId,StringComparer.Ordinal).ThenBy(t=>t.StudentId,StringComparer.Ordinal).ToArray();
         if(targets.Length==0||targets.Any(t=>!valid.Contains(t)))return Error("발송 대상 또는 보호자 관계가 변경되었습니다. 대상을 확인하고 새 공지로 보내세요.",409);
-        var fingerprint=Hash(JsonSerializer.Serialize(new{title=request.Title.Trim(),request.Body,request.Audience,classes=request.ClassIds.Order(StringComparer.Ordinal).ToArray(),request.All,files=request.AttachmentIds.Order(StringComparer.Ordinal).ToArray(),targets}));
+        var fingerprint=Hash(JsonSerializer.Serialize(new{title=request.Title.Trim(),request.Body,request.Audience,classes=request.ClassIds.Order(StringComparer.Ordinal).ToArray(),sections=(request.SectionIds??[]).Order(StringComparer.Ordinal).ToArray(),request.All,files=request.AttachmentIds.Order(StringComparer.Ordinal).ToArray(),targets}));
         using(var previous=PortalStore.Command(db,"SELECT Id,Fingerprint FROM Notices WHERE SenderId=$sender AND ClientId=$client",tx,("$sender",teacherId),("$client",request.ClientId)))
         using(var r=previous.ExecuteReader()){if(r.Read())return r.GetString(1)==fingerprint?Results.Ok(new{id=r.GetString(0),duplicate=true}):Error("같은 요청 번호의 내용을 변경할 수 없습니다.",409);}
         long total=0;
@@ -108,6 +98,7 @@ public static class PortalNotices
         var id=Guid.NewGuid().ToString("N");var now=Now;
         using(var add=PortalStore.Command(db,"INSERT INTO Notices VALUES($id,$sender,$client,$hash,$title,$body,$audience,$now,0)",tx,("$id",id),("$sender",teacherId),("$client",request.ClientId),("$hash",fingerprint),("$title",request.Title.Trim()),("$body",request.Body),("$audience",request.Audience),("$now",now)))add.ExecuteNonQuery();
         foreach(var target in targets){using var add=PortalStore.Command(db,"INSERT INTO Targets(NoticeId,UserId,StudentId,ClassId) VALUES($id,$user,$student,$class)",tx,("$id",id),("$user",target.UserId),("$student",target.StudentId),("$class",target.ClassId));add.ExecuteNonQuery();}
+        foreach(var section in (directory.Sections??[]).Where(s=>(request.SectionIds??[]).Contains(s.Id)))foreach(var member in section.Members.Where(m=>targets.Any(t=>t.StudentId==m.StudentId))){using var add=PortalStore.Command(db,"INSERT INTO NoticeSectionMembers VALUES($notice,$section,$student,$stamp)",tx,("$notice",id),("$section",section.Id),("$student",member.StudentId),("$stamp",member.Stamp));add.ExecuteNonQuery();}
         var seconds=environment.IsDevelopment()?Math.Max(1,config.GetValue("Portal:RetentionSeconds",2_592_000)):2_592_000;
         foreach(var file in request.AttachmentIds){using var bind=PortalStore.Command(db,"UPDATE Files SET NoticeId=$notice,ExpiresAt=$expires WHERE Id=$id",tx,("$notice",id),("$expires",now+seconds*1000L),("$id",file));bind.ExecuteNonQuery();}
         tx.Commit();return Results.Ok(new{id,duplicate=false});
@@ -158,14 +149,16 @@ public static class PortalNotices
         var notice=store.Query(Select+" WHERE n.Id=$id",ReadNotice,("$id",id),("$user",user)).Single();
         var owner=store.Query("SELECT 1 FROM Notices WHERE Id=$id AND SenderId=$user",r=>r.GetInt32(0),("$id",id),("$user",user)).Count>0;
         var files=store.Query("SELECT Id,Name,Size,ExpiresAt,DeletedAt FROM Files WHERE NoticeId=$id",r=>new PortalFile(r.GetString(0),r.GetString(1),r.GetInt64(2),r.GetInt64(3),!r.IsDBNull(4)||r.GetInt64(3)<=Now||!File.Exists(Path.Combine(store.Files,r.GetString(0)))),("$id",id)).ToArray();
-        var teacher=store.Person(user)!;var classes=store.Classes(user);
-        PortalReceipt[]? receipts=owner?store.Query("SELECT t.UserId,p.Name,s.Name,t.ReadAt,t.Revoked,t.ClassId FROM Targets t JOIN People p ON p.Id=t.UserId JOIN People s ON s.Id=t.StudentId WHERE t.NoticeId=$id ORDER BY p.Name,s.Name",r=>new PortalReceipt(r.GetString(0),r.GetString(1),r.GetString(2),r.IsDBNull(3)?null:r.GetInt64(3),r.GetBoolean(4),r.GetString(5)),("$id",id)).Where(r=>classes.Contains(r.ClassId)||VerifiedTeacher(store,teacher,true)).ToArray():null;
+        var teacher=store.Person(user)!;var classes=store.Classes(user);var sectionStudents=store.Query("SELECT DISTINCT ns.StudentId FROM NoticeSectionMembers ns JOIN SectionTeachers st ON st.SectionId=ns.SectionId JOIN SectionMembers sm ON sm.SectionId=ns.SectionId AND sm.StudentId=ns.StudentId AND sm.Stamp=ns.Stamp JOIN People s ON s.Id=ns.StudentId AND s.Active=1 WHERE ns.NoticeId=$notice AND st.TeacherId=$teacher",r=>r.GetString(0),("$notice",id),("$teacher",user)).ToHashSet(StringComparer.Ordinal);
+        PortalReceipt[]? receipts=owner?store.Query("SELECT t.UserId,p.Name,s.Name,t.ReadAt,t.Revoked,t.ClassId,t.StudentId FROM Targets t JOIN People p ON p.Id=t.UserId JOIN People s ON s.Id=t.StudentId WHERE t.NoticeId=$id ORDER BY p.Name,s.Name",r=>new PortalReceipt(r.GetString(0),r.GetString(1),r.GetString(2),r.IsDBNull(3)?null:r.GetInt64(3),r.GetBoolean(4),r.GetString(5),r.GetString(6)),("$id",id)).Where(r=>classes.Contains(r.ClassId)||VerifiedTeacher(store,teacher,true)||sectionStudents.Contains(r.StudentId??"")).ToArray():null;
         return Results.Ok(new PortalNoticeDetail(notice,files,receipts));
     }
     const string Accessible="""
         EXISTS(SELECT 1 FROM Targets t JOIN People s ON s.Id=t.StudentId
          WHERE t.NoticeId=n.Id AND t.UserId=$user AND t.Revoked=0 AND s.Active=1 AND s.ClassId=t.ClassId AND ($child='' OR t.StudentId=$child)
-         AND (t.UserId=t.StudentId OR EXISTS(SELECT 1 FROM Families f WHERE f.ParentId=t.UserId AND f.StudentId=t.StudentId)))
+         AND (NOT EXISTS(SELECT 1 FROM NoticeSectionMembers ns WHERE ns.NoticeId=n.Id AND ns.StudentId=t.StudentId) OR EXISTS(SELECT 1 FROM NoticeSectionMembers ns JOIN SectionMembers sm ON sm.SectionId=ns.SectionId AND sm.StudentId=ns.StudentId AND sm.Stamp=ns.Stamp WHERE ns.NoticeId=n.Id AND ns.StudentId=t.StudentId))
+         AND (t.UserId=t.StudentId OR EXISTS(SELECT 1 FROM Families f WHERE f.ParentId=t.UserId AND f.StudentId=t.StudentId)
+          OR EXISTS(SELECT 1 FROM TimetableHomerooms h JOIN People teacher ON teacher.InternalUserId=h.TeacherId WHERE h.ClassId=t.ClassId AND teacher.Id=t.UserId AND teacher.Active=1 AND teacher.Role='teacher')))
         """;
     const string Select="""
         SELECT n.Id,n.Title,n.Body,p.Name,n.PublishedAt,(SELECT MIN(ReadAt) FROM Targets WHERE NoticeId=n.Id AND UserId=$user),n.Withdrawn,

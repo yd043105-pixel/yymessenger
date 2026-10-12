@@ -39,6 +39,7 @@ public sealed class AnnouncementWindow:Window
         body.Children.Add(Text("공지 내용"));var message=new TextBox{AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,Height=150,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,MaxLength=10000,Margin=new Thickness(0,0,0,12)};body.Children.Add(message);
         var audience=new ComboBox{ItemsSource=new[]{"학생과 보호자","보호자","학생"},SelectedIndex=0,Margin=new Thickness(0,0,0,12)};body.Children.Add(audience);
         var classes=new Dictionary<string,CheckBox>();var scope=new WrapPanel();foreach(var room in setup.GetProperty("classes").EnumerateArray()){var check=new CheckBox{Content=room.GetProperty("name").GetString(),Margin=new Thickness(0,0,18,12)};classes.Add(room.GetProperty("id").GetString()!,check);scope.Children.Add(check);}body.Children.Add(scope);
+        var sections=new Dictionary<string,CheckBox>();var sectionPanel=new WrapPanel();body.Children.Add(Text("선택과목 분반 · 학급 선택과 함께 사용하지 않습니다."));foreach(var section in setup.GetProperty("sections").EnumerateArray()){var check=new CheckBox{Content=section.GetProperty("name").GetString()+" · "+section.GetProperty("memberCount")+"명",IsEnabled=section.GetProperty("memberCount").GetInt32()>0,Margin=new Thickness(0,0,18,12)};sections[section.GetProperty("id").GetString()!]=check;sectionPanel.Children.Add(check);}body.Children.Add(sectionPanel);
         var whole=new CheckBox{Content="학교 전체 발송",Margin=new Thickness(0,0,0,12)};if(setup.GetProperty("canBroadcast").GetBoolean())body.Children.Add(whole);
         var attachments=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,12)};body.Children.Add(attachments);files.Clear();pending=null;
         Action("공지 전용 첨부 추가 · 파일당 100MB",async()=>
@@ -52,9 +53,9 @@ public sealed class AnnouncementWindow:Window
         {
             if(pending is null)
             {
-                if(string.IsNullOrWhiteSpace(title.Text)||string.IsNullOrWhiteSpace(message.Text)||whole.IsChecked!=true&&!classes.Values.Any(c=>c.IsChecked==true))throw new InvalidOperationException("제목·내용·수신 학급을 입력하세요.");
+                if(string.IsNullOrWhiteSpace(title.Text)||string.IsNullOrWhiteSpace(message.Text)||whole.IsChecked!=true&&!classes.Values.Any(c=>c.IsChecked==true)&&!sections.Values.Any(c=>c.IsChecked==true))throw new InvalidOperationException("제목·내용·수신 학급을 입력하세요.");
                 if(MessageBox.Show(this,"선택한 학생·보호자에게 학교 밖으로 공지를 발송할까요?","공지 발송 확인",MessageBoxButton.YesNo,MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
-                pending=new{clientId=Guid.NewGuid().ToString("N"),title=title.Text,body=message.Text,audience=audience.SelectedIndex==1?"parents":audience.SelectedIndex==2?"students":"both",classIds=whole.IsChecked==true?[]:classes.Where(c=>c.Value.IsChecked==true).Select(c=>c.Key).ToArray(),all=whole.IsChecked==true,attachmentIds=files.ToArray()};
+                pending=new{clientId=Guid.NewGuid().ToString("N"),title=title.Text,body=message.Text,audience=audience.SelectedIndex==1?"parents":audience.SelectedIndex==2?"students":"both",classIds=whole.IsChecked==true?[]:classes.Where(c=>c.Value.IsChecked==true).Select(c=>c.Key).ToArray(),all=whole.IsChecked==true,attachmentIds=files.ToArray(),sectionIds=whole.IsChecked==true?Array.Empty<string>():sections.Where(c=>c.Value.IsChecked==true).Select(c=>c.Key).ToArray()};
                 title.IsEnabled=message.IsEnabled=audience.IsEnabled=whole.IsEnabled=false;foreach(var check in classes.Values)check.IsEnabled=false;
             }
             await api.Send<JsonElement>(HttpMethod.Post,"api/external-announcements",pending);pending=null;await Load();feedback.Text="발송 대기열에 등록했습니다. 외부 서버 확인 후 게시됩니다.";

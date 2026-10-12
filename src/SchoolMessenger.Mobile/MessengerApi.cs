@@ -28,6 +28,11 @@ public sealed class MessengerApi : IDisposable
 #endif
         if(uri.Scheme!="https"&&!localDebug)throw new InvalidOperationException("서버 주소는 https://로 시작해야 합니다.");
         Address=uri;Office=office;key="session-"+Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes((office?"office:":"portal:")+uri.AbsoluteUri)));
+#if FAMILY_APP
+        if(office)throw new InvalidOperationException("가족 앱은 학교 소식 서버만 사용할 수 있습니다.");
+#elif TEACHER_APP
+        if(!office)throw new InvalidOperationException("교사 앱은 교직원 교무실 서버를 사용하세요.");
+#endif
 #if IOS
         // Default NSURLSession shares native cookies across clients and app restarts.
         // Each school space/account gets private native storage; only our Keychain data restores it.
@@ -54,10 +59,16 @@ public sealed class MessengerApi : IDisposable
     }
     public async Task Refresh()
     {
+        var previousShares=ShareFolder();
         var previouslyAuthenticated=Session.ValueKind==JsonValueKind.Object&&Session.GetProperty("user").ValueKind!=JsonValueKind.Null;
         Session=await Get("api/session");csrf=Session.GetProperty("csrfToken").GetString()!;
-        if(Session.GetProperty("user").ValueKind==JsonValueKind.Null){SecureStorage.Default.Remove(key);if(previouslyAuthenticated)Invalidated?.Invoke();}
+        if(Session.GetProperty("user").ValueKind==JsonValueKind.Null){DeleteShares(previousShares);SecureStorage.Default.Remove(key);if(previouslyAuthenticated)Invalidated?.Invoke();}
+        else if(Session.GetProperty("user").TryGetProperty("activationRequired",out var initial)&&initial.GetBoolean())SecureStorage.Default.Remove(key);
         else await Persist();
+        if(Office&&Session.GetProperty("user").ValueKind==JsonValueKind.Object&&!Session.GetProperty("user").TryGetProperty("department",out _)){await Logout();throw new InvalidOperationException("교사 앱에는 교직원 교무실 서버 주소와 교직원 계정을 사용하세요.");}
+#if FAMILY_APP
+        if(Session.GetProperty("user").ValueKind==JsonValueKind.Object&&(!Session.GetProperty("user").TryGetProperty("role",out var familyRole)||familyRole.GetString() is not("parent" or "student"))){await Logout();throw new InvalidOperationException("가족 앱은 학교 소식 서버의 학생·학부모 계정으로 로그인하세요.");}
+#endif
     }
     public async Task<JsonElement> Get(string path)
     {using var response=await http.GetAsync(path);await Check(response);return await Read(response);}
@@ -69,14 +80,14 @@ public sealed class MessengerApi : IDisposable
     public async Task Login(string username,string password,bool remember)
     {Remember=remember;await Refresh();await Send("api/login",new MobileLogin(username,password,remember));await Refresh();}
     public async Task Logout()
-    {try{await Send("api/logout");}finally{SecureStorage.Default.Remove(key);foreach(Cookie c in cookies.GetCookies(Address))c.Expired=true;Session=default;Invalidated?.Invoke();}}
+    {var folder=ShareFolder();try{await Send("api/logout");}finally{DeleteShares(folder);SecureStorage.Default.Remove(key);foreach(Cookie c in cookies.GetCookies(Address))c.Expired=true;Session=default;Invalidated?.Invoke();}}
     public async Task<JsonElement> Upload(FileResult file,bool external)
     {using var content=new MultipartFormDataContent();if(!Office)content.Add(new StringContent(Guid.NewGuid().ToString("N")),"clientId");content.Add(new StreamContent(await file.OpenReadAsync()),"file",file.FileName);return await Send(external&&Office?"api/external-announcements/attachments":"api/attachments",content:content);}
     public async Task ShareFile(string id,string name)
     {
         using var response=await http.GetAsync("api/attachments/"+id+"/download",HttpCompletionOption.ResponseHeadersRead);await Check(response);
         if(response.Content.Headers.ContentLength>100L*1024*1024)throw new InvalidOperationException("파일이 너무 큽니다.");
-        var folder=Path.Combine(FileSystem.CacheDirectory,"yy-share");Directory.CreateDirectory(folder);var path=Path.Combine(folder,Guid.NewGuid().ToString("N")+"-"+Path.GetFileName(name));
+        var folder=ShareFolder();Directory.CreateDirectory(folder);var path=Path.Combine(folder,Guid.NewGuid().ToString("N")+"-"+Path.GetFileName(name));
         try{await using(var output=File.Create(path))await response.Content.CopyToAsync(output);await Share.Default.RequestAsync(new ShareFileRequest("첨부 저장·공유",new ShareFile(path)));}
         catch{if(File.Exists(path))File.Delete(path);throw;}
         // Android returns when the chooser opens; deleting here would break the selected recipient's stream.
@@ -84,17 +95,19 @@ public sealed class MessengerApi : IDisposable
     public static void CleanupShares()
     {
         var folder=Path.Combine(FileSystem.CacheDirectory,"yy-share");if(!Directory.Exists(folder))return;
-        foreach(var file in Directory.EnumerateFiles(folder))if(File.GetLastWriteTimeUtc(file)<DateTime.UtcNow.AddDays(-1))File.Delete(file);
+        foreach(var file in Directory.EnumerateFiles(folder,"*",SearchOption.AllDirectories))if(File.GetLastWriteTimeUtc(file)<DateTime.UtcNow.AddDays(-1))try{File.Delete(file);}catch(IOException){}
     }
+    string ShareFolder()=>Path.Combine(FileSystem.CacheDirectory,"yy-share",key,Session.ValueKind==JsonValueKind.Object&&Session.GetProperty("user").ValueKind==JsonValueKind.Object?Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Session.GetProperty("user").GetProperty("id").GetString()!))):"anonymous");
+    static void DeleteShares(string folder){if(!Directory.Exists(folder))return;foreach(var file in Directory.EnumerateFiles(folder))try{File.Delete(file);}catch(IOException){}}
     async Task Check(HttpResponseMessage response)
     {
-        if(response.IsSuccessStatusCode)return;if(response.StatusCode==HttpStatusCode.Unauthorized){SecureStorage.Default.Remove(key);Session=default;Invalidated?.Invoke();}
+        if(response.IsSuccessStatusCode)return;if(response.StatusCode==HttpStatusCode.Unauthorized){DeleteShares(ShareFolder());SecureStorage.Default.Remove(key);Session=default;Invalidated?.Invoke();}
         string message=(int)response.StatusCode switch{401=>"로그인이 만료되었습니다. 다시 로그인하세요.",403=>"승인된 계정과 담당 학급 권한을 확인하세요.",429=>"요청이 많습니다. 잠시 후 다시 시도하세요.",_=>"서버 연결·학교 접속 권한을 확인하세요."};
         try{var data=await response.Content.ReadFromJsonAsync(MobileJson.Default.JsonElement);if(data.TryGetProperty("error",out var error))message=error.GetString()??message;}catch(JsonException){}
         throw new InvalidOperationException(message);
     }
     static async Task<JsonElement> Read(HttpResponseMessage response){var text=await response.Content.ReadAsStringAsync();if(string.IsNullOrEmpty(text))return default;using var document=JsonDocument.Parse(text);return document.RootElement.Clone();}
-    public void Dispose()=>http.Dispose();
+    public void Dispose(){DeleteShares(ShareFolder());http.Dispose();}
 }
 internal record MobileCookie(string Name,string Value,DateTime Expires);
 internal record MobileLogin(string Username,string Password,bool RememberLogin);
@@ -110,5 +123,10 @@ internal record MobileEmpty;
 [JsonSerializable(typeof(MobileFamilyCode))]
 [JsonSerializable(typeof(MobileEmpty))]
 [JsonSerializable(typeof(AnnouncementRequest))]
+[JsonSerializable(typeof(StaffActivation))]
+[JsonSerializable(typeof(OfficeEventRequest))]
+[JsonSerializable(typeof(OfficeRoomRequest))]
+[JsonSerializable(typeof(OfficeBookingRequest))]
+[JsonSerializable(typeof(OfficeRevision))]
 [JsonSerializable(typeof(JsonElement))]
 internal partial class MobileJson:JsonSerializerContext;

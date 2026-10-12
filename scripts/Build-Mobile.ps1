@@ -1,4 +1,4 @@
-param([ValidateSet('Debug','Release')][string]$Configuration='Debug',[string]$AndroidSdkDirectory,[string]$JavaSdkDirectory)
+param([ValidateSet('Debug','Release')][string]$Configuration='Debug',[string]$AndroidSdkDirectory,[string]$JavaSdkDirectory,[ValidateSet('Combined','Teacher','Family')][string]$SchoolApp='Family')
 $ErrorActionPreference='Stop'
 $projectRoot=Split-Path $PSScriptRoot -Parent
 $dotnetExecutable=Join-Path $projectRoot '.tools\dotnet\dotnet.exe'
@@ -22,6 +22,7 @@ New-Item -ItemType Junction -Path (Join-Path $stageRoot 'android-sdk') -Target (
 New-Item -ItemType Junction -Path (Join-Path $stageRoot 'java-sdk') -Target (Resolve-Path -LiteralPath $JavaSdkDirectory).Path | Out-Null
 $env:DOTNET_ROOT=Split-Path $dotnetExecutable -Parent
 $buildArguments=@('build',(Join-Path $stageRoot 'src\SchoolMessenger.Mobile'),'-f','net10.0-android','-c',$Configuration,'-p:RestoreLockedMode=true',"-p:AndroidSdkDirectory=$stageRoot\android-sdk","-p:JavaSdkDirectory=$stageRoot\java-sdk",'--nologo','-v','minimal')
+$buildArguments+="-p:SchoolApp=$SchoolApp"
 # MAUI SingleProject overwrites the project-level manifest property. A global property keeps the scoped debug manifest.
 if($Configuration -eq 'Debug'){$buildArguments+='-p:AndroidManifest=Platforms/Android/AndroidManifest.Debug.xml'}
 & $dotnetExecutable @buildArguments
@@ -32,4 +33,4 @@ $packages=Get-ChildItem -LiteralPath (Join-Path $stageRoot "src\SchoolMessenger.
 if(-not $packages){throw 'No APK produced.'}
 $packages | Copy-Item -Destination $destination -Force
 Copy-Item -LiteralPath (Join-Path $stageRoot 'src\SchoolMessenger.Mobile\packages.lock.json') -Destination (Join-Path $projectRoot 'src\SchoolMessenger.Mobile\packages.lock.json') -Force
-Write-Host "Android APK: $destination ($Configuration; local signing, not a store release)."
+Write-Host "Android APK: $destination ($SchoolApp; $Configuration; local signing, not a store release)."

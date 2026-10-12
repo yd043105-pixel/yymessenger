@@ -77,6 +77,8 @@ builder.Services.AddRateLimiter(o =>
 
 var app = builder.Build();
 var store = app.Services.GetRequiredService<Store>();
+StaffAccounts.Initialize(store);
+OfficeFeatures.Initialize(store);
 var registrationPolicy=new RegistrationPolicy(builder.Configuration["Registration:PolicyFile"],builder.Environment.IsDevelopment(),builder.Environment.ContentRootPath);
 using(var policyDatabase=store.Open())RegistrationPolicy.EnsureSchema(policyDatabase);
 var hasher = app.Services.GetRequiredService<PasswordHasher<User>>();
@@ -141,6 +143,14 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.Use(async (context, next) =>
 {
+    if(context.User.Identity?.IsAuthenticated==true && StaffAccounts.Pending(store,UserId(context)) &&
+       (context.Request.Path.StartsWithSegments("/api")||context.Request.Path.StartsWithSegments("/hub")||context.Request.Path.StartsWithSegments("/remote")) &&
+       context.Request.Path.Value is not("/api/session" or "/api/activate" or "/api/logout" or "/api/registration/policy"))
+    { context.Response.StatusCode=403;context.Response.Headers.CacheControl="no-store";await context.Response.WriteAsJsonAsync(new{error="개별 활성화 번호와 개인 비밀번호 설정을 먼저 완료하세요.",activationRequired=true});return; }
+    await next();
+});
+app.Use(async (context, next) =>
+{
     if (context.Request.Path.StartsWithSegments("/api") && context.Request.Method is "POST" or "PATCH" or "DELETE")
     {
         try { await context.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(context); }
@@ -160,7 +170,7 @@ app.MapGet("/api/session", (HttpContext c, IAntiforgery antiforgery) => Results.
 }));
 app.MapPost("/api/login", async Task<IResult> (Login request, HttpContext c) =>
 {
-    if (request.Username is null || request.Password is null || request.Password.Length > 128) return Error("계정과 비밀번호를 확인하세요.", 401);
+    if (request.Username is not {Length:>=1 and <=50} || request.Password is null || request.Password.Length > 128) return Error("계정과 비밀번호를 확인하세요.", 401);
     var user = store.FindUser(request.Username.Trim());
     if (user is null && store.FindRegistration(request.Username.Trim()) is { } registration)
     {
@@ -169,6 +179,8 @@ app.MapPost("/api/login", async Task<IResult> (Login request, HttpContext c) =>
             return Error(registration.Status == "pending" ? "관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다." : "계정 신청이 반려되었습니다. 정보를 확인하고 다시 신청하세요.", 403);
     }
     if (user is not { Active: true } || user.LockedUntil > Maintenance.Now) return Error("계정과 비밀번호를 확인하세요. 반복 실패 시 15분 후 재시도하세요.", 401);
+    var initialProfile=StaffAccounts.Get(store,user.Id);
+    if(initialProfile is{NeedsActivation:true}&&initialProfile.ExpiresAt<=Maintenance.Now)return Error("초기 계정의 활성화 기간이 만료되었습니다. 관리자에게 재발급을 요청하세요.",401);
     var verified = hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
     if (verified == PasswordVerificationResult.Failed)
     {
@@ -182,7 +194,7 @@ app.MapPost("/api/login", async Task<IResult> (Login request, HttpContext c) =>
     var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, user.Id), new(ClaimTypes.Name, user.Name), new("version", user.SessionVersion.ToString()) };
     if (user.IsAdmin) claims.Add(new(ClaimTypes.Role, "Admin"));
     await c.SignInAsync(new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)),
-        new AuthenticationProperties { IsPersistent = request.RememberLogin, ExpiresUtc = DateTimeOffset.UtcNow.Add(request.RememberLogin ? TimeSpan.FromDays(30) : TimeSpan.FromHours(8)) });
+        new AuthenticationProperties { IsPersistent = request.RememberLogin && initialProfile?.NeedsActivation!=true, ExpiresUtc = DateTimeOffset.UtcNow.Add(initialProfile?.NeedsActivation==true?TimeSpan.FromMinutes(15):request.RememberLogin ? TimeSpan.FromDays(30) : TimeSpan.FromHours(8)) });
     return Results.Ok(PublicUser(user));
 }).RequireRateLimiting("login");
 app.MapGet("/api/registration/policy",()=>registrationPolicy.Current).RequireRateLimiting("login");
@@ -438,6 +450,8 @@ api.MapGet("/attachments/{id}/download", (string id, HttpContext c) =>
 });
 
 var adminApi = app.MapGroup("/api/admin").RequireAuthorization("Admin");
+StaffAccounts.Map(app,adminApi,store,hasher,registrationPolicy);
+OfficeFeatures.Map(api,adminApi,store);
 CollaborationFeatures.Map(api, store);
 TaskFeatures.Map(api, store);
 SubmissionFeatures.Map(api, store, app.Configuration, app.Environment);
@@ -474,6 +488,7 @@ adminApi.MapPatch("/users/{id}", IResult (string id, UpdateUser request, HttpCon
 {
     var user = store.GetUser(id);
     if (user is null) return Results.NotFound();
+    if(!string.IsNullOrEmpty(request.Password)&&StaffAccounts.Get(store,id) is not null)return Error("사전 등록된 교사는 계정 초기화에서 임시 비밀번호와 새 활성화 번호를 발급하세요.");
     if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 50 || string.IsNullOrWhiteSpace(request.Department) || request.Department.Length > 50 ||
         (!string.IsNullOrEmpty(request.Password) && !ValidPassword(request.Password))) return Error("이름·부서·비밀번호 형식을 확인하세요.");
     if (id == UserId(c) && (!request.Active || !request.IsAdmin)) return Error("자신의 관리자 권한을 해제하거나 계정을 비활성화할 수 없습니다.");
@@ -500,7 +515,7 @@ Timetables.Map(app, app.Services.GetRequiredService<Timetables>());
 app.Run();
 
 static string UserId(HttpContext c) => c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-static object PublicUser(User u) => new { u.Id, u.Username, u.Name, u.Department, u.IsAdmin, u.CanBroadcast, u.Active };
+object PublicUser(User u) => new { u.Id, u.Username, u.Name, u.Department, u.IsAdmin, u.CanBroadcast, u.Active, activationRequired=StaffAccounts.Pending(store,u.Id), seatIp=StaffAccounts.Get(store,u.Id)?.SeatIp };
 static IResult Error(string message, int status = 400) => Results.Json(new { error = message }, statusCode: status);
 static bool ValidPassword(string? password) => password is { Length: >= 12 and <= 128 } && !string.IsNullOrWhiteSpace(password);
 static bool ValidProfile(string? username, string? name, string? department) => username is not null && Regex.IsMatch(username, "^[A-Za-z0-9._-]{3,32}$") &&

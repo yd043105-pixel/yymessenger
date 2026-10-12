@@ -53,7 +53,7 @@ public sealed class ExternalAnnouncements : BackgroundService
         if(value is null||synced<Now-60000)return null;
         var teacher=Publisher(owner);var user=store.GetUser(owner);if(teacher is null||user is not{Active:true})return null;
         var detail=JsonSerializer.Deserialize<PortalNoticeDetail>(value,Json);
-        return detail is null?null:detail with{Receipts=detail.Receipts?.Where(r=>teacher.Classes.Contains(r.ClassId)||teacher.CanBroadcast&&user.CanBroadcast).ToArray()};
+        return detail is null?null:detail with{Receipts=detail.Receipts?.Where(r=>teacher.Classes.Contains(r.ClassId)||teacher.CanBroadcast&&user.CanBroadcast||(directory?.Sections??[]).Any(s=>s.TeacherIds.Contains(teacher.Id)&&s.Members.Any(m=>m.StudentId==r.StudentId))).ToArray()};
     }
     Job? GetJob(string id,string? owner=null)=>store.Query("SELECT Id,OwnerId,TeacherId,Payload,Targets,State,RemoteId,Attempts,NextAttempt,Withdraw,Error FROM ExternalOutbox WHERE Id=$id AND ($owner IS NULL OR OwnerId=$owner)",r=>new Job(r.GetString(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetString(4),r.GetString(5),r.IsDBNull(6)?null:r.GetString(6),r.GetInt32(7),r.GetInt64(8),r.GetBoolean(9),r.IsDBNull(10)?null:r.GetString(10)),("$id",id),("$owner",owner)).FirstOrDefault();
     List<LocalFile> JobFiles(string id)=>store.Query("SELECT Id,Name,Size,RemoteId,UploadedAt,ExpiresAt FROM ExternalFiles WHERE JobId=$job AND DeletedAt IS NULL",r=>new LocalFile(r.GetString(0),r.GetString(1),r.GetInt64(2),r.IsDBNull(3)?null:r.GetString(3),r.GetInt64(4),r.IsDBNull(5)?null:r.GetInt64(5)),("$job",id));
@@ -66,6 +66,7 @@ public sealed class ExternalAnnouncements : BackgroundService
             return Results.Ok(new{configured=service.http is not null,connected=service.synced>Now-60000,internalUserId=user.Id,
                 teacherId=teacher?.Id,canBroadcast=teacher?.CanBroadcast==true&&user.CanBroadcast,
                 classes=service.directory?.Classes.Where(room=>teacher is not null&&(teacher.Classes.Contains(room.Id)||teacher.CanBroadcast&&user.CanBroadcast)).ToArray()??[],
+                sections=(service.directory?.Sections??[]).Where(s=>teacher is not null&&(s.TeacherIds.Contains(teacher.Id)||teacher.CanBroadcast&&user.CanBroadcast)).Select(s=>new{s.Id,s.Name,s.Term,s.Revision,memberCount=s.Members.Length}).ToArray(),
                 lastConnectedAt=service.synced,error=service.lastError});
         });
         api.MapGet("",(HttpContext c)=>service.store.Query("SELECT Id,Payload,State,RemoteId,Error,CreatedAt,Detail,Withdraw FROM ExternalOutbox WHERE OwnerId=$owner ORDER BY CreatedAt DESC LIMIT 100",r=>new{id=r.GetString(0),request=JsonSerializer.Deserialize<AnnouncementRequest>(r.GetString(1),Json),state=r.GetString(2),remoteId=r.IsDBNull(3)?null:r.GetString(3),error=r.IsDBNull(4)?null:r.GetString(4),createdAt=r.GetInt64(5),detail=r.IsDBNull(6)?null:service.SafeDetail(r.GetString(6),Owner(c)),withdrawRequested=r.GetBoolean(7)},("$owner",Owner(c))));
@@ -86,6 +87,22 @@ public sealed class ExternalAnnouncements : BackgroundService
         api.MapPost("/attachments",async Task<IResult>(HttpContext c)=>await service.Upload(c)).RequireRateLimiting("upload");
         app.MapGet("/api/admin/announcement-status",()=>new{configured=service.http is not null,connected=service.synced>Now-60000,lastConnectedAt=service.synced,error=service.lastError,
             pending=service.store.Query("SELECT COUNT(*) FROM ExternalOutbox WHERE State IN ('pending','withdraw-pending')",r=>r.GetInt32(0))[0],needsReview=service.store.Query("SELECT COUNT(*) FROM ExternalOutbox WHERE State='needs-review'",r=>r.GetInt32(0))[0]}).RequireAuthorization("Admin");
+        app.MapGet("/api/admin/sections/setup",()=>Results.Ok(new{connected=service.synced>Now-60000,sections=service.directory?.Sections??[],people=service.directory?.People.Where(p=>p.Role is "student" or "teacher").Select(p=>new{p.Id,p.Role,p.ClassId,p.InternalUserId,name=p.Name})??[]})).RequireAuthorization("Admin");
+        app.MapPost("/api/admin/sections",(SectionRequest request,HttpContext c)=>service.SaveSection(request,null,c.RequestAborted)).RequireAuthorization("Admin");
+        app.MapPost("/api/admin/sections/{id}",(string id,SectionRequest request,HttpContext c)=>service.SaveSection(request,id,c.RequestAborted)).RequireAuthorization("Admin");
+    }
+    async Task<IResult> SaveSection(SectionRequest request,string? id,CancellationToken cancellation)
+    {
+        await gate.WaitAsync(cancellation);
+        try
+        {
+            if(http is null)return Error("외부 학교 소식 서버 연결을 먼저 설정하세요.",503);
+            using var response=await http.PostAsJsonAsync("bridge/sections"+(id is null?"":"/"+Uri.EscapeDataString(id)),request,Json,cancellation);
+            var result=await response.Content.ReadFromJsonAsync<JsonElement>(cancellation);
+            if(response.IsSuccessStatusCode){directory=await http.GetFromJsonAsync<PortalDirectory>("bridge/directory",Json,cancellation);synced=Now;}
+            return Results.Json(result,statusCode:(int)response.StatusCode);
+        }
+        finally{gate.Release();}
     }
     IResult Enqueue(AnnouncementRequest request,string owner)
     {
@@ -94,19 +111,13 @@ public sealed class ExternalAnnouncements : BackgroundService
         if(teacher is null||user is not{Active:true})return Error("관리자가 외부 공지 교사 계정을 연결해야 합니다.",403);
         if(request is null||!Guid.TryParseExact(request.ClientId,"N",out _)||string.IsNullOrWhiteSpace(request.Title)||request.Title.Length>200||string.IsNullOrWhiteSpace(request.Body)||request.Body.Length>10000||
             request.Audience is not("students"or"parents"or"both")||request.ClassIds is null||request.ClassIds.Length>100||request.AttachmentIds is null||request.AttachmentIds.Length>10||request.AttachmentIds.Distinct().Count()!=request.AttachmentIds.Length||
-            request.All&&request.ClassIds.Length!=0||!request.All&&request.ClassIds.Length==0)return Error("제목·내용·학급·첨부를 확인하세요.");
+            request.SectionIds?.Length>100||request.SectionIds?.Any(id=>!Guid.TryParseExact(id,"N",out _))==true||request.All&&(request.ClassIds.Length!=0||(request.SectionIds?.Length??0)>0)||!request.All&&request.ClassIds.Length==0&&(request.SectionIds?.Length??0)==0)return Error("제목·내용·학급·분반·첨부를 확인하세요.");
         if(request.All&&(!teacher.CanBroadcast||!user.CanBroadcast)||!request.All&&request.ClassIds.Any(id=>!teacher.Classes.Contains(id)))return Error("담당 학급 또는 전체 발송 권한을 확인하세요.",403);
         var payload=JsonSerializer.Serialize(request,Json);
         var existing=store.Query("SELECT Id,Payload FROM ExternalOutbox WHERE OwnerId=$owner AND ClientId=$client",r=>(id:r.GetString(0),payload:r.GetString(1)),("$owner",owner),("$client",request.ClientId)).FirstOrDefault();
         if(existing.id is not null)return existing.payload==payload?Results.Ok(new{id=existing.id,duplicate=true}):Error("같은 발송 번호의 내용을 변경할 수 없습니다.",409);
-        var classes=request.All?directory.Classes.Select(c=>c.Id).ToArray():request.ClassIds;
-        var targets=new List<AnnouncementTarget>();
-        foreach(var student in directory.People.Where(p=>p.Role=="student"&&p.ClassId is not null&&classes.Contains(p.ClassId)))
-        {
-            if(request.Audience is "students"or"both")targets.Add(new(student.Id,student.Id,student.ClassId!,AnnouncementScopes.Stamp(student)));
-            if(request.Audience is "parents"or"both")foreach(var parent in directory.People.Where(p=>p.Role=="parent"&&p.Children.Contains(student.Id)))targets.Add(new(parent.Id,student.Id,student.ClassId!,AnnouncementScopes.Stamp(student,parent)));
-        }
-        if(targets.Count is 0 or >10000)return Error("확정된 학생·보호자 수신 대상이 없습니다.");
+        AnnouncementTarget[] targets;try{targets=AnnouncementAudience.Build(directory,teacher with{CanBroadcast=teacher.CanBroadcast&&user.CanBroadcast},request);}catch(InvalidOperationException e){return Error(e.Message,403);}
+        if(targets.Length is 0 or >10000)return Error("확정된 학생·보호자 수신 대상이 없습니다.");
         using var db=store.Open();using var tx=db.BeginTransaction();long total=0;
         foreach(var file in request.AttachmentIds)
         {
@@ -165,7 +176,7 @@ public sealed class ExternalAnnouncements : BackgroundService
             try
             {
                 var fresh=await http.GetFromJsonAsync<PortalDirectory>("bridge/directory",Json,token)??throw new IOException("학급 정보를 받지 못했습니다.");
-                var teachers=fresh.People.Where(p=>p.Role=="teacher").Select(p=>{var user=p.InternalUserId is null?null:store.GetUser(p.InternalUserId);return new TeacherProof(p.Id,user?.Active==true,user?.CanBroadcast==true);}).ToArray();
+                var teachers=fresh.People.Where(p=>p.Role=="teacher").Select(p=>{var user=p.InternalUserId is null?null:store.GetUser(p.InternalUserId);return new TeacherProof(p.Id,user?.Active==true&&!StaffAccounts.Pending(store,user.Id),user?.CanBroadcast==true);}).ToArray();
                 using var response=await http.PostAsJsonAsync("bridge/heartbeat",new BridgeHeartbeat(teachers),Json,token);await Check(response);
                 directory=fresh;synced=Now;lastError=null;
             }

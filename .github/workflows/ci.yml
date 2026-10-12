@@ -43,8 +43,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Android dependency setup failed' }
           dotnet restore src/SchoolMessenger.Mobile --locked-mode "-p:AndroidSdkDirectory=$sdkDirectory" "-p:JavaSdkDirectory=$javaDirectory"
           if ($LASTEXITCODE -ne 0) { throw 'Mobile lock verification failed' }
-          dotnet build src/SchoolMessenger.Mobile -f net10.0-android -c Release --no-restore "-p:AndroidSdkDirectory=$sdkDirectory" "-p:JavaSdkDirectory=$javaDirectory"
-          if ($LASTEXITCODE -ne 0) { throw 'Release Android build failed' }
+          foreach ($schoolApp in @('Teacher','Family')) {
+            dotnet build src/SchoolMessenger.Mobile -f net10.0-android -c Release --no-restore "-p:SchoolApp=$schoolApp" "-p:AndroidSdkDirectory=$sdkDirectory" "-p:JavaSdkDirectory=$javaDirectory"
+            if ($LASTEXITCODE -ne 0) { throw "Release Android $schoolApp build failed" }
+          }
   ios:
     runs-on: macos-26
     timeout-minutes: 40
@@ -90,6 +92,20 @@ jobs:
           assert (bundle / 'PrivacyInfo.xcprivacy').exists()
           print('PASS iOS Release bundle version, permission descriptions, privacy manifest and exclusion of Debug HTTP exception')
           PY
+          for school_app in Teacher Family; do
+            dotnet build src/SchoolMessenger.Mobile -f net10.0-ios -c Release -r "$runtime" --no-restore --nologo "-p:SchoolApp=$school_app"
+            python3 - "$runtime" "$school_app" <<'PY'
+          import plistlib, sys
+          from pathlib import Path
+          bundle = Path('src/SchoolMessenger.Mobile/bin/Release/net10.0-ios') / sys.argv[1] / 'SchoolMessenger.Mobile.app'
+          info = plistlib.loads((bundle / 'Info.plist').read_bytes())
+          assert info['CFBundleIdentifier'] == 'kr.school.yeoyang.' + sys.argv[2].lower()
+          assert info['CFBundleShortVersionString'] == '1.0.0'
+          assert info['CFBundleVersion'] == '2'
+          assert not info.get('NSAppTransportSecurity', {}).get('NSAllowsArbitraryLoads', False)
+          print('PASS separate iOS ' + sys.argv[2] + ' identity, version and HTTPS configuration')
+          PY
+          done
       - name: Save simulator app, screenshots and verification report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

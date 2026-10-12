@@ -1,4 +1,5 @@
 import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
+import {sectionChecks} from './sections.mjs';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
@@ -100,6 +101,7 @@ try{
  check('expired invitation rejected; invite secrets stored only as hashes');
  await stop();start();await ready();await admin.login('admin');assert.equal((await admin.request('/api/admin/classes')).length,2);assert.ok(readdirSync(path.join(data,'backups')).some(f=>f.endsWith('.db')));
  check('independent announcement database, accounts, relations and metadata backups survive restart');
+ await sectionChecks({admin,Client,person,register,service,data,check});
  await stop();start({ASPNETCORE_ENVIRONMENT:'Production',Portal__ScannerPath:path.join(data,'missing-scanner.exe')});await ready();await service('/heartbeat','POST',{teachers:[{id:teacherId,active:true,canBroadcast:false}]});await teacher.login('teacher');
  const unavailable=new FormData();unavailable.append('clientId',randomUUID().replaceAll('-',''));unavailable.append('file',new Blob(['safe']),'test.txt');await teacher.request('/api/attachments','POST',unavailable,503);
  assert.equal(readdirSync(path.join(data,'files')).length,0);check('production public uploads fail closed when antivirus is unavailable');

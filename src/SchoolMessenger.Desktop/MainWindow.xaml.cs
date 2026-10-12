@@ -105,11 +105,13 @@ public partial class MainWindow : Window
     {
         if (hub is not null) await hub.DisposeAsync(); Api?.Dispose(); Api = new Api(ServerAddress.Text);
         await Api.Login(UsernameBox.Text.Trim(), PasswordBox.Password, RememberLogin.IsChecked == true); PasswordBox.Clear(); SavePreferences();
+        if(Api.Session!.User!.ActivationRequired){savedLogin.Clear();new StaffActivationWindow(Api){Owner=this}.ShowDialog();await Api.RefreshSession();throw new InvalidOperationException("개인 비밀번호로 다시 로그인하세요.");}
         if (RememberLogin.IsChecked == true) savedLogin.Save(Api); else savedLogin.Clear();
         await EnterWorkspace();
     }
     async Task EnterWorkspace()
     {
+        if(Api?.Session?.User?.ActivationRequired==true){savedLogin.Clear();new StaffActivationWindow(Api){Owner=this}.ShowDialog();throw new InvalidOperationException("개인 비밀번호로 다시 로그인하세요.");}
         var user = Api!.Session!.User!; IdentityLabel.Text = user.Name + " 선생님"; IdentityDepartment.Text = user.Department; AvatarInitial.Text = user.Name[..1];
         AdminButton.Visibility = user.IsAdmin ? Visibility.Visible : Visibility.Collapsed;
         Workspace.Visibility = Visibility.Visible; LoginPanel.Visibility = Visibility.Collapsed;
@@ -306,7 +308,8 @@ public partial class MainWindow : Window
     { var window = new MailboxWindow(this, box, person); window.Show(); return window; }
     void OpenSettings(object sender, RoutedEventArgs e) { var button = (System.Windows.Controls.Button)sender; button.ContextMenu.PlacementTarget = button; button.ContextMenu.IsOpen = true; }
     void PasswordKeyDown(object sender, System.Windows.Input.KeyEventArgs e) { if (e.Key == Key.Enter) LoginClick(sender, e); }
-    void OpenAdmin(object sender, RoutedEventArgs e) { if (Api is not null) Process.Start(new ProcessStartInfo(new Uri(Api.Address, "/").ToString()) { UseShellExecute = true }); }
+    void OpenAdmin(object sender, RoutedEventArgs e) { if (Api is not null) new OfficeWindow(this,true).Show(); }
+    void OpenOfficeClick(object sender,RoutedEventArgs e){if(Api is not null)new OfficeWindow(this).Show();}
     async void OpenPolicies(object sender,RoutedEventArgs e)
     {
         if(Api is null)return;

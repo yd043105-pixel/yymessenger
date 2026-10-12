@@ -26,6 +26,8 @@
 		<!-- Versions -->
 		<ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
 		<ApplicationVersion>2</ApplicationVersion>
+        <SchoolApp Condition="'$(SchoolApp)' == '' And '$(Configuration)' == 'Release'">Family</SchoolApp>
+		<SchoolApp Condition="'$(SchoolApp)' == ''">Combined</SchoolApp>
 
 
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
@@ -34,6 +36,16 @@
 
     <PropertyGroup Condition="'$(Configuration)' == 'Debug' And '$(IosVerification)' == 'true'">
         <DefineConstants>$(DefineConstants);IOS_VERIFY</DefineConstants>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(SchoolApp)' == 'Teacher'">
+        <ApplicationId>kr.school.yeoyang.teacher</ApplicationId>
+        <ApplicationTitle>여양고 교무실</ApplicationTitle>
+        <DefineConstants>$(DefineConstants);TEACHER_APP</DefineConstants>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(SchoolApp)' == 'Family'">
+        <ApplicationId>kr.school.yeoyang.family</ApplicationId>
+        <ApplicationTitle>여양고 학교 소식</ApplicationTitle>
+        <DefineConstants>$(DefineConstants);FAMILY_APP</DefineConstants>
     </PropertyGroup>
     <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'iossimulator-arm64' Or '$(RuntimeIdentifier)' == 'iossimulator-x64'">
         <CodesignEntitlements>Platforms/iOS/Entitlements.Simulator.plist</CodesignEntitlements>
@@ -67,6 +79,7 @@
 	<ItemGroup>
 		<!-- Share the DTO source without inheriting the Windows service runtime graph. -->
     <Compile Include="../SchoolMessenger.Contracts/Announcements.cs" Link="Contracts/Announcements.cs" />
+    <Compile Include="../SchoolMessenger.Contracts/Office.cs" Link="Contracts/Office.cs" />
     <Compile Include="../SchoolMessenger.Contracts/RegistrationPolicies.cs" Link="Contracts/RegistrationPolicies.cs" />
         <Compile Include="../SchoolMessenger.Shared/ReleaseNotice.cs" Link="ReleaseNotice.cs" />
         <EmbeddedResource Include="../SchoolMessenger.Shared/updates.json" LogicalName="SchoolMessenger.UpdateNotes.json" />

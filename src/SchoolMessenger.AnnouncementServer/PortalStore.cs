@@ -64,8 +64,9 @@ public sealed class PortalStore
         var rooms=Query("SELECT * FROM Classes ORDER BY Grade,Name",r=>new PortalClass(r.GetString(0),r.GetString(1),r.GetInt32(2))).ToArray();
         var scopes=Query("SELECT TeacherId,ClassId FROM TeacherClasses",r=>(teacher:r.GetString(0),room:r.GetString(1))).ToLookup(x=>x.teacher,x=>x.room);
         var families=Query("SELECT f.ParentId,f.StudentId,f.Stamp FROM Families f JOIN People s ON s.Id=f.StudentId WHERE s.Active=1",r=>(parent:r.GetString(0),student:r.GetString(1),stamp:r.GetString(2))).ToLookup(x=>x.parent);
-        var people=Query("SELECT * FROM People WHERE Active=1 AND Role!='admin'",ReadAccount).Select(a=>new DirectoryPerson(a.Id,a.Role,a.ClassId,a.InternalUserId,a.CanBroadcast,scopes[a.Id].ToArray(),families[a.Id].Select(f=>f.student).ToArray(),a.ScopeVersion,families[a.Id].ToDictionary(f=>f.student,f=>f.stamp))).ToArray();
-        return new(rooms,people);
+        var people=Query("SELECT * FROM People WHERE Active=1 AND Role!='admin'",ReadAccount).Select(a=>new DirectoryPerson(a.Id,a.Role,a.ClassId,a.InternalUserId,a.CanBroadcast,scopes[a.Id].ToArray(),families[a.Id].Select(f=>f.student).ToArray(),a.ScopeVersion,families[a.Id].ToDictionary(f=>f.student,f=>f.stamp),a.Name)).ToArray();
+        var homes=Query("SELECT name FROM sqlite_master WHERE type='table' AND name='TimetableHomerooms'",r=>r.GetString(0)).Count==0?[]:Query("SELECT ClassId,TeacherId FROM TimetableHomerooms",r=>(room:r.GetString(0),teacher:r.GetString(1))).Select(h=>new PortalHomeroom(h.room,people.FirstOrDefault(p=>p.Role=="teacher"&&p.InternalUserId==h.teacher)?.Id??"")).Where(h=>h.TeacherId.Length>0).ToArray();
+        return new(rooms,people,PortalSections.List(this),homes);
     }
     public void RevokeStudent(string student)
     { Execute("UPDATE Targets SET Revoked=1 WHERE StudentId=$id",("$id",student)); Execute("UPDATE People SET Version=Version+1 WHERE Id=$id OR Id IN(SELECT ParentId FROM Families WHERE StudentId=$id)",("$id",student)); }

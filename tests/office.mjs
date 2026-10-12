@@ -1,0 +1,68 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {DatabaseSync} from 'node:sqlite';
+import path from 'node:path';
+import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
+
+export async function officeChecks({Client,admin,password,address,data,check}){
+ const id=()=>randomUUID().replaceAll('-',''),personal='Personal-'+randomUUID();
+ const request={loginName:'김교사.검증',name:'김교사',department:'수업부',seatIp:'192.168.20.42',temporaryPassword:password};
+ const registered=await admin.request('/api/admin/staff','POST',request);assert.equal(registered.activationCode.length,20);
+ await admin.request('/api/admin/staff','POST',{...request,loginName:'다른교사.검증'},409);
+ const teacher=new Client();await teacher.login(request.loginName,true);assert.equal(teacher.user.activationRequired,true);
+ assert.ok(!teacher.loginCookieHeaders.some(h=>h.startsWith('SchoolMessenger.Session=')&&/expires=/i.test(h)));
+ for(const route of ['/api/messages','/api/attachments/not-real/download','/api/office/setup','/api/external-announcements/setup','/api/password','/hub/negotiate?negotiateVersion=1','/remote/negotiate?negotiateVersion=1']){const post=route.includes('negotiate')||route==='/api/password';await teacher.request(route,post?'POST':'GET',post?{}:undefined,403);}
+ check('temporary account cannot persist login or access messages, files, password bypass, office APIs or realtime transports');
+ const agreement=await acceptRequiredPoliciesForFixture(address);
+ await teacher.request('/api/activate','POST',{code:registered.activationCode,newPassword:personal},400);
+ await teacher.request('/api/activate','POST',{code:registered.activationCode,newPassword:password,agreement},400);
+ for(let n=0;n<5;n++)await teacher.request('/api/activate','POST',{code:'X'.repeat(20),newPassword:personal,agreement},400);
+ await teacher.request('/api/activate','POST',{code:registered.activationCode,newPassword:personal,agreement},429);
+ const db=new DatabaseSync(path.join(data,'school.db'));db.prepare('UPDATE StaffProfiles SET LockedUntil=? WHERE UserId=?').run(Date.now()-1,registered.id);db.close();
+ const old=new Client();old.cookies=new Map(teacher.cookies);old.csrf=teacher.csrf;
+ await teacher.request('/api/activate','POST',{code:registered.activationCode,newPassword:personal,agreement});
+ await old.request('/api/messages','GET',undefined,401);
+ teacher.csrf=(await teacher.request('/api/session')).csrfToken;
+ await teacher.request('/api/login','POST',{username:request.loginName,password},401);
+ await teacher.login(request.loginName,false,personal);assert.equal(teacher.user.activationRequired,false);
+ check('activation requires current terms, individual one-time proof and a different personal password; lockout persists and initial sessions are revoked');
+ const peer=new Client();const other=await admin.request('/api/admin/users','POST',{username:'office.peer',name:'다른교사',department:'수업부',password,isAdmin:false,canBroadcast:false});await peer.login('office.peer');
+ await teacher.request('/api/admin/office/permissions','POST',{userId:registered.id,calendarManager:true,roomManager:true},403);
+ const begin=new Date(Date.now()+2*86400000);begin.setUTCHours(1,0,0,0);const iso=n=>new Date(begin.getTime()+n*3600000).toISOString();
+ const event={clientId:id(),title:'학교 행사 검증',description:'가상 일정',start:iso(0),end:iso(2),allDay:false};
+ await teacher.request('/api/office/events','POST',event,403);
+ await admin.request('/api/admin/office/permissions','POST',{userId:registered.id,calendarManager:true,roomManager:false});
+ const saved=await teacher.request('/api/office/events','POST',event);assert.equal((await teacher.request('/api/office/events','POST',event)).id,saved.id);
+ await teacher.request('/api/office/events/'+saved.id,'POST',{...event,title:'변경 행사',revision:1});
+ await teacher.request('/api/office/events/'+saved.id,'POST',{...event,revision:1},409);
+ await admin.request('/api/admin/office/permissions','POST',{userId:registered.id,calendarManager:false,roomManager:false});
+ await teacher.request('/api/office/events/'+saved.id+'/cancel','POST',{revision:2},403);
+ await admin.request('/api/office/events/'+saved.id+'/cancel','POST',{revision:2});
+ await admin.request('/api/office/events','POST',{...event,clientId:id(),start:iso(2),end:iso(1)},400);
+ await admin.request('/api/office/events','POST',{...event,clientId:id(),start:iso(0).replace('Z',''),end:iso(2)},400);
+ check('calendar write permission, revocation, retries, concurrent revisions and explicit timezone/end validation');
+ await teacher.request('/api/office/rooms','POST',{name:'검증 과학실',location:'가상 2층'},403);
+ const room=await admin.request('/api/office/rooms','POST',{name:'검증 과학실',location:'가상 2층'});
+ const booking={clientId:id(),roomId:room.id,title:'가상 수업',start:iso(3),end:iso(5)};
+ const reserve=await teacher.request('/api/office/bookings','POST',booking);assert.equal((await teacher.request('/api/office/bookings','POST',booking)).id,reserve.id);
+ await peer.request('/api/office/bookings','POST',{...booking,clientId:id(),start:iso(4),end:iso(6)},409);
+ await peer.request('/api/office/bookings/'+reserve.id,'POST',{...booking,revision:1},403);
+ await peer.request('/api/office/bookings/'+reserve.id+'/cancel','POST',{revision:1},403);
+ const adjacent=await peer.request('/api/office/bookings','POST',{...booking,clientId:id(),start:iso(5),end:iso(6)});
+ await peer.request('/api/office/bookings/'+adjacent.id,'POST',{...booking,clientId:id(),start:iso(4),end:iso(6),revision:1},409);
+ await teacher.request('/api/office/bookings/'+reserve.id+'/cancel','POST',{revision:1});
+ await peer.request('/api/office/bookings','POST',{...booking,clientId:id()});
+ check('partial overlaps blocked, adjacent bookings accepted, foreign edits/cancellations denied and cancellation frees the slot');
+ async function rawBooking(client,packet){const response=await fetch(address+'/api/office/bookings',{method:'POST',headers:{Cookie:[...client.cookies].map(([k,v])=>k+'='+v).join('; '),'X-CSRF-TOKEN':client.csrf,'Content-Type':'application/json'},body:JSON.stringify(packet)});return {status:response.status,body:await response.json()};}
+ const simultaneous=await Promise.all([rawBooking(teacher,{...booking,clientId:id(),start:iso(7),end:iso(9)}),rawBooking(peer,{...booking,clientId:id(),start:iso(8),end:iso(10)})]);assert.deepEqual(simultaneous.map(v=>v.status).sort(),[200,409]);
+ await admin.request('/api/office/rooms/'+room.id,'POST',{name:'검증 과학실',location:'가상 2층',active:false,revision:1});
+ await teacher.request('/api/office/bookings','POST',{...booking,clientId:id(),start:iso(10),end:iso(11)},409);
+ const audit=await admin.request('/api/admin/office/audit');assert.ok(audit.some(a=>a.action==='booking.save'));assert.ok(audit.some(a=>a.action==='staff.activate'));
+ check('simultaneous overlapping requests yield exactly one booking; room shutdown blocks new bookings and audit records are retained');
+ await admin.request('/api/admin/staff/'+registered.id+'/seat','POST',{seatIp:'192.168.20.43'});assert.equal((await teacher.request('/api/session')).user.id,registered.id);
+ const reset=await admin.request('/api/admin/staff/'+registered.id+'/reset','POST',request);await teacher.request('/api/messages','GET',undefined,401);
+ await teacher.login(request.loginName,true);await teacher.request('/api/activate','POST',{code:registered.activationCode,newPassword:personal,agreement},400);
+ await teacher.request('/api/activate','POST',{code:reset.activationCode,newPassword:personal,agreement});await teacher.login(request.loginName,false,personal);
+ const ledger=new DatabaseSync(path.join(data,'school.db'));assert.equal(ledger.prepare('SELECT COUNT(*) AS count FROM StaffActivationAgreements WHERE UserId=?').get(registered.id).count,2);ledger.close();
+ check('seat reassignment preserves identity; reset revokes all sessions and old proof; repeated activation preserves separate agreement history');
+}

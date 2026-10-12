@@ -42,9 +42,18 @@ public sealed partial class MessengerPage
     void Login()
     {
         homeTab="home";tabs.IsVisible=false;updateNoticeOffered=false;
+#if TEACHER_APP
+        Header("교직원을 위한 우리 학교 공간","온라인 교무실");
+#else
         Header("우리 학교의 하루를 함께","우리 학교 소식");
+#endif
         var help=Text("가정통신문부터 시간표까지,\n필요한 학교 소식을 한곳에서 확인하세요.",14);help.TextColor=Muted;help.Margin=new Thickness(0,0,0,6);body.Add(help);
-        var mode=new Picker{ClassId="school-field",Title="접속할 공간",ItemsSource=new[]{"학교 소식 · 학생/보호자/교사","교직원 교무실 · 교내망/VPN"},SelectedIndex=Preferences.Default.Get("mode",0)};body.Add(Card(mode,8));
+        var mode=new Picker{ClassId="school-field",Title="접속할 공간",ItemsSource=new[]{"학교 소식 · 학생/보호자/교사","교직원 교무실 · 교내망/VPN"},SelectedIndex=Preferences.Default.Get("mode",0)};var modeCard=Card(mode,8);body.Add(modeCard);
+#if TEACHER_APP
+        mode.SelectedIndex=1;modeCard.IsVisible=false;help.Text="메시지·내 수업·학교 일정·특별실 예약을\n교내망 또는 학교 VPN에서 확인하세요.";
+#elif FAMILY_APP
+        mode.SelectedIndex=0;modeCard.IsVisible=false;
+#endif
         var address=Input("학교에서 안내한 서버 주소",value:Preferences.Default.Get("address-"+mode.SelectedIndex,""));address.Keyboard=Keyboard.Url;
         mode.SelectedIndexChanged+=(_,_)=>{address.Text=Preferences.Default.Get("address-"+mode.SelectedIndex,"");help.Text=mode.SelectedIndex==1?"교직원 업무 메시지는 교내망 또는\n학교 VPN에 연결한 뒤 확인하세요.":"가정통신문부터 시간표까지,\n필요한 학교 소식을 한곳에서 확인하세요.";};
         var username=Input("아이디");username.Keyboard=Keyboard.Text;var password=Input("비밀번호",true);
@@ -65,11 +74,15 @@ public sealed partial class MessengerPage
         var signup=MakeAction("학생·학부모 회원가입",()=>mode.SelectedIndex==1?throw new InvalidOperationException("교직원 계정 신청은 PC 교무실에서 진행하세요."):Signup(address.Text??""));signup.FontSize=12;
         var invitation=MakeAction("학교 초대 코드로 가입",()=>mode.SelectedIndex==1?throw new InvalidOperationException("교직원 계정 신청은 PC 교무실에서 진행하세요."):InviteSignup(address.Text??""));invitation.FontSize=12;
         joins.Add(signup);joins.Add(invitation,1);body.Add(joins);
+#if TEACHER_APP
+        joins.IsVisible=false;
+#endif
         var privacy=Text("자동 로그인 시 비밀번호는 저장하지 않습니다.",11);privacy.TextColor=Muted;privacy.HorizontalTextAlignment=TextAlignment.Center;body.Add(privacy);
     }
     async Task Home()
     {
         var source=api!;var user=source.Session.GetProperty("user");var version=++epoch;
+        if(source.Office&&user.TryGetProperty("activationRequired",out var initial)&&initial.GetBoolean()){await ActivateStaff();return;}
         var name=user.GetProperty("name").GetString()!;var role=source.Office?"teacher":user.GetProperty("role").GetString();
         Header(name+"님, 안녕하세요",homeTab=="account"?"내 정보":source.Office?"온라인 교무실":"학교 소식");NavigationTabs(source.Office);
         await ShowUpdates();if(!Current(source,version))return;
@@ -101,6 +114,7 @@ public sealed partial class MessengerPage
             var daily=new VerticalStackLayout{Spacing=3};var day=Text(today.ToString("M월 d일 dddd",CultureInfo.GetCultureInfo("ko-KR")),12);day.TextColor=Color.FromArgb("#b9c6da");daily.Add(day);
             var timetable=MakeAction("시간표 · 내 수업 / 학급",()=>Timetable());timetable.BackgroundColor=Colors.Transparent;timetable.TextColor=Colors.White;timetable.FontSize=16;timetable.FontAttributes=FontAttributes.Bold;timetable.HorizontalOptions=LayoutOptions.Fill;timetable.Padding=new Thickness(0,6);daily.Add(timetable);
             body.Add(Card(daily,16,Color.FromArgb("#17243b")));
+            if(source.Office){Action("학사력 · 행사 · 학교 일정",()=>OfficeSchedule(false));Action("특별실 예약 · 나의 예약",()=>OfficeSchedule(true));}
         }
         var scheduleNotices=await source.Get("api/timetable/notices");if(!Current(source,version))return;
         foreach(var notice in scheduleNotices.EnumerateArray().Where(n=>n.GetProperty("readAt").ValueKind==JsonValueKind.Null))

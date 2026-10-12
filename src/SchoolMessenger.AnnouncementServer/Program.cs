@@ -109,6 +109,8 @@ api.MapPost("/logout",async(HttpContext c)=>{store.Execute("UPDATE People SET Ve
 var admin=app.MapGroup("/api/admin").RequireAuthorization("Admin");
 var protection=app.Services.GetRequiredService<IDataProtectionProvider>();
 PortalAdministration.Map(admin,store,protection);
+PortalSections.Initialize(store);
+PortalSections.Map(api,admin,app.MapGroup("/bridge"),store);
 PortalEnrollment.Map(app,api,admin,store,protection);
 PortalNotices.Map(api,app.MapGroup("/bridge"),store,app.Configuration,app.Environment);
 PortalTimetables.Map(api,app.MapGroup("/bridge"),store);
