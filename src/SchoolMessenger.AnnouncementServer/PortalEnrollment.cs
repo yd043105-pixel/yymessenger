@@ -13,11 +13,12 @@ public static class PortalEnrollment
     const string Alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     static IDataProtector Protector(IDataProtectionProvider provider)=>provider.CreateProtector("StudentFamilyCode.v1");
 
-    public static IResult Register(PortalStore store,PasswordHasher<Account> hasher,InviteRegistration request)
+    public static IResult Register(PortalStore store,PasswordHasher<Account> hasher,InviteRegistration request,SchoolMessenger.Shared.RegistrationPolicy policy)
     {
         if(!Username(request.Username)||!Password(request.Password)||!Name(request.Name)||request.Role is not("parent"or"student"))return Error("이름·아이디(3~32자)·비밀번호(12~128자)와 학생/학부모 구분을 확인하세요.");
         if(request.Role=="parent"&&(request.ClassId is not null||request.StudentNumber is not null))return Error("학부모는 가입 후 설정에서 자녀 고유번호를 입력하세요.");
         if(request.Role=="student"&&(request.StudentNumber is not(>=1 and <=99)||!store.Query("SELECT 1 FROM Classes WHERE Id=$id",r=>r.GetInt32(0),("$id",request.ClassId)).Any()))return Error("학생의 학급과 번호(1~99)를 확인하세요.");
+        if(policy.Validate(request.Agreement) is{} policyError)return Error(policyError,policy.Current.CanRegister?400:503);
         var person=new Account(Guid.NewGuid().ToString("N"),request.Username,request.Name!.Trim(),request.Role,request.ClassId,null,false,request.Role=="parent",1,null,0,0);
         var password=hasher.HashPassword(person,request.Password!);
         using var db=store.Open();using var tx=db.BeginTransaction();
@@ -25,9 +26,10 @@ public static class PortalEnrollment
         {
             using(var create=PortalStore.Command(db,"INSERT INTO People(Id,Username,Name,Role,ClassId,Active,PasswordHash) VALUES($id,$username,$name,$role,$class,$active,$password)",tx,("$id",person.Id),("$username",person.Username),("$name",person.Name),("$role",person.Role),("$class",person.ClassId),("$active",person.Active),("$password",password)))create.ExecuteNonQuery();
             if(person.Role=="student"){using var application=PortalStore.Command(db,"INSERT INTO StudentApplications VALUES($id,$number,$now,NULL)",tx,("$id",person.Id),("$number",request.StudentNumber),("$now",Now));application.ExecuteNonQuery();}
+            policy.Record(db,tx,person.Id,request.Agreement!);
             tx.Commit();return Results.Ok(new{registered=true,membership=person.Role=="parent"?"temporary":"pending",message=person.Role=="parent"?"임시회원 가입 완료. 로그인 후 설정에서 자녀 고유번호를 입력하세요.":"학생 가입 신청 완료. 학교 관리자의 승인 후 로그인할 수 있습니다."});
         }
-        catch(SqliteException e)when(e.SqliteErrorCode==19){return Error("사용 중인 아이디이거나 학급 정보가 변경되었습니다.",409);}
+        catch(SqliteException e)when(e.SqliteExtendedErrorCode is 1555 or 2067 or 787){return Error("사용 중인 아이디이거나 학급 정보가 변경되었습니다.",409);}
     }
 
     // Retain hashes of retired codes so a later student can never receive an old family's code.

@@ -307,6 +307,18 @@ public partial class MainWindow : Window
     void OpenSettings(object sender, RoutedEventArgs e) { var button = (System.Windows.Controls.Button)sender; button.ContextMenu.PlacementTarget = button; button.ContextMenu.IsOpen = true; }
     void PasswordKeyDown(object sender, System.Windows.Input.KeyEventArgs e) { if (e.Key == Key.Enter) LoginClick(sender, e); }
     void OpenAdmin(object sender, RoutedEventArgs e) { if (Api is not null) Process.Start(new ProcessStartInfo(new Uri(Api.Address, "/").ToString()) { UseShellExecute = true }); }
+    async void OpenPolicies(object sender,RoutedEventArgs e)
+    {
+        if(Api is null)return;
+        try
+        {
+            var policy=await Api.Get<SchoolMessenger.Contracts.RegistrationPolicySet>("api/registration/policy");
+            var panel=new StackPanel{Margin=new Thickness(20)};panel.Children.Add(new TextBlock{Text=policy.Message,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,14)});
+            var window=new Window{Owner=this,Title="약관·개인정보 안내",Width=420,Height=300,WindowStartupLocation=WindowStartupLocation.CenterOwner,Content=new ScrollViewer{Content=panel}};
+            foreach(var document in policy.Documents){var button=new System.Windows.Controls.Button{Content=document.Title,Margin=new Thickness(0,4,0,4)};button.Click+=(_,_)=>RegistrationWindow.ShowDocument(window,policy,document);panel.Children.Add(button);}window.ShowDialog();
+        }
+        catch(Exception error){MessageBox.Show(this,error.Message,"약관 안내");}
+    }
     async void ChangePassword(object sender, RoutedEventArgs e)
     {
         if (Api is null) return;
@@ -414,6 +426,8 @@ public partial class MainWindow : Window
             if (compose.IsVisible) throw new InvalidOperationException("작성 창 전송 실패: " + compose.Feedback.Text);
             if (!(await Api.Get<MessageItem[]>("api/messages?box=sent")).Any(m => m.Title == "Windows 앱 전송 검증")) throw new InvalidOperationException("전송 기록 없음");
             var registration = new RegistrationWindow(ServerAddress.Text) { Owner = this }; registration.Show();
+            await registration.PolicyReady;
+            foreach(var choice in registration.PolicyChoices.Values){choice.IsEnabled=true;choice.IsChecked=true;}
             registration.UsernameBox.Text = "native.teacher"; registration.NameBox.Text = "가입신청교사"; registration.DepartmentBox.Text = "교무기획부";
             registration.PasswordBox.Password = registration.ConfirmBox.Password = Environment.GetEnvironmentVariable("SCHOOL_UI_PASSWORD")!;
             registration.SubmitButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));

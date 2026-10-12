@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Data.Sqlite;
 using SchoolMessenger.Server;
+using SchoolMessenger.Shared;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 210L * 1024 * 1024);
@@ -76,6 +77,8 @@ builder.Services.AddRateLimiter(o =>
 
 var app = builder.Build();
 var store = app.Services.GetRequiredService<Store>();
+var registrationPolicy=new RegistrationPolicy(builder.Configuration["Registration:PolicyFile"],builder.Environment.IsDevelopment(),builder.Environment.ContentRootPath);
+using(var policyDatabase=store.Open())RegistrationPolicy.EnsureSchema(policyDatabase);
 var hasher = app.Services.GetRequiredService<PasswordHasher<User>>();
 if (store.Users().Count == 0)
 {
@@ -182,16 +185,21 @@ app.MapPost("/api/login", async Task<IResult> (Login request, HttpContext c) =>
         new AuthenticationProperties { IsPersistent = request.RememberLogin, ExpiresUtc = DateTimeOffset.UtcNow.Add(request.RememberLogin ? TimeSpan.FromDays(30) : TimeSpan.FromHours(8)) });
     return Results.Ok(PublicUser(user));
 }).RequireRateLimiting("login");
+app.MapGet("/api/registration/policy",()=>registrationPolicy.Current).RequireRateLimiting("login");
 app.MapPost("/api/register", IResult (RegistrationRequest request) =>
 {
     if (!ValidProfile(request.Username, request.Name, request.Department) || !ValidPassword(request.Password)) return Error("아이디는 영문·숫자·._- 3~32자, 이름·부서는 1~50자, 비밀번호는 12~128자입니다.");
+    if(registrationPolicy.Validate(request.Agreement) is{} policyError)return Error(policyError,registrationPolicy.Current.CanRegister?400:503);
     var username = request.Username!.Trim();
     if (store.FindUser(username) is not null) return Error("이미 사용 중인 아이디입니다.", 409);
     var user = new User(Guid.NewGuid().ToString("N"), username, request.Name!.Trim(), request.Department!.Trim(), "", false, false, false, 1, 0, 0);
-    var saved = store.Execute("""
+    using var registrationDatabase=store.Open();using var registrationTransaction=registrationDatabase.BeginTransaction();
+    using var registrationCommand=Store.Command(registrationDatabase,"""
         INSERT INTO Registrations(Id,Username,Name,Department,PasswordHash,Status,CreatedAt) VALUES($id,$username,$name,$department,$hash,'pending',$now)
         ON CONFLICT(Username) DO UPDATE SET Id=excluded.Id,Name=excluded.Name,Department=excluded.Department,PasswordHash=excluded.PasswordHash,Status='pending',CreatedAt=excluded.CreatedAt WHERE Registrations.Status='rejected'
-        """, ("$id", user.Id), ("$username", username), ("$name", user.Name), ("$department", user.Department), ("$hash", hasher.HashPassword(user, request.Password!)), ("$now", Maintenance.Now));
+        """,registrationTransaction, ("$id", user.Id), ("$username", username), ("$name", user.Name), ("$department", user.Department), ("$hash", hasher.HashPassword(user, request.Password!)), ("$now", Maintenance.Now));
+    var saved=registrationCommand.ExecuteNonQuery();
+    if(saved!=0){registrationPolicy.Record(registrationDatabase,registrationTransaction,user.Id,request.Agreement!);registrationTransaction.Commit();}
     return saved == 0 ? Error("이미 신청한 아이디입니다. 관리자 승인 후 로그인하세요.", 409) : Results.Ok(new { status = "pending", message = "계정 신청 완료. 관리자 승인 후 로그인할 수 있습니다." });
 }).RequireRateLimiting("login");
 app.MapPost("/api/logout", async (HttpContext c, RemoteSessions sessions) =>
@@ -512,7 +520,7 @@ static bool FileSignatureMatches(string path, string extension)
     return extension is ".txt" or ".csv";
 }
 record Login(string? Username, string? Password, bool RememberLogin = false);
-record RegistrationRequest(string? Username, string? Name, string? Department, string? Password);
+record RegistrationRequest(string? Username, string? Name, string? Department, string? Password,SchoolMessenger.Contracts.RegistrationAcceptance? Agreement=null);
 record PasswordChange(string? CurrentPassword, string? NewPassword);
 record SendMessage(string? ClientId, string? Title, string? Body, string[]? RecipientIds, string[]? AttachmentIds, bool All, string? Department, long? SubmissionDeadline = null);
 record CreateUser(string? Username, string? Name, string? Department, string? Password, bool IsAdmin, bool CanBroadcast);

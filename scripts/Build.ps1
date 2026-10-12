@@ -37,6 +37,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'External announcement verification failed' }
         node tests\enrollment.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Student and parent enrollment verification failed' }
+        node tests\registration-policy.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Registration agreement verification failed' }
         node tests\announcement-bridge.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Announcement bridge verification failed' }
         node tests\data-boundaries.mjs
@@ -65,6 +67,10 @@ try {
     Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-operations.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\family-registration.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\registration-policy-operations.md','docs\app-operation-guide.md','docs\committee-readiness.md' -Destination $packageDocs
+    $packageConfig=Join-Path $packageDirectory 'config'
+    New-Item -ItemType Directory -Path $packageConfig -Force | Out-Null
+    Copy-Item -LiteralPath 'config\registration-policy.draft.json' -Destination $packageConfig
     Copy-Item -LiteralPath 'docs\ios-operations.md','docs\ios-verification.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\releases.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\timetable-import-design.md','docs\timetable-operations.md' -Destination $packageDocs

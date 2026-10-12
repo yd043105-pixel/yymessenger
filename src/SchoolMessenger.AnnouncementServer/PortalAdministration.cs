@@ -5,7 +5,7 @@ using static SchoolMessenger.AnnouncementServer.PortalSecurity;
 
 namespace SchoolMessenger.AnnouncementServer;
 
-public record InviteRegistration(string? Code,string? Username,string? Password,string? Name=null,string? Role=null,string? ClassId=null,int? StudentNumber=null);
+public record InviteRegistration(string? Code,string? Username,string? Password,string? Name=null,string? Role=null,string? ClassId=null,int? StudentNumber=null,SchoolMessenger.Contracts.RegistrationAcceptance? Agreement=null);
 record NewClass(string? Name,int Grade);
 record NewPerson(string? Name,string? Role,string? ClassId,string? InternalUserId,string[]? ClassIds,bool CanBroadcast);
 record UpdatePerson(string? Name,bool Active,string? ClassId,string[]? ClassIds,bool CanBroadcast);
@@ -13,9 +13,10 @@ record FamilyLink(string? ParentId,string? StudentId);
 
 public static class PortalAdministration
 {
-    public static IResult Register(PortalStore store,PasswordHasher<Account> hasher,InviteRegistration request)
+    public static IResult Register(PortalStore store,PasswordHasher<Account> hasher,InviteRegistration request,SchoolMessenger.Shared.RegistrationPolicy policy)
     {
         if(request.Code?.Length is not (>=32 and <=128)||!Username(request.Username)||!Password(request.Password))return Error("학교 초대번호, 아이디(3~32자), 비밀번호(12~128자)를 확인하세요.");
+        if(policy.Validate(request.Agreement) is{} policyError)return Error(policyError,policy.Current.CanRegister?400:503);
         using var db=store.Open();using var tx=db.BeginTransaction();
         string personId;
         using(var invite=PortalStore.Command(db,"SELECT PersonId FROM Invites WHERE Hash=$hash AND UsedAt IS NULL AND ExpiresAt>$now",tx,("$hash",Hash(request.Code)),("$now",Now)))
@@ -29,9 +30,10 @@ public static class PortalAdministration
             if(change.ExecuteNonQuery()!=1)return Error("이미 등록된 초대입니다.",409);
             using var consume=PortalStore.Command(db,"UPDATE Invites SET UsedAt=$now WHERE Hash=$hash AND UsedAt IS NULL AND ExpiresAt>$now",tx,("$now",Now),("$hash",Hash(request.Code)));
             if(consume.ExecuteNonQuery()!=1)return Error("만료되었거나 이미 사용한 초대입니다.",409);
+            policy.Record(db,tx,account.Id,request.Agreement!);
             tx.Commit();return Results.Ok(new{registered=true});
         }
-        catch(SqliteException e)when(e.SqliteErrorCode==19){return Error("사용 중인 아이디입니다.",409);}
+        catch(SqliteException e)when(e.SqliteExtendedErrorCode is 1555 or 2067){return Error("사용 중인 아이디입니다.",409);}
     }
     public static void Map(RouteGroupBuilder admin,PortalStore store,IDataProtectionProvider protection)
     {

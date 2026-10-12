@@ -1,3 +1,4 @@
+import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {randomUUID,createHash} from 'node:crypto';
@@ -8,6 +9,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {pathToFileURL} from 'node:url';
 
 const root=process.cwd(),dotnet=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet');
+if(process.argv.includes('--web'))throw Error('Browser signup is retired. Run enrollment API checks without --web; use native iOS/Windows verification for signup UI.');
 const data=path.join(root,'.test-data','enrollment-'+randomUUID()),password='Test-'+randomUUID(),key='Bridge-'+randomUUID();
 mkdirSync(data,{recursive:true});mkdirSync('artifacts',{recursive:true});
 const socket=net.createServer();await new Promise(r=>socket.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+socket.address().port;await new Promise(r=>socket.close(r));
@@ -19,6 +21,7 @@ async function stop(){if(server?.exitCode===null){server.kill();await new Promis
 class Client{
  cookies=new Map();csrf='';user=null;
  async req(route,method='GET',body,expected=200){
+  if(route==='register'&&method==='POST'&&body?.agreement===undefined)body={...body,agreement:await acceptRequiredPoliciesForFixture(base)};
   const headers={Cookie:[...this.cookies].map(([k,v])=>k+'='+v).join('; ')};
   if(method!=='GET'){headers['Content-Type']='application/json';headers['X-CSRF-TOKEN']=this.csrf;}
   const response=await fetch(base+'/api/'+route,{method,headers,body:method==='GET'?undefined:JSON.stringify(body??{})});

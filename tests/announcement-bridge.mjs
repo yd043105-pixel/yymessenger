@@ -1,3 +1,4 @@
+import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
@@ -17,7 +18,7 @@ async function stop(child){if(child?.exitCode===null){child.kill();await new Pro
 async function ready(base){for(let n=0;n<100;n++){try{if((await fetch(base+'/health')).ok)return;}catch{}await delay(100);}throw Error('Startup failure '+logs);}
 class Client{
  constructor(base){this.base=base;this.cookies=new Map();this.csrf='';}
- async req(route,method='GET',body,expected=200){const headers={Cookie:[...this.cookies].map(([k,v])=>k+'='+v).join('; ')};if(method!=='GET')headers['X-CSRF-TOKEN']=this.csrf;let data;if(body instanceof FormData)data=body;else if(method!=='GET'){headers['Content-Type']='application/json';data=JSON.stringify(body??{});}const response=await fetch(this.base+'/api/'+route,{method,headers,body:data});for(const cookie of response.headers.getSetCookie()){const part=cookie.split(';')[0],at=part.indexOf('=');this.cookies.set(part.slice(0,at),part.slice(at+1));}const text=await response.text();assert.equal(response.status,expected,route+' '+response.status+' '+text);return text?JSON.parse(text):null;}
+ async req(route,method='GET',body,expected=200){if(route==='register'&&method==='POST'&&body?.agreement===undefined)body={...body,agreement:await acceptRequiredPoliciesForFixture(this.base)};const headers={Cookie:[...this.cookies].map(([k,v])=>k+'='+v).join('; ')};if(method!=='GET')headers['X-CSRF-TOKEN']=this.csrf;let data;if(body instanceof FormData)data=body;else if(method!=='GET'){headers['Content-Type']='application/json';data=JSON.stringify(body??{});}const response=await fetch(this.base+'/api/'+route,{method,headers,body:data});for(const cookie of response.headers.getSetCookie()){const part=cookie.split(';')[0],at=part.indexOf('=');this.cookies.set(part.slice(0,at),part.slice(at+1));}const text=await response.text();assert.equal(response.status,expected,route+' '+response.status+' '+text);return text?JSON.parse(text):null;}
  async login(name='admin'){this.csrf=(await this.req('session')).csrfToken;await this.req('login','POST',{username:name,password});const session=await this.req('session');this.csrf=session.csrfToken;this.user=session.user;return this;}
 }
 async function waitFor(action){for(let n=0;n<50;n++){const result=await action();if(result)return result;await delay(250);}throw Error('State did not converge: '+logs.slice(-1500));}

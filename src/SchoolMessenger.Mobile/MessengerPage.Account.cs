@@ -9,7 +9,7 @@ public sealed partial class MessengerPage
         var source=new MessengerApi(address,false);
         try
         {
-            await source.Refresh();var classes=(await source.Get("api/registration/classes")).EnumerateArray().ToArray();
+            await source.Refresh();var classes=(await source.Get("api/registration/classes")).EnumerateArray().ToArray();var policy=await source.Get("api/registration/policy");
             var page=new ContentPage{Title="학생·학부모 회원가입",BackgroundColor=BackgroundColor};
             var stack=new VerticalStackLayout{Padding=24,Spacing=16};page.Content=new ScrollView{Content=stack};
             var role=new Picker{Title="회원 구분",ItemsSource=new[]{"학부모","학생"},SelectedIndex=0};
@@ -19,9 +19,10 @@ public sealed partial class MessengerPage
             var room=new Picker{Title="학급",ItemsSource=classes.Select(c=>c.GetProperty("name").GetString()!).ToArray(),IsVisible=false};
             var number=new Entry{Placeholder="출석 번호 (1~99)",Keyboard=Keyboard.Numeric,MaxLength=2,IsVisible=false};
             var help=Text("학부모는 임시회원으로 가입합니다. 로그인 후 설정에서 자녀 고유번호를 입력하세요.",14);
-            var result=Text("",13);var join=new Button{Text="회원가입 신청",BackgroundColor=Blue,TextColor=Colors.White};
+            var result=Text("",13);var join=new Button{Text="회원가입 신청",IsEnabled=policy.GetProperty("canRegister").GetBoolean(),BackgroundColor=Blue,TextColor=Colors.White};
             role.SelectedIndexChanged+=(_,_)=>{room.IsVisible=number.IsVisible=role.SelectedIndex==1;help.Text=role.SelectedIndex==1?"학교가 학생 명부와 대조하여 승인한 뒤 로그인할 수 있습니다.":"학부모는 임시회원으로 가입합니다. 로그인 후 설정에서 자녀 고유번호를 입력하세요.";};
-            foreach(var view in new View[]{role,name,username,password,room,number,help,join,result})stack.Add(view);
+            foreach(var view in new View[]{role,name,username,password,room,number,help})stack.Add(view);
+            var agreement=AddPolicies(stack,policy);stack.Add(join);stack.Add(result);
             var sending=false;
             join.Clicked+=async(_,_)=>
             {
@@ -30,13 +31,13 @@ public sealed partial class MessengerPage
                 {
                     var student=role.SelectedIndex==1;
                     if(student&&(room.SelectedIndex<0||!int.TryParse(number.Text,NumberStyles.None,CultureInfo.InvariantCulture,out _)))throw new InvalidOperationException("학생의 학급과 출석 번호를 입력하세요.");
-                    var response=await source.Send("api/register",new MobileSignup(name.Text,username.Text,password.Text,student?"student":"parent",student?classes[room.SelectedIndex].GetProperty("id").GetString():null,student?int.Parse(number.Text!,CultureInfo.InvariantCulture):null));
+                    var response=await source.Send("api/register",new MobileSignup(name.Text,username.Text,password.Text,student?"student":"parent",student?classes[room.SelectedIndex].GetProperty("id").GetString():null,student?int.Parse(number.Text!,CultureInfo.InvariantCulture):null,agreement()));
                     password.Text="";await Navigation.PopAsync();feedback.Text=response.GetProperty("message").GetString();
                 }
                 catch(Exception e){password.Text="";result.Text=e.Message;}
                 finally{sending=false;stack.IsEnabled=true;}
             };
-            page.Disappearing+=(_,_)=>source.Dispose();await Navigation.PushAsync(page);
+            page.NavigatedFrom+=(_,_)=>{if(!Navigation.NavigationStack.Contains(page))source.Dispose();};await Navigation.PushAsync(page);
         }
         catch{source.Dispose();throw;}
     }

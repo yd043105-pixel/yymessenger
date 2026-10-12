@@ -22,6 +22,8 @@ if (builder.Configuration["Portal:CertificateThumbprint"] is {Length:>0} thumbpr
 }
 if (builder.Configuration["Portal:BridgeKey"]?.Length is not >= 32) throw new InvalidOperationException("Portal__BridgeKey에 별도 32자 이상 서비스 키를 설정하세요.");
 var store = new PortalStore(builder.Configuration);
+var registrationPolicy=new RegistrationPolicy(builder.Configuration["Registration:PolicyFile"],builder.Environment.IsDevelopment(),builder.Environment.ContentRootPath);
+using(var policyDatabase=store.Open())RegistrationPolicy.EnsureSchema(policyDatabase);
 var dataPath = builder.Services.AddDataProtection().SetApplicationName("YyAnnouncements").PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(store.Root,"keys")));
 if (OperatingSystem.IsWindows()) dataPath.ProtectKeysWithDpapi();
 builder.Services.AddSingleton(store);
@@ -81,7 +83,7 @@ app.Use(async(c,next)=>
     if(c.Request.Path.StartsWithSegments("/api")&&c.Request.Method is "POST" or "PATCH" or "DELETE")
         try{await c.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(c);}catch(AntiforgeryValidationException){await Error("요청 인증 만료. 다시 로그인하세요.").ExecuteAsync(c);return;}
     if(c.User.Identity?.IsAuthenticated==true&&c.Request.Path.StartsWithSegments("/api")&&store.Person(Id(c)) is{Role:"parent"} parent&&!store.Regular(parent)
-        &&c.Request.Path!="/api/session"&&c.Request.Path!="/api/login"&&c.Request.Path!="/api/register"&&c.Request.Path!="/api/registration/classes"&&c.Request.Path!="/api/logout"&&c.Request.Path!="/api/children"&&!c.Request.Path.StartsWithSegments("/api/settings"))
+        &&c.Request.Path!="/api/session"&&c.Request.Path!="/api/login"&&c.Request.Path!="/api/register"&&c.Request.Path!="/api/registration/classes"&&c.Request.Path!="/api/registration/policy"&&c.Request.Path!="/api/logout"&&c.Request.Path!="/api/children"&&!c.Request.Path.StartsWithSegments("/api/settings"))
     {await Error("임시회원입니다. 설정에서 자녀 고유번호를 입력하면 학교 소식과 시간표를 볼 수 있습니다.",403).ExecuteAsync(c);return;}
     await next();
 });
@@ -100,7 +102,8 @@ app.MapPost("/api/login",async Task<IResult>(Login request,HttpContext c)=>
     await c.SignInAsync(new ClaimsPrincipal(new ClaimsIdentity(new[]{new Claim(ClaimTypes.NameIdentifier,person.Id),new Claim(ClaimTypes.Name,person.Name),new Claim(ClaimTypes.Role,person.Role),new Claim("version",person.Version.ToString())},CookieAuthenticationDefaults.AuthenticationScheme)),new AuthenticationProperties{IsPersistent=request.RememberLogin,ExpiresUtc=DateTimeOffset.UtcNow.Add(request.RememberLogin?TimeSpan.FromDays(30):TimeSpan.FromHours(8))});
     return Results.Ok(store.Public(person));
 }).RequireRateLimiting("login");
-app.MapPost("/api/register",(InviteRegistration request)=>string.IsNullOrEmpty(request.Code)?PortalEnrollment.Register(store,hasher,request):PortalAdministration.Register(store,hasher,request)).RequireRateLimiting("login");
+app.MapGet("/api/registration/policy",()=>registrationPolicy.Current).RequireRateLimiting("login");
+app.MapPost("/api/register",(InviteRegistration request)=>string.IsNullOrEmpty(request.Code)?PortalEnrollment.Register(store,hasher,request,registrationPolicy):PortalAdministration.Register(store,hasher,request,registrationPolicy)).RequireRateLimiting("login");
 var api=app.MapGroup("/api").RequireAuthorization();
 api.MapPost("/logout",async(HttpContext c)=>{store.Execute("UPDATE People SET Version=Version+1 WHERE Id=$id",("$id",Id(c)));await c.SignOutAsync();return Results.Ok();});
 var admin=app.MapGroup("/api/admin").RequireAuthorization("Admin");

@@ -1,3 +1,4 @@
+import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
@@ -19,6 +20,7 @@ async function stop(){if(server?.exitCode===null){server.kill();await new Promis
 class Client{
  cookies=new Map();csrf='';user=null;
  async request(route,method='GET',body,expected=200,extraHeaders={}){
+  if(route==='/api/register'&&method==='POST'&&body?.agreement===undefined)body={...body,agreement:await acceptRequiredPoliciesForFixture(address)};
   const headers={Cookie:[...this.cookies].map(([k,v])=>k+'='+v).join('; '),...extraHeaders};let content;
   if(method!=='GET'){headers['X-CSRF-TOKEN']=this.csrf;if(body instanceof FormData)content=body;else{headers['Content-Type']='application/json';content=JSON.stringify(body??{});}}
   const response=await fetch(address+route,{method,headers,body:content});for(const cookie of response.headers.getSetCookie()){const p=cookie.split(';')[0],n=p.indexOf('=');this.cookies.set(p.slice(0,n),p.slice(n+1));}

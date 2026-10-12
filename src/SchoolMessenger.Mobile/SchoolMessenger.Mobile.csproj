@@ -66,7 +66,8 @@
 
 	<ItemGroup>
 		<!-- Share the DTO source without inheriting the Windows service runtime graph. -->
-		<Compile Include="../SchoolMessenger.Contracts/Announcements.cs" Link="Contracts/Announcements.cs" />
+    <Compile Include="../SchoolMessenger.Contracts/Announcements.cs" Link="Contracts/Announcements.cs" />
+    <Compile Include="../SchoolMessenger.Contracts/RegistrationPolicies.cs" Link="Contracts/RegistrationPolicies.cs" />
         <Compile Include="../SchoolMessenger.Shared/ReleaseNotice.cs" Link="ReleaseNotice.cs" />
         <EmbeddedResource Include="../SchoolMessenger.Shared/updates.json" LogicalName="SchoolMessenger.UpdateNotes.json" />
 		<!-- The installed workload version must not silently change the locked app dependencies. -->

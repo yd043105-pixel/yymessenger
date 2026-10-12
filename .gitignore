@@ -4,6 +4,8 @@
 data/
 artifacts/
 .test-data/
+.dorms-check/
+**/registration-policy.local.json
 *.user
 *.pfx
 *.log

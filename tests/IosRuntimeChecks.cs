@@ -119,6 +119,16 @@ internal static class IosRuntimeChecks
                 await Page.Navigation.PopAsync();await Wait(()=>Has("10월 현장체험학습 안내"));await Tap("로그아웃");await Wait(()=>Has("우리 학교 소식"));
                 await Tap("학생·학부모 회원가입");await Wait(()=>CurrentPage.Title=="학생·학부모 회원가입");
                 var signup=Controls.OfType<Entry>().ToArray();signup[0].Text="iOS 가상 학부모";signup[1].Text="ios.parent";signup[2].Text=password;
+                await Tap("회원가입 신청");await Wait(()=>Has("필수 약관·개인정보 안내의 전문을 확인하고 체크하세요."));
+                Check(CurrentPage.Title=="학생·학부모 회원가입","native signup refuses unchecked required documents");
+                foreach(var title in new[]{"서비스 이용약관","개인정보 수집·이용 동의 안내"})
+                {
+                    await Tap("전문 보기 · "+title);await Wait(()=>CurrentPage.Title==title);
+                    Check(Has("검토용 초안")&&Has("문서 버전"),"native in-app document shows full text, version and draft status: "+title);
+                    await Tap("이전 화면으로 돌아가기");await Wait(()=>CurrentPage.Title=="학생·학부모 회원가입");
+                }
+                foreach(var choice in Controls.OfType<CheckBox>()){Check(choice.IsEnabled,"native checkbox enabled after opening document");choice.IsChecked=true;}
+                signup[2].Text=password;
                 await Tap("회원가입 신청");await Wait(()=>CurrentPage==Page&&Has("임시회원 가입 완료"));
                 Check(signup[2].Text=="","native individual signup clears its password and returns to login");
                 entries=Controls.OfType<Entry>().ToArray();entries[0].Text=portal;entries[1].Text="ios.parent";entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("임시회원입니다."));

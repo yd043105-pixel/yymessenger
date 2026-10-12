@@ -1,3 +1,4 @@
+import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 // Synthetic files and accounts only. The school's source XLSX files never enter this fixture.
 import assert from 'node:assert/strict';
 import {spawn,spawnSync} from 'node:child_process';
@@ -18,7 +19,7 @@ async function stop(child){if(child?.exitCode===null){child.kill();await new Pro
 async function wait(action){for(let n=0;n<100;n++){try{const value=await action();if(value)return value;}catch{}await pause(150);}throw Error('Fixture did not converge: '+logs.slice(-1500));}
 class Client{
  constructor(base){this.base=base;this.cookies=new Map();}
- async req(route,method='GET',body,expected=200,csrf=true){const headers={Cookie:[...this.cookies].map(([k,v])=>k+'='+v).join('; ')};if(method!=='GET'&&csrf)headers['X-CSRF-TOKEN']=this.csrf;let payload;if(body instanceof FormData)payload=body;else if(method!=='GET'){headers['Content-Type']='application/json';payload=JSON.stringify(body??{});}const response=await fetch(this.base+'/api/'+route,{method,headers,body:payload});for(const item of response.headers.getSetCookie()){const value=item.split(';')[0],at=value.indexOf('=');this.cookies.set(value.slice(0,at),value.slice(at+1));}const text=await response.text();assert.equal(response.status,expected,route+' '+text);return text?JSON.parse(text):null;}
+ async req(route,method='GET',body,expected=200,csrf=true){if(route==='register'&&method==='POST'&&body?.agreement===undefined)body={...body,agreement:await acceptRequiredPoliciesForFixture(this.base)};const headers={Cookie:[...this.cookies].map(([k,v])=>k+'='+v).join('; ')};if(method!=='GET'&&csrf)headers['X-CSRF-TOKEN']=this.csrf;let payload;if(body instanceof FormData)payload=body;else if(method!=='GET'){headers['Content-Type']='application/json';payload=JSON.stringify(body??{});}const response=await fetch(this.base+'/api/'+route,{method,headers,body:payload});for(const item of response.headers.getSetCookie()){const value=item.split(';')[0],at=value.indexOf('=');this.cookies.set(value.slice(0,at),value.slice(at+1));}const text=await response.text();assert.equal(response.status,expected,route+' '+text);return text?JSON.parse(text):null;}
  async login(username='admin'){this.csrf=(await this.req('session')).csrfToken;await this.req('login','POST',{username,password});const session=await this.req('session');this.csrf=session.csrfToken;this.user=session.user;return this;}
 }
 async function person(admin,name,role,classId=null,internalUserId=null,classIds=[]){return(await admin.req('admin/people','POST',{name,role,classId,internalUserId,classIds,canBroadcast:false})).id;}
