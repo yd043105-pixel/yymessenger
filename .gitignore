@@ -43,4 +43,7 @@ artifacts/
 **/recovery-backups/
 **/.backend.lock
 **/restore-*.tmp
+**/server-operations*.local.json
+**/server-operations.secrets.xml
+**/server-operations-state.json
 **/*.db.*.tmp

@@ -15,11 +15,13 @@ public sealed class Store : IDisposable
     public string Files => Path.Combine(Root, "files");
     public string Database => Path.Combine(Root, "school.db");
     public string BackupDirectory { get; }
+    public bool AttachmentBackupEnabled { get; }
     public Store(IConfiguration config)
     {
         Root = Path.GetFullPath(config["School:DataDirectory"] ?? "data");
         if(File.Exists(Path.Combine(Root,"announcements.db")))throw new InvalidOperationException("교직원 서버와 외부 공지 서버의 데이터 폴더를 분리하세요.");
         BackupDirectory = Path.GetFullPath(config["School:BackupDirectory"] ?? Path.Combine(Root, "backups"));
+        AttachmentBackupEnabled = config.GetValue("School:AttachmentBackup", false);
         Directory.CreateDirectory(Files);
         lease = BackendDatabase.Acquire(Root);
         using (var migrated = Open()) BackendDatabase.Migrate(migrated, Root);
@@ -124,13 +126,16 @@ public sealed class Store : IDisposable
         r.GetString(4), r.GetBoolean(5), r.GetBoolean(6), r.GetBoolean(7), r.GetInt32(8), r.GetInt32(9), r.GetInt64(10));
     public void Backup()
     {
+        lock (AttachmentBackup.Gate)
+        {
         var directory = BackupDirectory;
         Directory.CreateDirectory(directory);
         using var source = Open();
         var path = Path.Combine(directory, $"school-{DateTime.UtcNow:yyyyMMdd}.db");
         BackendDatabase.Backup(source,path);
-        // Backups contain metadata only; attachment contents never enter database snapshots.
+        if (AttachmentBackupEnabled) AttachmentBackup.Copy(source, Files, directory, false);
         foreach (var file in Directory.EnumerateFiles(directory, "school-*.db"))
             if (File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddDays(-14)) File.Delete(file);
+        }
     }
 }

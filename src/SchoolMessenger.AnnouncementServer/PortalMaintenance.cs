@@ -8,6 +8,10 @@ public sealed class PortalMaintenance(PortalStore store,IConfiguration config,IH
 
     public void Cleanup()
     {
+        lock (AttachmentBackup.Gate) CleanupCore();
+    }
+    void CleanupCore()
+    {
         var now=PortalSecurity.Now;
         var expired=store.Query("SELECT Id FROM Files WHERE DeletedAt IS NULL AND (ExpiresAt<=$now OR NoticeId IS NULL AND UploadedAt<=$cutoff)",r=>r.GetString(0),("$now",now),("$cutoff",now-86_400_000));
         var failed=false;
@@ -15,9 +19,10 @@ public sealed class PortalMaintenance(PortalStore store,IConfiguration config,IH
         foreach(var path in Directory.EnumerateFiles(store.Files))
             if(File.GetLastWriteTimeUtc(path)<DateTime.UtcNow.AddDays(-1)&&store.Query("SELECT 1 FROM Files WHERE Id=$id",r=>r.GetInt32(0),("$id",Path.GetFileName(path))).Count==0)File.Delete(path);
         if(failed)throw new IOException("파일 정리 재시도가 필요합니다.");
+        using (var backupDb = store.Open()) AttachmentBackup.Prune(backupDb, store.BackupDirectory, true);
         var day=DateTime.UtcNow.ToString("yyyyMMdd");var last=BackendOperations.LastSuccess(store.Open,"backup");if(last is not null && DateTimeOffset.FromUnixTimeMilliseconds(last.Value).UtcDateTime.Date==DateTime.UtcNow.Date)return;
-        var folder=Path.GetFullPath(config["Portal:BackupDirectory"]??Path.Combine(store.Root,"backups"));Directory.CreateDirectory(folder);
-        BackendOperations.Run(store.Open,"backup",()=>{using var source=store.Open();BackendDatabase.Backup(source,Path.Combine(folder,"announcements-"+day+".db"));});
+        var folder=store.BackupDirectory;Directory.CreateDirectory(folder);
+        BackendOperations.Run(store.Open,"backup",()=>{using var source=store.Open();BackendDatabase.Backup(source,Path.Combine(folder,"announcements-"+day+".db"));if(store.AttachmentBackupEnabled)AttachmentBackup.Copy(source,store.Files,folder,true);});
         foreach(var old in Directory.EnumerateFiles(folder,"announcements-*.db"))if(File.GetLastWriteTimeUtc(old)<DateTime.UtcNow.AddDays(-14))File.Delete(old);
 
     }

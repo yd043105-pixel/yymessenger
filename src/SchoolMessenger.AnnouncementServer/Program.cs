@@ -11,6 +11,8 @@ using SchoolMessenger.Shared;
 using static SchoolMessenger.AnnouncementServer.PortalSecurity;
 
 var builder = WebApplication.CreateBuilder(args);
+if(OperationsCommand.TryRun(builder.Configuration,"Portal","announcements.db"))return;
+TunnelOrigin.Validate(builder.Configuration,builder.Environment.IsDevelopment());
 if(BackendRecovery.TryRun(builder.Configuration,"Portal","announcements.db"))return;
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 105L*1024*1024);
 if (builder.Configuration["Portal:CertificateThumbprint"] is {Length:>0} thumbprint)
@@ -72,9 +74,11 @@ app.Use(async(c,next)=>
     c.Response.Headers["X-Content-Type-Options"]="nosniff";c.Response.Headers["X-Frame-Options"]="DENY";c.Response.Headers["Referrer-Policy"]="no-referrer";
     c.Response.Headers["Content-Security-Policy"]="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
     c.Response.Headers["Permissions-Policy"]="camera=(), microphone=(), geolocation=()";
+    c.Response.Headers.CacheControl="no-store";
     if(c.Request.IsHttps)c.Response.Headers["Strict-Transport-Security"]="max-age=31536000";
     await next();
 });
+TunnelOrigin.Use(app);
 app.UseDefaultFiles();app.UseStaticFiles();
 if (app.Environment.IsDevelopment() && Directory.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot")))
     app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "wwwroot")) });
@@ -97,6 +101,7 @@ app.Use(async(c,next)=>
     await next();
 });
 app.MapGet("/health",()=>Results.Ok(new{status="ok",service="announcements"}));
+OperationalHealth.Map(app,store.Open,store.Root,"Portal");
 app.MapGet("/api/session",(HttpContext c,IAntiforgery csrf)=>new PortalSession(app.Configuration["Portal:Name"]??"여양고 학교 소식",csrf.GetAndStoreTokens(c).RequestToken!,c.User.Identity?.IsAuthenticated==true?store.Public(store.Person(Id(c))!):null));
 app.MapPost("/api/login",async Task<IResult>(Login request,HttpContext c)=>
 {

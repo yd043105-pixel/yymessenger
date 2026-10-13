@@ -71,16 +71,22 @@ public static class GraduationErasure
         using(var reader=command.ExecuteReader())if(reader.Read()&&reader.GetInt32(0)!=0)throw new IOException("파기 후 DB 정리 재시도가 필요합니다.");
         command.CommandText="VACUUM";command.ExecuteNonQuery();
     }
-    public static void Backups(string root,string[] ids,bool portal)
+    public static void Backups(string root,string[] ids,bool portal,string? configuredDirectory=null)
     {
         root=Path.GetFullPath(root);
-        foreach(var folder in new[]{"backups","migration-backups","recovery-backups"})
+        var directories = new[]{"backups","migration-backups","recovery-backups"}.Select(folder=>Path.Combine(root,folder));
+        if(configuredDirectory is not null)directories=directories.Append(Path.GetFullPath(configuredDirectory));
+        foreach(var directory in directories.Distinct(OperatingSystem.IsWindows()?StringComparer.OrdinalIgnoreCase:StringComparer.Ordinal))
         {
-            var directory=Path.GetFullPath(Path.Combine(root,folder));
-            if(!directory.StartsWith(root+Path.DirectorySeparatorChar,OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal))throw new IOException("백업 경로를 확인하세요.");
-            if(!Directory.Exists(directory))continue;
+            if(!Directory.Exists(directory))
+            {
+                var comparison=OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal;
+                if(configuredDirectory is not null&&string.Equals(directory,Path.GetFullPath(configuredDirectory),comparison)&&!string.Equals(directory,Path.Combine(root,"backups"),comparison))throw new IOException("별도 백업 장치의 졸업 정보 파기 확인이 필요합니다.");
+                continue;
+            }
             if((File.GetAttributes(directory)&FileAttributes.ReparsePoint)!=0)throw new IOException("별도로 연결된 백업은 학교의 파기 확인이 필요합니다.");
-            foreach(var file in Directory.EnumerateFiles(directory,"*.db",SearchOption.TopDirectoryOnly))
+            var filter=directory==Path.GetFullPath(configuredDirectory??Path.Combine(root,"backups"))?(portal?"announcements-*.db":"school-*.db"):"*.db";
+            foreach(var file in Directory.EnumerateFiles(directory,filter,SearchOption.TopDirectoryOnly))
             {
                 if((File.GetAttributes(file)&FileAttributes.ReparsePoint)!=0)throw new IOException("백업 링크는 학교의 파기 확인이 필요합니다.");
                 var staged=file+"."+Guid.NewGuid().ToString("N")+".tmp";

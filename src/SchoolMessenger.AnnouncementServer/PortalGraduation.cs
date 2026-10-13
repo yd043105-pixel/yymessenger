@@ -51,6 +51,7 @@ public static class PortalGraduation
     public static void Run(PortalStore store)
     {
         lock(Gate)
+        lock(AttachmentBackup.Gate)
         {
             using(var db=store.Open())using(var tx=db.BeginTransaction())
             {
@@ -76,7 +77,7 @@ public static class PortalGraduation
             var pending=store.Query("SELECT Id FROM PrivacyErasure WHERE PublicDone=0",r=>r.GetString(0)).ToArray();
             if(pending.Length==0)return;
             using(var db=store.Open()){GraduationErasure.Portal(db,pending);GraduationErasure.Compact(db);}
-            GraduationErasure.Backups(store.Root,pending,true);
+            GraduationErasure.Backups(store.Root,pending,true,store.BackupDirectory);
             foreach(var id in pending)store.Execute("UPDATE PrivacyErasure SET PublicDone=1 WHERE Id=$id",("$id",id));
         }
     }

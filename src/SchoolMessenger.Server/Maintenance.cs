@@ -47,6 +47,10 @@ public sealed class Maintenance(Store store, IWebHostEnvironment environment, IC
     public string? LastError { get; private set; }
     public void Cleanup()
     {
+        lock (AttachmentBackup.Gate) CleanupCore();
+    }
+    void CleanupCore()
+    {
         var expired = store.Query("""
             SELECT Id FROM Attachments WHERE DeletedAt IS NULL AND
             ((ExpiresAt IS NOT NULL AND ExpiresAt <= $now) OR (MessageId IS NULL AND UploadedAt <= $orphan AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=Attachments.Id) AND NOT EXISTS(SELECT 1 FROM ScheduledAttachments sa JOIN ScheduledMessages sm ON sm.Id=sa.ScheduleId WHERE sa.AttachmentId=Attachments.Id AND sm.State='pending')))
@@ -65,6 +69,7 @@ public sealed class Maintenance(Store store, IWebHostEnvironment environment, IC
             if (!known.Contains(Path.GetFileName(path)) && File.GetLastWriteTimeUtc(path) < DateTime.UtcNow.AddDays(-1))
                 File.Delete(path);
         if(failed)throw new IOException("파일 정리 재시도가 필요합니다.");
+        using (var backupDb = store.Open()) AttachmentBackup.Prune(backupDb, store.BackupDirectory, false);
         LastCleanup = DateTimeOffset.UtcNow;
     }
     public void Backup()

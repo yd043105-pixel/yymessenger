@@ -15,6 +15,7 @@ using SchoolMessenger.Server;
 using SchoolMessenger.Shared;
 
 var builder = WebApplication.CreateBuilder(args);
+if(OperationsCommand.TryRun(builder.Configuration,"School","school.db"))return;
 if(BackendRecovery.TryRun(builder.Configuration,"School","school.db"))return;
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 210L * 1024 * 1024);
 if (builder.Configuration["School:CertificateThumbprint"] is { Length: > 0 } thumbprint)
@@ -179,6 +180,7 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+OperationalHealth.Map(app, store.Open, store.Root, "School");
 app.MapGet("/api/session", (HttpContext c, IAntiforgery antiforgery) => Results.Ok(new
 {
     schoolName = builder.Configuration["School:Name"],
@@ -546,7 +548,7 @@ adminApi.MapGet("/status", (Maintenance maintenance, Presence presence) =>
     return Results.Ok(new { online = presence.Connections.Values.Distinct().Count(), users = store.Users().Count(u => u.Active),
         filesBytes = Directory.EnumerateFiles(store.Files).Sum(f => new FileInfo(f).Length), freeBytes = drive.AvailableFreeSpace,
         maintenance.LastCleanup, maintenance.LastBackup, maintenance.LastError,
-        attachmentBackup = false, retentionDays = 30, messageRetention = "자동 삭제 없음: 학교 보관 정책 확정 필요" });
+        attachmentBackup = store.AttachmentBackupEnabled, retentionDays = 30, messageRetention = "자동 삭제 없음: 학교 보관 정책 확정 필요" });
 });
 adminApi.MapPost("/maintenance", (Maintenance maintenance) => { maintenance.Cleanup(); maintenance.Backup(); return Results.Ok(); });
 app.MapHub<MessageHub>("/hub", options => options.CloseOnAuthenticationExpiration = true);

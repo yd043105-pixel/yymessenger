@@ -110,7 +110,7 @@ public static class PortalAdministration
         });
         admin.MapGet("/status",()=>new{people=store.Query("SELECT COUNT(*) FROM People WHERE Active=1",r=>r.GetInt32(0))[0],
             lastBridgeContact=store.Query("SELECT MAX(VerifiedAt) FROM TeacherProofs",r=>r.IsDBNull(0)?(long?)null:r.GetInt64(0))[0],
-            freeBytes=new DriveInfo(Path.GetPathRoot(store.Root)!).AvailableFreeSpace,retentionDays=30,attachmentBackup=false});
+            freeBytes=new DriveInfo(Path.GetPathRoot(store.Root)!).AvailableFreeSpace,retentionDays=30,attachmentBackup=store.AttachmentBackupEnabled});
     }
     static bool ClassExists(PortalStore store,string id)=>store.Query("SELECT 1 FROM Classes WHERE Id=$id",r=>r.GetInt32(0),("$id",id)).Count>0;
 }

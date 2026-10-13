@@ -24,6 +24,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "$project 빌드 실패" }
     }
     if (-not $SkipTests) {
+        node tests\server-operations.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Server operations verification failed' }
         node tests\update-notice.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Update notice verification failed' }
         node tests\remote-channel.mjs
@@ -63,11 +65,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'External announcement package failed' }
     New-Item -ItemType Directory -Force -Path (Join-Path $packageDirectory 'scripts') | Out-Null
     Copy-Item -LiteralPath 'scripts\Start-Server.ps1','scripts\Start-AnnouncementServer.ps1','scripts\Configure-RemoteFirewall.ps1' -Destination (Join-Path $packageDirectory 'scripts')
+    Copy-Item -LiteralPath 'scripts\Server-Operations.ps1','scripts\Configure-ServerOperations.ps1','scripts\Inspect-ServerComputer.ps1','scripts\Stage-ServerUpdate.ps1' -Destination (Join-Path $packageDirectory 'scripts')
     Copy-Item -LiteralPath 'README.md','시작-로컬체험.cmd','시작-교사용.cmd' -Destination $packageDirectory
     $packageDocs = Join-Path $packageDirectory 'docs'
     New-Item -ItemType Directory -Force -Path $packageDocs | Out-Null
     Copy-Item -Path 'docs\security-audit-*.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\web-tasks-design.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\server-setup-school-tunnel.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-operations.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\family-registration.md' -Destination $packageDocs
@@ -77,6 +81,7 @@ try {
     $packageConfig=Join-Path $packageDirectory 'config'
     New-Item -ItemType Directory -Path $packageConfig -Force | Out-Null
     Copy-Item -LiteralPath 'config\registration-policy.draft.json' -Destination $packageConfig
+    Copy-Item -LiteralPath 'config\server-operations.example.json','config\cloudflared.example.yml' -Destination $packageConfig
     Copy-Item -LiteralPath 'docs\ios-operations.md','docs\ios-verification.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\releases.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\timetable-import-design.md','docs\timetable-operations.md' -Destination $packageDocs

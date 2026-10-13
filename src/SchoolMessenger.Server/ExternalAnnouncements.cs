@@ -183,8 +183,11 @@ public sealed class ExternalAnnouncements : BackgroundService
                 var erased=await http.GetFromJsonAsync<string[]>("bridge/privacy-erasure",Json,token)??[];
                 if(erased.Length>0)
                 {
+                    lock(AttachmentBackup.Gate)
+                    {
                     using(var db=store.Open()){GraduationErasure.Office(db,erased);GraduationErasure.Compact(db);}
-                    GraduationErasure.Backups(store.Root,erased,false);
+                    GraduationErasure.Backups(store.Root,erased,false,store.BackupDirectory);
+                    }
                     using var acknowledgment=await http.PostAsJsonAsync("bridge/privacy-erasure/ack",new{ids=erased},Json,token);await Check(acknowledgment);
                 }
                 var teachers=fresh.People.Where(p=>p.Role=="teacher").Select(p=>{var user=p.InternalUserId is null?null:store.GetUser(p.InternalUserId);return new TeacherProof(p.Id,user?.Active==true&&!StaffAccounts.Pending(store,user.Id),user?.CanBroadcast==true);}).ToArray();

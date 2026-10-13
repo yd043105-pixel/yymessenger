@@ -13,9 +13,13 @@ public sealed class PortalStore : IDisposable
     public void Dispose() => lease.Dispose();
     public string Root { get; }
     public string Files => Path.Combine(Root, "files");
+    public string BackupDirectory { get; }
+    public bool AttachmentBackupEnabled { get; }
     public PortalStore(IConfiguration config)
     {
         Root = Path.GetFullPath(config["Portal:DataDirectory"] ?? "portal-data");
+        BackupDirectory = Path.GetFullPath(config["Portal:BackupDirectory"] ?? Path.Combine(Root, "backups"));
+        AttachmentBackupEnabled = config.GetValue("Portal:AttachmentBackup", false);
         if(File.Exists(Path.Combine(Root,"school.db")))throw new InvalidOperationException("외부 공지 서버에 교직원 데이터 폴더를 사용할 수 없습니다.");
         Directory.CreateDirectory(Files);
         lease = BackendDatabase.Acquire(Root);
