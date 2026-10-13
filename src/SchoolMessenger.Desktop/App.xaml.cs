@@ -2,6 +2,8 @@ using System.Windows;
 namespace SchoolMessenger.Desktop;
 public partial class App : System.Windows.Application
 {
+    readonly System.Threading.Mutex running = new(false, @"Local\YeoyangSchoolMessenger.Running");
+    protected override void OnExit(ExitEventArgs e) { running.Dispose(); base.OnExit(e); }
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);

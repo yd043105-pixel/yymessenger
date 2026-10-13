@@ -179,7 +179,8 @@ try {
     process.env.YY_SUBMISSION_PREVIEW_ID=sample.id;
     await admin.request('/api/messages', 'POST', { clientId: randomUUID(), title: '교무회의 안내 · 자료 확인', body: '선생님들께 안내드립니다.\n\n내일 오후 3시, 본관 회의실에서 교무회의가 있습니다.\n부서별 전달 사항을 준비해 주세요.\n\n자료는 첨부파일 보관 기한 내에 저장해 주세요.', recipientIds: [admin.user.id], attachmentIds: [], all: false });
     if (existsSync('artifacts/ui-error.txt')) unlinkSync('artifacts/ui-error.txt');
-    const ui = spawn(packaged ? path.join(packageRoot, 'client/SchoolMessenger.exe') : dotnet, packaged ? ['--verify-ui'] : [path.join(root, 'src/SchoolMessenger.Desktop/bin/Debug/net10.0-windows/SchoolMessenger.dll'), '--verify-ui'], {
+    const installedClient=process.env.YY_INSTALLED_CLIENT;
+    const ui = spawn(installedClient ?? (packaged ? path.join(packageRoot, 'client/SchoolMessenger.exe') : dotnet), installedClient || packaged ? ['--verify-ui'] : [path.join(root, 'src/SchoolMessenger.Desktop/bin/Debug/net10.0-windows/SchoolMessenger.dll'), '--verify-ui'], {
       cwd: root, windowsHide: true, env: { ...process.env, SCHOOL_UI_SERVER: address, SCHOOL_UI_USER: 'admin', SCHOOL_UI_PASSWORD: password, SCHOOL_UI_OUTPUT: path.join(root, 'artifacts/client-preview.png'), SCHOOL_UI_LOCALDIR: path.join(data, 'client'), SCHOOL_UI_SKIP_INPUT: skipNativeInput ? '1' : '0' }
     });
     let uiDeadline;

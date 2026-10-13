@@ -23,6 +23,13 @@ jobs:
         run: ./scripts/Build.ps1 -HeadlessTests
       - name: Verify packaged executables
         run: node tests/smoke.mjs --features --package
+      - name: Verify Windows installer
+        shell: powershell
+        run: |
+          ./scripts/Build-Installer.ps1 -ClientDirectory (Join-Path $PWD 'artifacts/여양고-교무메신저/client')
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+          ./tests/installer.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Installer verification failed' }
   android:
     runs-on: windows-latest
     timeout-minutes: 35

@@ -26,6 +26,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
           node tests/smoke.mjs --features --package
           if ($LASTEXITCODE -ne 0) { throw 'Package verification failed' }
+      - name: Build and verify Windows installer
+        shell: powershell
+        run: |
+          ./scripts/Build-Installer.ps1 -ClientDirectory (Join-Path $PWD 'artifacts/여양고-교무메신저/client')
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+          ./tests/installer.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Installer verification failed' }
       - name: Create release draft
         shell: powershell
         env:
@@ -34,6 +41,7 @@ jobs:
           $releaseVersion = $env:GITHUB_REF_NAME.Substring(1)
           $releaseArguments = @('release', 'create', $env:GITHUB_REF_NAME,
             "artifacts/yymessenger-$releaseVersion-win-x64.zip", 'artifacts/SHA256SUMS.txt',
+            "artifacts/yymessenger-$releaseVersion-setup-win-x64.exe",
             '--repo', $env:GITHUB_REPOSITORY, '--verify-tag', '--draft',
             '--title', "yymessenger $releaseVersion", '--notes-file', 'docs/release-notes.md')
           if ($releaseVersion.Contains('-')) { $releaseArguments += '--prerelease' }
