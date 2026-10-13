@@ -157,9 +157,9 @@ internal static class IosRuntimeChecks
                 var otherStudent=people.First(p=>p.GetProperty("role").GetString()=="student"&&p.GetProperty("id").GetString()!=firstStudent.GetProperty("id").GetString());
                 var firstCode=(await administrator.Get("api/admin/people/"+firstStudent.GetProperty("id").GetString()+"/student-code")).GetProperty("code").GetString();
                 var otherCode=(await administrator.Get("api/admin/people/"+otherStudent.GetProperty("id").GetString()+"/student-code")).GetProperty("code").GetString();
-                await TapAccount("설정 · 자녀 연결");await Wait(()=>CurrentPage.Title=="설정 · 자녀 연결");Controls.OfType<Entry>().Single().Text=firstCode;await Tap("자녀 연결");await Wait(()=>Has("자녀 연결 완료"));
+                await TapAccount("설정 · 자녀 연결");await Wait(()=>CurrentPage.Title=="설정 · 자녀 연결");Controls.OfType<Entry>().Single().Text=firstCode;await Tap("자녀 연결");await Wait(()=>Has("정회원 · 연결된 자녀")&&Has("가상학생 하나")&&Has("자녀가 연결되었습니다"));
                 Check(Has("정회원 · 연결된 자녀")&&Has("가상학생 하나"),"native code entry immediately upgrades temporary parent to regular member");
-                Controls.OfType<Entry>().Single().Text=otherCode;await Tap("자녀 연결");await Wait(()=>Has("가상학생 둘")&&Has("자녀 연결 완료"));
+                Controls.OfType<Entry>().Single().Text=otherCode;await Tap("자녀 연결");await Wait(()=>Has("가상학생 둘")&&Has("자녀가 연결되었습니다"));
                 Check(Has("가상학생 하나")&&Controls.OfType<Entry>().Single().Text=="","native settings adds a second child and clears the entered secret");
                 await Page.Navigation.PopAsync();await Tap("홈");await Wait(()=>Controls.OfType<Button>().Any(b=>b.Text=="시간표 · 내 수업 / 학급"));await TapAccount("로그아웃");await Wait(()=>Has("우리 학교 소식"));
                 entries=Controls.OfType<Entry>().ToArray();entries[0].Text=portal;entries[1].Text=fixture.GetProperty("student").GetString();entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("10월 현장체험학습 안내"));

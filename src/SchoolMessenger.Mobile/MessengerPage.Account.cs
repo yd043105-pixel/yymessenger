@@ -64,7 +64,7 @@ public sealed partial class MessengerPage
                 foreach(var child in list.EnumerateArray())children.Add(Text(child.GetProperty("name").GetString()+" · "+child.GetProperty("className").GetString()));
             }
             await RefreshChildren();if(!Current(source,version))return;stack.Add(status);stack.Add(children);
-            stack.Add(Text("재학 중인 자녀의 고유번호를 입력하세요. 번호가 맞으면 바로 정회원으로 전환됩니다. 자녀가 여러 명이면 각각 추가하세요.",14));
+            stack.Add(Text("재학 중인 자녀의 고유번호로 연결을 신청하세요. 학교의 확인 절차에 따라 정회원으로 이용할 수 있습니다. 자녀가 여러 명이면 각각 추가하세요.",14));
             var code=new Entry{Placeholder="자녀 고유번호 (8자리)",MaxLength=8,Keyboard=Keyboard.Create(KeyboardFlags.None),IsTextPredictionEnabled=false};
             var result=Text("",13);var link=new Button{Text="자녀 연결",BackgroundColor=Blue,TextColor=Colors.White};stack.Add(code);stack.Add(link);stack.Add(result);
             var sending=false;
