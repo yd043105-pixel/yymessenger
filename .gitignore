@@ -38,3 +38,9 @@ artifacts/
 .stitch/designs/
 .stitch/metadata.json
 *.dpapi
+
+**/migration-backups/
+**/recovery-backups/
+**/.backend.lock
+**/restore-*.tmp
+**/*.db.*.tmp

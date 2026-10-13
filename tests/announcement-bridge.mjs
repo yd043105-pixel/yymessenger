@@ -37,8 +37,10 @@ try{
  await teacher.req('external-announcements','POST',packet(room,{attachmentIds:[officeFile.id]}),409);
  await teacher.req('messages','POST',{clientId:id(),title:'비공개 교직원 쪽지',body:'외부 서버로 전송되면 안 되는 본문',recipientIds:[teacher.user.id],department:null,broadcast:false,attachmentIds:[]});
  const form=new FormData();form.append('file',new Blob(['외부 공지 전용 첨부']),'notice.txt');const file=await teacher.req('external-announcements/attachments','POST',form);
+ const originalExpiry=Date.now()+86400000;const expiresDb=new DatabaseSync(path.join(officeData,'school.db'));expiresDb.exec('PRAGMA busy_timeout=30000');expiresDb.prepare('UPDATE ExternalFiles SET ExpiresAt=? WHERE Id=?').run(originalExpiry,file.id);expiresDb.close();
  const request=packet(room,{attachmentIds:[file.id]});const queued=await teacher.req('external-announcements','POST',request);assert.equal((await teacher.req('external-announcements','POST',request)).id,queued.id);await teacher.req('external-announcements','POST',{...request,body:'변경'},409);
  const delivered=await waitFor(async()=>{const row=(await teacher.req('external-announcements')).find(x=>x.id===queued.id);return row?.state==='published'?row:null;});
+ assert.equal(delivered.detail.attachments[0].expiresAt,originalExpiry);check('signed bridge preserves original attachment expiry instead of extending it after delayed copying');
  const notices=await parent.req('announcements');assert.equal(notices.length,1);assert.equal(notices[0].id,delivered.remoteId);await parent.req('announcements/'+delivered.remoteId+'/read','POST');
  await waitFor(async()=>{const row=(await teacher.req('external-announcements')).find(x=>x.id===queued.id);return row.detail?.notice.readCount===1;});
  const pdb=new DatabaseSync(path.join(portalData,'announcements.db'));assert.equal(pdb.prepare('SELECT COUNT(*) n FROM Notices').get().n,1);assert.ok(!JSON.stringify(pdb.prepare('SELECT * FROM Notices').all()).includes('비공개 교직원'));assert.ok(!JSON.stringify(pdb.prepare('SELECT * FROM Files').all()).includes('private.txt'));pdb.close();

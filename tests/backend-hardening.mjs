@@ -100,7 +100,8 @@ for(const project of ['Server','AnnouncementServer']){
    const parent=new Client(base);parent.csrf=(await parent.request('session')).csrfToken;await parent.request('register','POST',{name:'가상 보호자',username:'review.parent',password,role:'parent',agreement});
    await stop(server);env.ASPNETCORE_ENVIRONMENT='Production';await start();await a.login();await parent.login('review.parent');
    let code=(await a.request('admin/people/'+student.id+'/student-code')).code;
-   const pending=await parent.request('settings/children','POST',{code});assert.equal(pending.membership,'pending');assert.equal((await parent.request('children')).length,0);await parent.request('announcements','GET',undefined,403);
+   db=openDb();db.prepare('INSERT OR REPLACE INTO FamilyCodeAttempts(ParentId,Failures,LockedUntil) VALUES(?,4,0)').run(parent.user.id);db.close();
+   const pending=await parent.request('settings/children','POST',{code});assert.equal(pending.membership,'pending');db=openDb();assert.equal(db.prepare('SELECT Failures FROM FamilyCodeAttempts WHERE ParentId=?').get(parent.user.id).Failures,0);db.close();assert.equal((await parent.request('children')).length,0);await parent.request('announcements','GET',undefined,403);
    code=(await a.request('admin/people/'+student.id+'/student-code/reissue','POST')).code;
    await a.request('admin/guardian-requests/'+parent.user.id+'/'+student.id+'/approve','POST',undefined,409);
    await parent.request('settings/children','POST',{code});await a.request('admin/guardian-requests/'+parent.user.id+'/'+student.id+'/approve','POST');assert.equal((await parent.request('children')).length,1);
@@ -133,7 +134,7 @@ for(const project of ['Server','AnnouncementServer']){
   const corrupt=path.join(testRoot,project+'-corrupt.db');writeFileSync(corrupt,'invalid database');assert.notEqual((await command(corrupt)).exit,0);
   db=openDb();assert.equal(db.prepare('PRAGMA quick_check').get().quick_check,'ok');db.close();
   assert.equal((await command(snapshot)).exit,0);await start();await restored.request(portal?'admin/status':'messages','GET',undefined,401);const recoveryAdmin=await new Client(base).login();
-  assert.equal((await recoveryAdmin.request('admin/recovery-status')).reviewRequired,true);const awaiting=await bridgeFetch(key,base+'/bridge/directory');if(portal)assert.equal(awaiting.status,503);
+  assert.equal((await recoveryAdmin.request('admin/recovery-status')).reviewRequired,true);if(!portal){await recoveryAdmin.request('admin/users','POST',{username:'recovery.peer',name:'가상 복원 관리자',department:'가상부서',password,isAdmin:true,canBroadcast:false});const peer=await new Client(base).login('recovery.peer');await peer.request('admin/users','GET',undefined,503);}const awaiting=await bridgeFetch(key,base+'/bridge/directory');if(portal)assert.equal(awaiting.status,503);
   await recoveryAdmin.request('admin/recovery-confirm','POST',{confirmed:false},400);await recoveryAdmin.request('admin/recovery-confirm','POST',{confirmed:true});assert.equal((await recoveryAdmin.request('admin/recovery-status')).reviewRequired,false);
   check(project+': restore pauses ordinary service until an administrator explicitly confirms school access review');
   check(project+': live restore blocked, migration snapshot saved, corrupt backup rejected, valid restore revokes old sessions');

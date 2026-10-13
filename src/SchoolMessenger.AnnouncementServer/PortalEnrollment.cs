@@ -75,13 +75,13 @@ public static class PortalEnrollment
         var mode=c.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment()?"CodeOnly":c.RequestServices.GetRequiredService<IConfiguration>()["Portal:GuardianBindingMode"]??"SchoolReview";
         if(mode!="SchoolReview"&&mode!="CodeOnly")return Error("학부모 연결 정책 설정을 확인하세요.",503);
         if(mode=="CodeOnly"&&!c.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment()&&!c.RequestServices.GetRequiredService<IConfiguration>().GetValue("Portal:GuardianCodeOnlyApproved",false))return Error("학교의 학부모 본인확인 정책 승인이 필요합니다.",503);
+        using(var reset=PortalStore.Command(db,"UPDATE FamilyCodeAttempts SET Failures=0,LockedUntil=0 WHERE ParentId=$id",tx,("$id",parent)))reset.ExecuteNonQuery();
         if(mode=="SchoolReview"&&store.Query("SELECT 1 FROM Families WHERE ParentId=$parent AND StudentId=$student",r=>r.GetInt32(0),("$parent",parent),("$student",student)).Count==0)
         {
             using var pending=PortalStore.Command(db,"INSERT INTO GuardianRequests(ParentId,StudentId,CodeHash,RequestedAt,State) VALUES($parent,$student,$hash,$now,'pending') ON CONFLICT(ParentId,StudentId) DO UPDATE SET CodeHash=excluded.CodeHash,RequestedAt=excluded.RequestedAt,State='pending',ReviewedBy=NULL,ReviewedAt=NULL",tx,("$parent",parent),("$student",student),("$hash",Hash(request.Code!)),("$now",Now));pending.ExecuteNonQuery();
             BackendOperations.Audit(db,tx,parent,"guardian.request","pending",c.TraceIdentifier);tx.Commit();return Results.Ok(new{membership="pending",message="자녀 연결을 신청했습니다. 학교가 보호자 관계를 확인하면 이용할 수 있습니다."});
         }
         using(var add=PortalStore.Command(db,"INSERT OR IGNORE INTO Families(ParentId,StudentId,Stamp) VALUES($parent,$student,lower(hex(randomblob(16))))",tx,("$parent",parent),("$student",student)))add.ExecuteNonQuery();
-        using(var reset=PortalStore.Command(db,"UPDATE FamilyCodeAttempts SET Failures=0,LockedUntil=0 WHERE ParentId=$id",tx,("$id",parent)))reset.ExecuteNonQuery();
         BackendOperations.Audit(db,tx,parent,"guardian.link","success",c.TraceIdentifier);
         tx.Commit();return Results.Ok(new{membership="regular",message="자녀가 연결되었습니다. 정회원으로 이용할 수 있습니다."});
     }

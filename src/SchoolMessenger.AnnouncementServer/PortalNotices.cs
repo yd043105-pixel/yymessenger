@@ -63,7 +63,7 @@ public static class PortalNotices
         });
         bridge.MapGet("/announcements/{id}",(string id,string teacherId)=>Detail(store,id,teacherId));
         api.MapPost("/attachments",async Task<IResult>(HttpContext c)=>await Upload(store,Id(c),c,config,environment)).RequireRateLimiting("upload");
-        bridge.MapPost("/attachments",(string teacherId,HttpContext c)=>Upload(store,teacherId,c,config,environment)).RequireRateLimiting("upload");
+        bridge.MapPost("/attachments",(string teacherId,long? expiresAt,HttpContext c)=>Upload(store,teacherId,c,config,environment,expiresAt)).RequireRateLimiting("upload");
         api.MapGet("/attachments/{id}/download",(string id,HttpContext c)=>
         {
             if(!Guid.TryParseExact(id,"N",out _))return Results.NotFound();
@@ -104,8 +104,9 @@ public static class PortalNotices
         foreach(var file in request.AttachmentIds){using var bind=PortalStore.Command(db,"UPDATE Files SET NoticeId=$notice,ExpiresAt=MIN(COALESCE(ExpiresAt,UploadedAt+2592000000),$expires) WHERE Id=$id",tx,("$notice",id),("$expires",now+seconds*1000L),("$id",file));bind.ExecuteNonQuery();}
         tx.Commit();return Results.Ok(new{id,duplicate=false});
     }
-    static async Task<IResult> Upload(PortalStore store,string teacherId,HttpContext c,IConfiguration config,IHostEnvironment environment)
+    static async Task<IResult> Upload(PortalStore store,string teacherId,HttpContext c,IConfiguration config,IHostEnvironment environment,long? sourceExpiresAt=null)
     {
+        if(sourceExpiresAt<=Now)return Error("원본 공지 첨부의 보관 기간이 만료되었습니다.",410);
         var teacher=store.Person(teacherId);if(teacher is null||!VerifiedTeacher(store,teacher))return Error("승인된 교사만 공지 파일을 올릴 수 있습니다.",403);
         if(!c.Request.HasFormContentType)return Error("파일을 선택하세요.");var form=await c.Request.ReadFormAsync(c.RequestAborted);
         if(form.Files.Count!=1||!Guid.TryParseExact(form["clientId"],"N",out _))return Error("파일과 요청 번호를 확인하세요.");
@@ -127,9 +128,10 @@ public static class PortalNotices
             {
                 if(previous.hash!=hash||previous.name!=name)return Error("같은 파일 요청 번호의 내용을 바꿀 수 없습니다.",409);
                 if(previous.notice is not null||previous.deleted||previous.uploaded<=Now-86_400_000)return Error("이미 사용했거나 만료된 파일입니다.",409);
+                if(sourceExpiresAt is{} originalExpiry){using var shorten=PortalStore.Command(db,"UPDATE Files SET ExpiresAt=MIN(COALESCE(ExpiresAt,UploadedAt+2592000000),$expires) WHERE Id=$id",tx,("$expires",originalExpiry),("$id",previous.id));shorten.ExecuteNonQuery();tx.Commit();}
                 return Results.Ok(new PortalFile(previous.id,previous.name,previous.size));
             }
-            using var insert=PortalStore.Command(db,"INSERT INTO Files(Id,OwnerId,ClientId,Hash,Name,Size,UploadedAt,ExpiresAt) SELECT $id,$owner,$client,$hash,$name,$size,$now,$expires WHERE (SELECT COALESCE(SUM(Size),0) FROM Files WHERE OwnerId=$owner AND NoticeId IS NULL AND DeletedAt IS NULL)+$size<=$quota",tx,("$id",id),("$owner",teacherId),("$client",form["clientId"].ToString()),("$hash",hash),("$name",name),("$size",file.Length),("$now",Now),("$expires",Now+(environment.IsDevelopment()?Math.Max(1,config.GetValue("Portal:RetentionSeconds",2_592_000)):2_592_000)*1000L),("$quota",FilePolicy.MaxStaged));
+            using var insert=PortalStore.Command(db,"INSERT INTO Files(Id,OwnerId,ClientId,Hash,Name,Size,UploadedAt,ExpiresAt) SELECT $id,$owner,$client,$hash,$name,$size,$now,$expires WHERE (SELECT COALESCE(SUM(Size),0) FROM Files WHERE OwnerId=$owner AND NoticeId IS NULL AND DeletedAt IS NULL)+$size<=$quota",tx,("$id",id),("$owner",teacherId),("$client",form["clientId"].ToString()),("$hash",hash),("$name",name),("$size",file.Length),("$now",Now),("$expires",Math.Min(sourceExpiresAt??long.MaxValue,Now+(environment.IsDevelopment()?Math.Max(1,config.GetValue("Portal:RetentionSeconds",2_592_000)):2_592_000)*1000L)),("$quota",FilePolicy.MaxStaged));
             if(insert.ExecuteNonQuery()!=1)return Error("미게시 첨부가 500MB를 넘습니다.",413);StoredFiles.State(db,"portal",id,"ready",hash,tx);tx.Commit();keep=true;return Results.Ok(new PortalFile(id,name,file.Length));
         }
         catch(FilePolicyException error){return Error(error.Message,error.Status);}

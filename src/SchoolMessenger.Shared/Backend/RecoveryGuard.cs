@@ -12,12 +12,19 @@ public static class RecoveryGuard
     {
         using var initial=open();using var query=initial.CreateCommand();query.CommandText="SELECT ReviewRequired FROM BackendRecoveryState WHERE Id=1";
         var pending=query.ExecuteScalar() is long flag&&flag==1?1:0;
+        bool Reviewer(ClaimsPrincipal user)
+        {
+            if(user.IsInRole("admin"))return true; // Public server has a separate, school-controlled administrator.
+            if(!user.IsInRole("Admin"))return false;
+            using var db=open();using var root=db.CreateCommand();root.CommandText="SELECT 1 FROM BackendRoot WHERE UserId=$id";
+            root.Parameters.AddWithValue("$id",user.FindFirstValue(ClaimTypes.NameIdentifier)!);return root.ExecuteScalar() is not null;
+        }
         app.Use(async(context,next)=>
         {
             var path=context.Request.Path;
             if(Volatile.Read(ref pending)==1 && (path.StartsWithSegments("/api")||path.StartsWithSegments("/bridge")||path.StartsWithSegments("/hub")||path.StartsWithSegments("/remote"))
                 &&path!="/api/session"&&path!="/api/login"&&path!="/api/logout"
-                &&!(path.StartsWithSegments("/api")&&(context.User.IsInRole("Admin")||context.User.IsInRole("admin"))))
+                &&!(path.StartsWithSegments("/api")&&Reviewer(context.User)))
             {context.Response.StatusCode=503;await context.Response.WriteAsJsonAsync(new{error="백업 복원 후 학교 명부·보호자 관계·권한을 확인 중입니다. 관리자가 확인을 마치면 이용할 수 있습니다."});return;}
             await next();
         });

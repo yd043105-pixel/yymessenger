@@ -212,7 +212,7 @@ public sealed class ExternalAnnouncements : BackgroundService
                     {
                         using var verification=store.Open();if(file.Expires<=Now||!StoredFiles.Ready(verification,"external",file.Id,Path.Combine(Files,file.Id)))throw new BridgeFailure("첨부가 만료되었거나 무결성 확인에 실패했습니다.",409);
                         using var form=new MultipartFormDataContent();form.Add(new StringContent(file.Id),"clientId");form.Add(new StreamContent(File.OpenRead(Path.Combine(Files,file.Id))),"file",file.Name);
-                        using var upload=await http.PostAsync("bridge/attachments?teacherId="+job.Teacher,form,token);await Check(upload);
+                        using var upload=await http.PostAsync("bridge/attachments?teacherId="+job.Teacher+"&expiresAt="+(file.Expires??file.Uploaded+2_592_000_000L),form,token);await Check(upload);
                         var remote=await upload.Content.ReadFromJsonAsync<PortalFile>(Json,token)??throw new IOException();
                         store.Execute("UPDATE ExternalFiles SET RemoteId=$remote WHERE Id=$id",("$remote",remote.Id),("$id",file.Id));remoteFiles.Add(remote.Id);
                     }else remoteFiles.Add(file.Remote);
