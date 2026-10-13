@@ -125,7 +125,7 @@ public partial class MainWindow : Window
     async Task EnterWorkspace()
     {
         if(Api?.Session?.User?.ActivationRequired==true){savedLogin.Clear();new StaffActivationWindow(Api){Owner=this}.ShowDialog();throw new InvalidOperationException("개인 비밀번호로 다시 로그인하세요.");}
-        var user = Api!.Session!.User!; IdentityLabel.Text = user.Name + " 선생님"; IdentityDepartment.Text = user.Department; AvatarInitial.Text = user.Name[..1];
+        var user = Api!.Session!.User!; IdentityLabel.Text = user.Name + " 선생님"; IdentityDepartment.Text = user.Department; archive=null;
         AdminButton.Visibility = user.IsAdmin ? Visibility.Visible : Visibility.Collapsed;
         Workspace.Visibility = Visibility.Visible; LoginPanel.Visibility = Visibility.Collapsed;
         knownTimetables.Clear();
@@ -153,12 +153,15 @@ public partial class MainWindow : Window
         catch (Exception error) { LoginError.Text = "학교 서버 연결을 기다리는 중입니다. 30초 후 다시 시도합니다. " + error.Message; }
         finally { LoginButton.IsEnabled = true; signingIn = false; }
     }
+    public MessageArchive Archive=>archive??=new MessageArchive(LocalDirectory,Api!);
+    MessageArchive? archive;
     async Task ConnectNotifications()
     {
         if (Api is null) return;
         if (hub is not null) await hub.DisposeAsync();
         hub = new HubConnectionBuilder().WithUrl(new Uri(Api.Address, "hub"), o => o.Cookies = Api.Cookies).WithAutomaticReconnect().Build();
         hub.On<string>("NewMessage", async id => await Dispatcher.InvokeAsync(() => Run(async () => { if (knownIncoming.Add(id)) Notify(); await Refresh(); })).Task.Unwrap());
+        hub.On<string>("MessageRecalled", async id => await Dispatcher.InvokeAsync(() => Run(async()=>{Archive.Remove(id);await Refresh();})).Task.Unwrap());
         hub.On<string>("ReadChanged", async _ => await Dispatcher.InvokeAsync(() => Run(RefreshWindows)).Task.Unwrap());
         hub.On("PresenceChanged", async () => await Dispatcher.InvokeAsync(() => Run(RefreshPeople)).Task.Unwrap());
         hub.On<string>("ChatChanged", id => Dispatcher.InvokeAsync(() => { ChatChanged?.Invoke(id); NotifyFeature("새 채팅을 확인하세요.", "chat"); }).Task);
@@ -176,6 +179,7 @@ public partial class MainWindow : Window
         refreshing = true;
         try
         {
+            await Archive.Synchronize();
             await RefreshPeople(); await UpdateUnread();
             var incoming = await Api.Get<MessageItem[]>("api/messages?box=received");
             if (incoming.Any(m => !knownIncoming.Contains(m.Id))) Notify();
@@ -238,20 +242,15 @@ public partial class MainWindow : Window
                 panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 panel.ColumnDefinitions.Add(new ColumnDefinition()); panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 panel.Children.Add(check);
-                var avatar = new Grid { Width = 27, Height = 27, Margin = new Thickness(5, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
-                var circle = new System.Windows.Shapes.Ellipse(); circle.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "Pale"); avatar.Children.Add(circle);
-                var initial = new TextBlock { Text = person.Name[..1], FontSize = 10, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-                initial.SetResourceReference(TextBlock.ForegroundProperty, "Blue"); avatar.Children.Add(initial);
-                avatar.Children.Add(new System.Windows.Shapes.Ellipse { Width = 8, Height = 8, Fill = person.Online ? new SolidColorBrush(Color.FromRgb(33, 180, 137)) : new SolidColorBrush(Color.FromRgb(173, 183, 199)), Stroke = Brushes.White, StrokeThickness = 2, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom });
-                Grid.SetColumn(avatar, 1); panel.Children.Add(avatar);
+                var status = new System.Windows.Shapes.Ellipse { Width = 11, Height = 11, Margin = new Thickness(7,0,10,0), VerticalAlignment = VerticalAlignment.Center,
+                    Fill = new SolidColorBrush(person.Online ? Color.FromRgb(33,180,137) : Color.FromRgb(220,72,72)), ToolTip = person.Online ? "온라인" : "오프라인" };
+                ToolTipService.SetInitialShowDelay(status,500);
+                System.Windows.Automation.AutomationProperties.SetName(status,person.Online ? "온라인" : "오프라인");
+                Grid.SetColumn(status,1);panel.Children.Add(status);
                 var name = new TextBlock { Text = person.Name + (Favorites.Contains(person.Id) ? " ★" : ""), FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("Ink"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
                 name.SetResourceReference(TextBlock.ForegroundProperty, "Ink");
                 Grid.SetColumn(name, 2); panel.Children.Add(name);
-                var badge = new Border { Background = person.Online ? new SolidColorBrush(Color.FromRgb(231, 249, 241)) : new SolidColorBrush(Color.FromRgb(240, 242, 245)), CornerRadius = new CornerRadius(5), Padding = new Thickness(5, 3, 5, 3), Margin = new Thickness(4, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
-                    Child = new TextBlock { Text = person.Online ? "접속" : "로그아웃", FontSize = 9, Foreground = person.Online ? new SolidColorBrush(Color.FromRgb(21, 127, 97)) : (Brush)FindResource("Muted") } };
-                Grid.SetColumn(badge, 3); panel.Children.Add(badge);
-                if (!person.Online) ((TextBlock)badge.Child).SetResourceReference(TextBlock.ForegroundProperty, "Muted");
-                var contact = new TreeViewItem { Header = panel, Tag = person, ToolTip = person.Department + " · " + person.Presence, ContextMenu = PersonMenu(person) };
+                var contact = new TreeViewItem { Header = panel, Tag = person, ContextMenu = PersonMenu(person) };
                 contact.PreviewMouseRightButtonDown += (_, _) => contact.IsSelected = true;
                 contact.MouseDoubleClick += async (_, e) => { if (e.ChangedButton != MouseButton.Left) return; e.Handled = true; await WriteMessage(person.Id); };
                 row.Items.Add(contact); if (selected?.Id == person.Id) contact.IsSelected = true;
@@ -407,6 +406,12 @@ public partial class MainWindow : Window
             if (!VisibleContacts().Any() || VisibleContacts().Any(p => !p.Online)) throw new InvalidOperationException("접속 중 필터 실패");
             AllFilter.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             if (VisibleContacts().Length != people.Length) throw new InvalidOperationException("전체 교직원 필터 실패");
+            foreach(var contact in OrganizationTree.Items.OfType<TreeViewItem>().SelectMany(r=>r.Items.OfType<TreeViewItem>()).SelectMany(r=>r.Items.OfType<TreeViewItem>()))
+            {
+                if(contact.Tag is not Person person||contact.Header is not Grid panel)continue;
+                var dot=panel.Children.OfType<System.Windows.Shapes.Ellipse>().Single();
+                if(dot.Width!=11||dot.ToolTip?.ToString()!=(person.Online?"온라인":"오프라인")||ToolTipService.GetInitialShowDelay(dot)!=500||panel.Children.OfType<Border>().Any())throw new InvalidOperationException("작은 접속 원·마우스 안내 표시 실패");
+            }
             if (OrganizationTree.Items.OfType<TreeViewItem>().SelectMany(r => r.Items.OfType<TreeViewItem>()).Any(r => !r.IsExpanded)) throw new InvalidOperationException("필터 변경 시 부서 펼침 상태 유지 실패");
             if (System.Windows.Shell.WindowChrome.GetWindowChrome(this)?.CaptionHeight != 44) throw new InvalidOperationException("제목줄 적용 실패");
             var output = Environment.GetEnvironmentVariable("SCHOOL_UI_OUTPUT") ?? "artifacts/client-preview.png";
@@ -448,11 +453,13 @@ public partial class MainWindow : Window
             var messages = await Api!.Get<MessageItem[]>("api/messages?box=received");
             if (messages.Length == 0) throw new InvalidOperationException("메시지 검증 데이터 없음");
             await inbox.ShowMessage(messages[0].Id); SavePreview(inbox, Path.Combine(directory, "mailbox-preview.png"));
+            Archive.Verify(await Api.Get<Detail>("api/messages/"+messages[0].Id));
             ((System.Windows.Controls.Button)inbox.Template.FindName("CloseAction", inbox)).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             for (var i = 0; i < 20 && inbox.IsVisible; i++) await Task.Delay(25);
             if (inbox.IsVisible) throw new InvalidOperationException("제목줄 닫기 버튼 실패");
-            var compose = new ComposeWindow(this, people, Api.Session!.User!.Id, "Windows 앱 전송 검증"); compose.Show();
-            compose.BodyBox.Text = "교사용 프로그램의 작성 창에서 실제로 전송한 검증 메시지입니다."; SavePreview(compose, Path.Combine(directory, "compose-preview.png"));
+            var compose = new ComposeWindow(this, people, null, "Windows 앱 전송 검증",people.Select(p=>p.Id).Take(2).ToArray()); compose.Show();
+            compose.BodyBox.Text = "교사용 프로그램의 작성 창에서 실제로 전송한 검증 메시지입니다.";compose.VerifyEditor(); SavePreview(compose, Path.Combine(directory, "compose-preview.png"));
+            compose.ScheduleSend.IsChecked=true;SavePreview(compose,Path.Combine(directory,"scheduled-compose-preview.png"));compose.ScheduleSend.IsChecked=false;
             compose.SendButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             for (var i = 0; i < 100 && compose.IsVisible; i++) await Task.Delay(100);
             if (compose.IsVisible) throw new InvalidOperationException("작성 창 전송 실패: " + compose.Feedback.Text);

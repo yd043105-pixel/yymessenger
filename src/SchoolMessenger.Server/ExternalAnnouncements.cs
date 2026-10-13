@@ -161,7 +161,7 @@ public sealed class ExternalAnnouncements : BackgroundService
                 if(http is not null&&synced>Now-60000)
                 {
                     var ids=store.Query("SELECT Id FROM ExternalOutbox WHERE State IN ('pending','withdraw-pending','published') AND NextAttempt<=$now ORDER BY CASE WHEN State='published' THEN 1 ELSE 0 END,NextAttempt,CreatedAt LIMIT 30",r=>r.GetString(0),("$now",Now));
-                    foreach(var id in ids){token.ThrowIfCancellationRequested();await Dispatch(GetJob(id)!,token);}
+                    foreach(var id in ids){token.ThrowIfCancellationRequested();await gate.WaitAsync(token);try{await Dispatch(GetJob(id)!,token);}finally{gate.Release();}}
                 }
             }
             catch(OperationCanceledException)when(token.IsCancellationRequested){break;}
@@ -176,10 +176,22 @@ public sealed class ExternalAnnouncements : BackgroundService
         {
             try
             {
+                await gate.WaitAsync(token);
+                try
+                {
                 var fresh=await http.GetFromJsonAsync<PortalDirectory>("bridge/directory",Json,token)??throw new IOException("학급 정보를 받지 못했습니다.");
+                var erased=await http.GetFromJsonAsync<string[]>("bridge/privacy-erasure",Json,token)??[];
+                if(erased.Length>0)
+                {
+                    using(var db=store.Open()){GraduationErasure.Office(db,erased);GraduationErasure.Compact(db);}
+                    GraduationErasure.Backups(store.Root,erased,false);
+                    using var acknowledgment=await http.PostAsJsonAsync("bridge/privacy-erasure/ack",new{ids=erased},Json,token);await Check(acknowledgment);
+                }
                 var teachers=fresh.People.Where(p=>p.Role=="teacher").Select(p=>{var user=p.InternalUserId is null?null:store.GetUser(p.InternalUserId);return new TeacherProof(p.Id,user?.Active==true&&!StaffAccounts.Pending(store,user.Id),user?.CanBroadcast==true);}).ToArray();
                 using var response=await http.PostAsJsonAsync("bridge/heartbeat",new BridgeHeartbeat(teachers),Json,token);await Check(response);
                 directory=fresh;synced=Now;lastError=null;
+                }
+                finally{gate.Release();}
             }
             catch(OperationCanceledException)when(token.IsCancellationRequested){break;}
             catch(Exception e){lastError="외부 공지 연결 실패: 연결·인증 설정을 확인하세요.";log.LogWarning("Announcement bridge unavailable ({Type})",e.GetType().Name);}

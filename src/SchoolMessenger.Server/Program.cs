@@ -41,6 +41,8 @@ builder.Services.AddSingleton<PasswordHasher<User>>();
 builder.Services.Configure<PasswordHasherOptions>(o => o.IterationCount = 220_000);
 builder.Services.AddHostedService<SubmissionReminders>();
 builder.Services.AddHostedService<MessageDelivery>();
+builder.Services.AddSingleton<ScheduledMessages>();
+builder.Services.AddHostedService(s=>s.GetRequiredService<ScheduledMessages>());
 builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 4096);
 builder.Services.AddSignalR().AddHubOptions<RemoteHub>(o => { o.MaximumReceiveMessageSize = 4096; o.MaximumParallelInvocationsPerClient = 1; });
 builder.Services.AddAntiforgery(o => { o.HeaderName = "X-CSRF-TOKEN"; o.Cookie.SameSite = SameSiteMode.Strict; o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; });
@@ -80,6 +82,16 @@ builder.Services.AddRateLimiter(o =>
 
 var app = builder.Build();
 var store = app.Services.GetRequiredService<Store>();
+var scheduled=app.Services.GetRequiredService<ScheduledMessages>();scheduled.Initialize();
+scheduled.Deliver=async(request,sender)=>
+{
+    var user=store.GetUser(sender)!;
+    var context=new DefaultHttpContext{RequestServices=app.Services,User=new ClaimsPrincipal(new ClaimsIdentity(new[]{new Claim(ClaimTypes.NameIdentifier,sender),new Claim("version",user.SessionVersion.ToString())},"scheduled"))};
+    context.Response.Body=new MemoryStream();
+    await SendStoredMessage(request,context,app.Services.GetRequiredService<IHubContext<MessageHub>>(),null,true).ExecuteAsync(context);
+    context.Response.Body.Position=0;using var result=await JsonDocument.ParseAsync(context.Response.Body);
+    return(context.Response.StatusCode,result.RootElement.TryGetProperty("id",out var id)?id.GetString():null,result.RootElement.TryGetProperty("error",out var error)?error.GetString():null);
+};
 StaffAccounts.Initialize(store);
 OfficeFeatures.Initialize(store);
 var registrationPolicy=new RegistrationPolicy(builder.Configuration["Registration:PolicyFile"],builder.Environment.IsDevelopment(),builder.Environment.ContentRootPath);
@@ -297,7 +309,7 @@ api.MapPost("/attachments", async Task<IResult> (HttpContext c) =>
 }).RequireRateLimiting("upload");
 api.MapDelete("/attachments/{id}", (string id, HttpContext c) =>
 {
-    var changed = store.Execute("UPDATE Attachments SET DeletedAt=$now WHERE Id=$id AND OwnerId=$owner AND MessageId IS NULL AND DeletedAt IS NULL AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=Attachments.Id)",
+    var changed = store.Execute("UPDATE Attachments SET DeletedAt=$now WHERE Id=$id AND OwnerId=$owner AND MessageId IS NULL AND DeletedAt IS NULL AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=Attachments.Id) AND NOT EXISTS(SELECT 1 FROM ScheduledAttachments WHERE AttachmentId=Attachments.Id)",
         ("$now", Maintenance.Now), ("$id", id), ("$owner", UserId(c)));
     if (changed == 0) return Results.NotFound();
     File.Delete(Path.Combine(store.Files, id));
@@ -307,7 +319,7 @@ api.MapDelete("/attachments/{id}", (string id, HttpContext c) =>
 api.MapPost("/messages", (SendMessage request, HttpContext c, IHubContext<MessageHub> hub) => SendStoredMessage(request, c, hub));
 api.MapPost("/chats/{roomId}/messages", (string roomId, ChatSend request, HttpContext c, IHubContext<MessageHub> hub) =>
     SendStoredMessage(new SendMessage(request.ClientId, "대화", request.Body, [], request.AttachmentIds, false, null), c, hub, roomId));
-IResult SendStoredMessage(SendMessage request, HttpContext c, IHubContext<MessageHub> hub, string? roomId = null)
+IResult SendStoredMessage(SendMessage request, HttpContext c, IHubContext<MessageHub> hub, string? roomId = null,bool scheduledDelivery=false)
 {
     if (request.SubmissionDeadline is not null && roomId is not null) return Error("제출 요청은 쪽지에서 작성하세요.");
     if (request.SubmissionDeadline is { } rawDeadline)
@@ -329,6 +341,8 @@ IResult SendStoredMessage(SendMessage request, HttpContext c, IHubContext<Messag
         request.RecipientIds.Length > 1000 || request.AttachmentIds.Length > 10 || (request.Department?.Length ?? 0) > 50)
         return Error("제목·본문·수신자를 확인하세요. 첨부는 최대 10개입니다.");
     var sender = store.GetUser(UserId(c))!;
+    if(request.ScheduledAt is not null)return roomId is null?scheduled.Add(request,c):Error("채팅에는 예약 발송을 사용할 수 없습니다.");
+    if(!scheduledDelivery&&scheduled.Exists(sender.Id,request.ClientId!))return Error("예약에 사용한 요청 번호로 즉시 전송할 수 없습니다.",409);
     // Preserve fingerprints for ordinary messages queued by an older desktop version.
     var fingerprintJson = roomId is null ? request.SubmissionDeadline is null ? JsonSerializer.Serialize(new
     { request.Title, request.Body, request.All, request.Department, recipients = request.RecipientIds.Distinct().Order(), attachments = request.AttachmentIds.Distinct().Order() }) : JsonSerializer.Serialize(new
@@ -359,8 +373,8 @@ IResult SendStoredMessage(SendMessage request, HttpContext c, IHubContext<Messag
         long total = 0;
         foreach (var fileId in request.AttachmentIds.Distinct())
         {
-            using var command = Store.Command(connection, "SELECT Size FROM Attachments a WHERE Id=$id AND OwnerId=$owner AND MessageId IS NULL AND DeletedAt IS NULL AND UploadedAt>$cutoff AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=a.Id)", transaction,
-                ("$id", fileId), ("$owner", sender.Id), ("$cutoff", Maintenance.Now - 86_400_000));
+            using var command = Store.Command(connection, "SELECT Size FROM Attachments a WHERE Id=$id AND OwnerId=$owner AND MessageId IS NULL AND DeletedAt IS NULL AND ExpiresAt>$now AND (UploadedAt>$cutoff OR $scheduled=1 AND EXISTS(SELECT 1 FROM ScheduledAttachments sa JOIN ScheduledMessages sm ON sm.Id=sa.ScheduleId WHERE sa.AttachmentId=a.Id AND sm.SenderId=$owner AND sm.ClientId=$client AND sm.State='pending')) AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=a.Id) AND NOT EXISTS(SELECT 1 FROM ScheduledAttachments sa JOIN ScheduledMessages sm ON sm.Id=sa.ScheduleId WHERE sa.AttachmentId=a.Id AND ($scheduled=0 OR sm.SenderId!=$owner OR sm.ClientId!=$client))", transaction,
+                ("$id", fileId), ("$owner", sender.Id), ("$cutoff", Maintenance.Now - 86_400_000),("$now",Maintenance.Now),("$scheduled",scheduledDelivery),("$client",request.ClientId));
             var size = command.ExecuteScalar();
             if (size is null || !Guid.TryParseExact(fileId, "N", out _) || !File.Exists(Path.Combine(store.Files, fileId))) return Error("사용할 수 없는 첨부파일입니다.");
             total += Convert.ToInt64(size);
@@ -413,7 +427,7 @@ api.MapGet("/messages", (HttpContext c, string? box, string? q, string? person, 
         FROM Messages m JOIN Users u ON u.Id=m.SenderId
         WHERE
         """ + (box == "conversation" ? " (m.SenderId=$user OR EXISTS(SELECT 1 FROM Recipients r WHERE r.MessageId=m.Id AND r.UserId=$user)) " : sent ? " m.SenderId=$user " : " EXISTS(SELECT 1 FROM Recipients r WHERE r.MessageId=m.Id AND r.UserId=$user) ") +
-        " AND NOT EXISTS(SELECT 1 FROM ChatEntries ce WHERE ce.MessageId=m.Id) AND ($person='' OR m.SenderId=$person OR EXISTS(SELECT 1 FROM Recipients r WHERE r.MessageId=m.Id AND r.UserId=$person)) " +
+        " AND NOT EXISTS(SELECT 1 FROM MessageRecalls mr WHERE mr.MessageId=m.Id) AND NOT EXISTS(SELECT 1 FROM ChatEntries ce WHERE ce.MessageId=m.Id) AND ($person='' OR m.SenderId=$person OR EXISTS(SELECT 1 FROM Recipients r WHERE r.MessageId=m.Id AND r.UserId=$person)) " +
         (box == "unread" ? " AND EXISTS(SELECT 1 FROM Recipients r WHERE r.MessageId=m.Id AND r.UserId=$user AND r.ReadAt IS NULL) " : "") +
         " AND ($q='' OR instr(m.Title,$q)>0 OR instr(m.Body,$q)>0 OR instr(u.Name,$q)>0) AND m.CreatedAt>=$from AND m.CreatedAt<=$to ORDER BY m.CreatedAt DESC,m.Id DESC LIMIT 100 OFFSET $offset";
     var rows = store.Query(sql, r => new
@@ -426,6 +440,7 @@ api.MapGet("/messages", (HttpContext c, string? box, string? q, string? person, 
 });
 api.MapGet("/messages/{id}", (string id, HttpContext c) =>
 {
+    using(var opened=store.Open())using(var tx=opened.BeginTransaction()){if(!MessageRecall.Read(opened,tx,id,UserId(c)))return Results.NotFound();tx.Commit();}
     var messages = store.Query("""
         SELECT m.Id,m.SenderId,u.Name,m.Title,m.Body,m.CreatedAt FROM Messages m JOIN Users u ON u.Id=m.SenderId
         WHERE m.Id=$id AND (m.SenderId=$user OR EXISTS(SELECT 1 FROM Recipients WHERE MessageId=m.Id AND UserId=$user))
@@ -447,12 +462,8 @@ api.MapGet("/messages/changes", (HttpContext c, long? after) =>
 });
 api.MapPost("/messages/{id}/read", (string id, HttpContext c) =>
 {
-    using var connection=store.Open(); using var transaction=connection.BeginTransaction();
-    using var update=Store.Command(connection,"UPDATE Recipients SET ReadAt=COALESCE(ReadAt,$now) WHERE MessageId=$id AND UserId=$user",transaction,("$now",Maintenance.Now),("$id",id),("$user",UserId(c)));
-    if(update.ExecuteNonQuery()==0) return Results.NotFound();
-    using var lookup=Store.Command(connection,"SELECT SenderId FROM Messages WHERE Id=$id",transaction,("$id",id));
-    var sender=(string)lookup.ExecuteScalar()!;
-    MessageDelivery.Enqueue(connection,transaction,"read:"+id+":"+UserId(c),sender,"ReadChanged",id,Maintenance.Now);
+    using var connection=store.Open();using var transaction=connection.BeginTransaction();
+    if(!MessageRecall.Read(connection,transaction,id,UserId(c)))return Results.NotFound();
     transaction.Commit();return Results.Ok();
 });
 api.MapGet("/attachments/{id}/download", (string id, HttpContext c) =>
@@ -460,8 +471,8 @@ api.MapGet("/attachments/{id}/download", (string id, HttpContext c) =>
     var rows = store.Query("""
         SELECT a.Name,a.ExpiresAt,a.DeletedAt FROM Attachments a
         WHERE a.Id=$id AND (
-          EXISTS(SELECT 1 FROM Messages m WHERE m.Id=a.MessageId AND (m.SenderId=$user OR EXISTS(SELECT 1 FROM Recipients WHERE MessageId=m.Id AND UserId=$user))) OR
-          EXISTS(SELECT 1 FROM SubmissionFiles sf JOIN Submissions s ON s.Id=sf.SubmissionId JOIN Messages m ON m.Id=s.RequestId WHERE sf.AttachmentId=a.Id AND (s.UserId=$user OR m.SenderId=$user)))
+          EXISTS(SELECT 1 FROM Messages m WHERE m.Id=a.MessageId AND NOT EXISTS(SELECT 1 FROM MessageRecalls WHERE MessageId=m.Id) AND (m.SenderId=$user OR EXISTS(SELECT 1 FROM Recipients WHERE MessageId=m.Id AND UserId=$user))) OR
+          EXISTS(SELECT 1 FROM SubmissionFiles sf JOIN Submissions s ON s.Id=sf.SubmissionId JOIN Messages m ON m.Id=s.RequestId WHERE sf.AttachmentId=a.Id AND NOT EXISTS(SELECT 1 FROM SubmissionWithdrawals w WHERE w.SubmissionId=s.Id) AND (s.UserId=$user OR m.SenderId=$user)))
         """, r => new { name = r.GetString(0), expires = r.GetInt64(1), deleted = !r.IsDBNull(2) }, ("$id", id), ("$user", UserId(c)));
     if (rows.Count == 0) return Results.NotFound();
     if (rows[0].expires <= Maintenance.Now || rows[0].deleted) return Error("첨부파일 보관 기간이 만료되었습니다.", 410);
@@ -469,6 +480,8 @@ api.MapGet("/attachments/{id}/download", (string id, HttpContext c) =>
     var path = Path.Combine(store.Files, id);
     using var verification=store.Open();
     if (!StoredFiles.Ready(verification,"office",id,path)) return Error("첨부파일이 없거나 무결성 검사를 통과하지 못했습니다.", 410);
+    var source=store.Query("SELECT MessageId FROM Attachments WHERE Id=$id AND MessageId IS NOT NULL UNION SELECT s.RequestId FROM SubmissionFiles sf JOIN Submissions s ON s.Id=sf.SubmissionId WHERE sf.AttachmentId=$id",r=>r.GetString(0),("$id",id)).FirstOrDefault();
+    if(source is not null)using(var opened=store.Open())using(var tx=opened.BeginTransaction()){if(!MessageRecall.Read(opened,tx,source,UserId(c)))return Results.NotFound();tx.Commit();}
     return Results.File(path, "application/octet-stream", rows[0].name, enableRangeProcessing: false);
 });
 
@@ -478,6 +491,8 @@ OfficeFeatures.Map(api,adminApi,store);
 CollaborationFeatures.Map(api, store);
 TaskFeatures.Map(api, store);
 SubmissionFeatures.Map(api, store, app.Configuration, app.Environment);
+scheduled.Map(api);
+MessageRecall.Map(api,store);
 adminApi.MapGet("/registrations", () => store.PendingRegistrations().Select(r => new { r.Id, r.Username, r.Name, r.Department, r.CreatedAt }));
 adminApi.MapPost("/registrations/{id}/approve", (string id) => DecideRegistration(id, true));
 adminApi.MapPost("/registrations/{id}/reject", (string id) => DecideRegistration(id, false));
@@ -567,6 +582,6 @@ static bool FileSignatureMatches(string path, string extension)
 record Login(string? Username, string? Password, bool RememberLogin = false);
 record RegistrationRequest(string? Username, string? Name, string? Department, string? Password,SchoolMessenger.Contracts.RegistrationAcceptance? Agreement=null);
 record PasswordChange(string? CurrentPassword, string? NewPassword);
-record SendMessage(string? ClientId, string? Title, string? Body, string[]? RecipientIds, string[]? AttachmentIds, bool All, string? Department, long? SubmissionDeadline = null);
+record SendMessage(string? ClientId, string? Title, string? Body, string[]? RecipientIds, string[]? AttachmentIds, bool All, string? Department, long? SubmissionDeadline = null,long? ScheduledAt=null);
 record CreateUser(string? Username, string? Name, string? Department, string? Password, bool IsAdmin, bool CanBroadcast);
 record UpdateUser(string? Name, string? Department, string? Password, bool IsAdmin, bool CanBroadcast, bool Active);

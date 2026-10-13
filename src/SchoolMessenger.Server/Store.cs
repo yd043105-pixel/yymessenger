@@ -43,6 +43,8 @@ public sealed class Store : IDisposable
             CREATE TABLE IF NOT EXISTS SubmissionFiles(
               SubmissionId TEXT NOT NULL REFERENCES Submissions(Id),AttachmentId TEXT NOT NULL UNIQUE REFERENCES Attachments(Id),
               PRIMARY KEY(SubmissionId,AttachmentId));
+            CREATE TABLE IF NOT EXISTS SubmissionWithdrawals(
+              SubmissionId TEXT PRIMARY KEY REFERENCES Submissions(Id),WithdrawnAt INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS SubmissionReminders(
               RequestId TEXT NOT NULL,UserId TEXT NOT NULL,Day TEXT NOT NULL,MessageId TEXT NOT NULL REFERENCES Messages(Id),
               PRIMARY KEY(RequestId,UserId,Day));
@@ -61,6 +63,8 @@ public sealed class Store : IDisposable
               ReadAt INTEGER, PRIMARY KEY(MessageId,UserId));
             CREATE INDEX IF NOT EXISTS IX_Recipients_User ON Recipients(UserId,MessageId);
             CREATE INDEX IF NOT EXISTS IX_Messages_Date ON Messages(CreatedAt);
+            CREATE TABLE IF NOT EXISTS MessageRecalls(
+              MessageId TEXT PRIMARY KEY REFERENCES Messages(Id),RecalledAt INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS Attachments(
               Id TEXT PRIMARY KEY, OwnerId TEXT NOT NULL REFERENCES Users(Id), Name TEXT NOT NULL,
               Size INTEGER NOT NULL, UploadedAt INTEGER NOT NULL,

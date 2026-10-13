@@ -26,6 +26,7 @@ public sealed class PortalMaintenance(PortalStore store,IConfiguration config,IH
         var seconds=environment.IsDevelopment()?Math.Max(1,config.GetValue("Portal:CleanupSeconds",60)):60;
         while(!stoppingToken.IsCancellationRequested)
         {
+            try{BackendOperations.Run(store.Open,"graduation",()=>PortalGraduation.Run(store));}catch(Exception error){logger.LogError("Graduation erasure retry required ({ErrorCode})",error.GetType().Name);}
             try{BackendOperations.Run(store.Open,"cleanup",Cleanup);}catch(Exception error){logger.LogError("Public announcement maintenance failed ({ErrorCode})",error.GetType().Name);}
             try{await Task.Delay(TimeSpan.FromSeconds(seconds),stoppingToken);}catch(OperationCanceledException){break;}
         }

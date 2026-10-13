@@ -1,5 +1,7 @@
 # 데이터베이스와 마이그레이션
 
+2026-10-13 후속 졸업 정책: 외부 서버의 feature 초기화에 `Graduations(StudentId,At)`, `PrivacyErasure(Id,PublicDone)`, `RetiredStudentCodes(Hash)`를 추가했다. BackendMigrations의 공통 버전은 5를 유지하며 이 테이블은 PortalGraduation.Initialize에서 멱등 생성한다. 예약은 학생 계정을 참조하고 파기 때 함께 제거한다. 확인 대기 식별자는 계정 삭제 후 두 서버의 파기 재시도에만 사용하며 교내 확인 후 제거한다. 재사용 방지 해시는 학생 연결·소유자·발급 시각을 보관하지 않는다. [졸업 보유·파기](../graduation-retention.md)를 따른다.
+
 `Store`는 school.db, `PortalStore`는 announcements.db를 관리한다. SQLite WAL, 외래키, 30초 대기 시간을 유지한다. 두 서버가 같은 폴더를 사용하는 것과 같은 폴더의 중복 서버 시작을 파일 잠금으로 차단한다. 네트워크 공유 폴더에서 WAL을 운영하지 않는다.
 
 이번 새 백엔드 스키마는 `BackendMigrations.Version=5`로 한 번 적용한다. 개발 중 내부 단계 번호이며 제품 버전은 1.0.0이다. 이전 운영 스키마가 있으면 변경 전에 SQLite Backup API로 `migration-backups/before-backend-5-*.db`를 만든다. 추가 스키마·인덱스·버전 기록은 하나의 트랜잭션이다. 기존 열·데이터·SELECT 순서를 변경하지 않는다. 기존 기능의 역사적 CREATE/ALTER 초기화가 전부 버전 관리로 전환된 것은 아니다.

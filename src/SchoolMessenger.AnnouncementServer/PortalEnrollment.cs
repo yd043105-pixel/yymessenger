@@ -41,6 +41,7 @@ public static class PortalEnrollment
         {
             var code=RandomNumberGenerator.GetString(Alphabet,8);
             if(!code.Any(char.IsLower)||!code.Any(char.IsUpper)||!code.Any(char.IsDigit))continue;
+            using(var retired=PortalStore.Command(db,"SELECT 1 FROM RetiredStudentCodes WHERE Hash=$hash",tx,("$hash",Hash(code))))if(retired.ExecuteScalar() is not null)continue;
             using var add=PortalStore.Command(db,"INSERT OR IGNORE INTO StudentCodes VALUES($hash,$student,$protected,1,$now)",tx,("$hash",Hash(code)),("$student",student),("$protected",Protector(protection).Protect(code)),("$now",Now));
             if(add.ExecuteNonQuery()==1)return code;
         }

@@ -39,6 +39,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Student and parent enrollment verification failed' }
         node tests\registration-policy.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Registration agreement verification failed' }
+        node tests\graduation.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Graduation erasure verification failed' }
         node tests\announcement-bridge.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Announcement bridge verification failed' }
         node tests\backend-hardening.mjs

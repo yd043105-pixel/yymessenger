@@ -9,7 +9,7 @@ import {bridgeHeaders,bridgeFetch} from './bridge-client.mjs';
 
 const root=process.cwd(),sdk=path.join(root,'.tools/dotnet/dotnet.exe');
 const dotnet=existsSync(sdk)?sdk:'dotnet';
-const testRoot=path.join(root,'.test-data','backend-hardening-'+randomUUID());mkdirSync(testRoot,{recursive:true});
+const testRoot=path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'),'backend-hardening-'+randomUUID());mkdirSync(testRoot,{recursive:true});
 const password='Synthetic-'+randomUUID(),key='Bridge-'+randomUUID(),rotation='Rotation-'+randomUUID();
 const passed=[],engines={};const check=name=>{passed.push(name);console.log('PASS '+name);};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));

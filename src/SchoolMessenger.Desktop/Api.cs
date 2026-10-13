@@ -82,10 +82,12 @@ public sealed class Api : IDisposable
             if (error.TryGetProperty("error", out var property)) message = property.GetString() ?? message;
         }
         catch (JsonException) { }
-        throw new InvalidOperationException(message);
+        throw new ApiRequestException(response.StatusCode,message);
     }
     public void Dispose() => Http.Dispose();
 }
+internal sealed class ApiRequestException(HttpStatusCode status,string message):InvalidOperationException(message)
+{public HttpStatusCode StatusCode{get;}=status;}
 public record UserInfo(string Id, string Username, string Name, string Department, bool IsAdmin, bool CanBroadcast, bool Active, bool ActivationRequired=false, string? SeatIp=null);
 public record Session(string SchoolName, string CsrfToken, UserInfo? User);
 public record Person(string Id, string Name, string Department, bool Online)
@@ -93,7 +95,7 @@ public record Person(string Id, string Name, string Department, bool Online)
     public string Label => $"{Name} · {Department}";
     public bool Selected { get; set; }
     public bool Favorite { get; set; }
-    public string Presence => Online ? "접속 중" : "로그아웃";
+    public string Presence => Online ? "온라인" : "오프라인";
 }
 public record MessageItem(string Id, string Title, string Preview, long CreatedAt, string SenderName,
     long? ReadAt, int RecipientCount, int ReadCount, int AttachmentCount, string SenderId = "")

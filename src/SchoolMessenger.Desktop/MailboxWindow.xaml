@@ -37,6 +37,7 @@
      <Border BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1" Padding="0,0,0,15" Margin="0,0,0,20"><TextBlock x:Name="DetailMeta" Foreground="{DynamicResource Muted}" FontSize="11" TextWrapping="Wrap"/></Border>
      <TextBlock x:Name="DetailBody" TextWrapping="Wrap" FontSize="12" LineHeight="24"/>
      <Button Content="답장" Click="Reply" HorizontalAlignment="Left" FontSize="11" Padding="12,7" Margin="0,18,0,18"/>
+     <Button x:Name="RecallButton" Content="메시지 회수" Click="Recall" Visibility="Collapsed" HorizontalAlignment="Left" FontSize="11" Margin="0,0,0,14"/>
      <Button x:Name="SubmissionButton" Content="파일 제출 · 현황 보기" Click="OpenSubmission" Visibility="Collapsed" HorizontalAlignment="Left" FontSize="11" Margin="0,0,0,14"/>
      <TextBlock Text="첨부파일" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,0,0,9"/>
      <ItemsControl x:Name="FileList"><ItemsControl.ItemTemplate><DataTemplate><Border Background="{DynamicResource Soft}" BorderBrush="{DynamicResource Line}" BorderThickness="1" CornerRadius="8" Padding="9" Margin="0,0,0,8"><StackPanel>

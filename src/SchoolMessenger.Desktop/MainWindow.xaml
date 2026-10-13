@@ -3,10 +3,10 @@
  <Grid Background="Transparent">
   <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource GlassLine}" BorderThickness="1" CornerRadius="18" Margin="8"><DockPanel x:Name="Workspace" Visibility="Collapsed">
    <Border DockPanel.Dock="Top" Background="{DynamicResource Glass}" BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1" CornerRadius="17,17,0,0" Padding="16,16">
-    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="51"/><ColumnDefinition/><ColumnDefinition Width="53"/></Grid.ColumnDefinitions>
-     <Grid Width="39" Height="39" HorizontalAlignment="Left"><Ellipse Fill="{DynamicResource Pale}"/><TextBlock x:Name="AvatarInitial" Text="여" Foreground="{DynamicResource Blue}" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/><Ellipse Width="9" Height="9" Fill="#21B489" Stroke="White" StrokeThickness="2" HorizontalAlignment="Right" VerticalAlignment="Bottom"/></Grid>
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="25"/><ColumnDefinition/></Grid.ColumnDefinitions>
+     <Ellipse Width="11" Height="11" Fill="#21B489" HorizontalAlignment="Left" VerticalAlignment="Center" ToolTip="온라인" ToolTipService.InitialShowDelay="500"/>
      <StackPanel Grid.Column="1"><TextBlock x:Name="IdentityLabel" FontSize="13" FontWeight="Bold" TextTrimming="CharacterEllipsis"/><TextBlock x:Name="IdentityDepartment" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
-     <Border Grid.Column="2" Background="#E7F9F1" CornerRadius="5" VerticalAlignment="Center" Padding="6,4"><TextBlock Text="접속 중" Foreground="#157F61" FontSize="10" HorizontalAlignment="Center"/></Border>
+
     </Grid>
    </Border>
    <Border DockPanel.Dock="Bottom" Background="{DynamicResource Soft}" BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="10,7"><StackPanel>

@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import {scheduledChecks} from './scheduled-messages.mjs';
+import {recallChecks} from './message-recall.mjs';
 
 export async function workChecks({Client,admin,password,address,data,check,start,stop,ready}){
  const users=[];
@@ -25,6 +27,18 @@ export async function workChecks({Client,admin,password,address,data,check,start
  await recipient.request('/api/todos','POST',{title:'<img src=x onerror=alert(1)>',dueDate:null,status:'open',revision:0});
  await recipient.request('/api/todos','POST',{title:'잘못된 날짜',dueDate:'2026-02-30',status:'open',revision:0},400);
  check('task cancellation, invalid and ambiguous dates and safe literal user content');
+ const earlier=new Date(now-2*86400000+9*3600000).toISOString().slice(0,10),later=new Date(now+30*86400000+9*3600000).toISOString().slice(0,10);
+ const ordered=[];
+ for(const [title,dueDate] of [['기한 지남',earlier],['오늘',today],['내일',tomorrow],['기한 없음',null],['완료 항목',earlier]])ordered.push((await observer.request('/api/todos','POST',{title,dueDate,status:'open',revision:0})).id);
+ const done=(await observer.request('/api/todos')).find(t=>t.id===ordered[4]);await observer.request('/api/todos/'+done.id,'PATCH',{title:done.title,dueDate:done.dueDate,status:'done',revision:done.revision});
+ const suggested=(await send('내일까지 신청서를 작성해주세요.',{recipientIds:[observer.user.id]})).id;
+ const ranked=await observer.request('/api/todos');assert.deepEqual(ranked.slice(0,4).map(t=>t.id),ordered.slice(0,4));assert.equal(ranked[4].sourceId,suggested);assert.equal(ranked[5].id,done.id);
+ const orderDb=new DatabaseSync(path.join(data,'school.db')),addOrder=orderDb.prepare("INSERT INTO Todos(Id,OwnerId,Evidence,Title,DueDate,Status,CreatedAt,UpdatedAt) VALUES(?,?,'','페이지 정렬 검증',?,'open',?,?)");
+ for(let i=0;i<105;i++)addOrder.run(randomUUID().replaceAll('-',''),observer.user.id,later,now+i,now+i);orderDb.close();
+ const pages=[...(await observer.request('/api/todos?offset=0')),...(await observer.request('/api/todos?offset=100'))];
+ assert.equal(pages.length,111);assert.equal(new Set(pages.map(t=>t.id)).size,111);assert.deepEqual(pages.slice(0,3).map(t=>t.id),ordered.slice(0,3));assert.equal(pages[108].id,ordered[3]);assert.equal(pages[109].status,'suggested');assert.equal(pages[110].status,'done');
+ check('confirmed work is globally ordered by deadline across pages; undated work, suggestions and completed items follow without duplicates');
+ await scheduledChecks({Client,admin,owner,recipient,observer,data,check,start,stop,ready});
  const deadline=Date.parse(tomorrow+'T23:59:59+09:00');
  const packet={clientId:randomUUID(),title:'점검 자료 제출',body:'점검 자료를 제출해 주세요.',recipientIds:[recipient.user.id,observer.user.id],attachmentIds:[],all:false,submissionDeadline:deadline};
  const request=await owner.request('/api/messages','POST',packet);
@@ -92,4 +106,5 @@ export async function workChecks({Client,admin,password,address,data,check,start
  const page=await fetch(address+'/office/');assert.equal(page.status,200);assert.ok((await page.text()).includes('파일 제출'));
  assert.ok(page.headers.get('content-security-policy').includes("script-src 'self'"));
  check('tasks, submission history and web entry survive restart with existing browser security policy');
+ await recallChecks({owner,recipient,observer,admin,data,address,check,start,stop,ready});
 }

@@ -42,7 +42,8 @@ public partial class MailboxWindow : Window
             MessageList.SelectedItem = messages.FirstOrDefault(m => m.Id == selected);
             rendering = false;
             ListHint.Text = messages.Count == 0 ? "메시지가 없습니다. 검색 조건도 확인하세요." : $"{messages.Count}개 표시 · 한 번에 100개 조회";
-            if (selected is not null) await OpenDetail(selected, markRead: false);
+            if (selected is not null && messages.Any(m=>m.Id==selected)) await OpenDetail(selected, markRead: false);
+            else if(!more){detail=null;DetailBody.Text="";DetailTitle.Text="";FileList.ItemsSource=null;ReceiptList.ItemsSource=null;DetailPanel.Visibility=Visibility.Collapsed;EmptyHint.Visibility=Visibility.Visible;}
             ConnectionLabel.Text = "첨부파일은 업로드 후 30일간 보관됩니다.";
             StatusLabel.Text = "";
         }
@@ -60,6 +61,10 @@ public partial class MailboxWindow : Window
         DetailTitle.Text = detail.Message.Title;
         DetailMeta.Text = $"{detail.Message.SenderName}   ·   {DateTimeOffset.FromUnixTimeMilliseconds(detail.Message.CreatedAt).ToLocalTime():yyyy.MM.dd HH:mm}   ·   수신 {detail.Recipients.Length}명";
         DetailBody.Text = detail.Message.Body;
+        try{main.Archive.Save(detail);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException){StatusLabel.Text="메시지는 서버에 보관됐지만 PC 암호화 사본을 저장하지 못했습니다.";}
+        RecallButton.Visibility=detail.Message.SenderId==Api.Session!.User!.Id?Visibility.Visible:Visibility.Collapsed;
+        RecallButton.IsEnabled=detail.Recipients.All(r=>r.ReadAt is null);
+        RecallButton.ToolTip="수신자 중 아무도 읽지 않았을 때만 회수할 수 있습니다.";
         SubmissionButton.Visibility = detail.SubmissionRequest ? Visibility.Visible : Visibility.Collapsed;
         var index = messages.ToList().FindIndex(m => m.Id == id);
         if (index >= 0)
@@ -102,6 +107,13 @@ public partial class MailboxWindow : Window
     async void SearchKeyDown(object sender, System.Windows.Input.KeyEventArgs e) { if (e.Key == Key.Enter) await Run(() => Refresh()); }
 
     async void Reply(object sender, RoutedEventArgs e) => await main.WriteMessage(detail?.Message.SenderId, detail is null ? null : "답장: " + detail.Message.Title);
+    async void Recall(object sender,RoutedEventArgs e)
+    {
+        if(Api is null||detail is null)return;
+        var id=detail.Message.Id;
+        if(MessageBox.Show(this,"아무도 읽지 않은 메시지를 회수할까요? 수신자 메시지함과 첨부파일에서 제거됩니다.","메시지 회수",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;
+        await Run(async()=>{await Api.Send<JsonElement>(HttpMethod.Post,$"api/messages/{id}/recall");main.Archive.Remove(id);detail=null;DetailBody.Text="";DetailPanel.Visibility=Visibility.Collapsed;EmptyHint.Visibility=Visibility.Visible;await Refresh();StatusLabel.Text="메시지를 회수했습니다.";});
+    }
     void OpenSubmission(object sender, RoutedEventArgs e) { if (detail is not null) new WorkWindow(main, detail.SubmissionRequestId ?? detail.Message.Id).Show(); }
     async void Download(object sender, RoutedEventArgs e)
     {

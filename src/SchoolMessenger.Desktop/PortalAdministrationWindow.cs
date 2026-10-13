@@ -9,7 +9,7 @@ using System.Windows.Controls;
 
 namespace SchoolMessenger.Desktop;
 
-public sealed class PortalAdministrationWindow:Window
+public sealed partial class PortalAdministrationWindow:Window
 {
     readonly StackPanel body=new(){Margin=new Thickness(24)};readonly TextBlock error=new(){TextWrapping=TextWrapping.Wrap,Margin=new Thickness(20,10,20,12)};Api? api;bool busy;
     record Choice(string Id,string Name){public override string ToString()=>Name;}
@@ -30,7 +30,7 @@ public sealed class PortalAdministrationWindow:Window
     }
     async Task Load()
     {
-        body.Children.Clear();Button("학급·학교 명부 등록",Directory);Button("보호자 연결 신청 심사",GuardianRequests);Button("보호자 연결 관리",Families);Button("로그아웃",async()=>{try{await api!.Send<JsonElement>(HttpMethod.Post,"api/logout");}finally{api!.Dispose();api=null;Login();}});
+        body.Children.Clear();Button("학급·학교 명부 등록",Directory);Button("졸업 자동 탈퇴·파기 예약",Graduations);Button("보호자 연결 신청 심사",GuardianRequests);Button("보호자 연결 관리",Families);Button("로그아웃",async()=>{try{await api!.Send<JsonElement>(HttpMethod.Post,"api/logout");}finally{api!.Dispose();api=null;Login();}});
         await RecoveryReview.Add(body,api!,this,Load);
         var people=await api!.Get<JsonElement>("api/admin/people");body.Children.Add(Text("가입 승인 · 계정 상태 · 고유번호"));
         foreach(var person in people.EnumerateArray())Button(person.GetProperty("name").GetString()+" · "+person.GetProperty("role").GetString()+" · "+(person.GetProperty("active").GetBoolean()?"활성":"승인 대기/중지"),()=>Person(person));

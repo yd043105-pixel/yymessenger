@@ -23,6 +23,7 @@ if (builder.Configuration["Portal:CertificateThumbprint"] is {Length:>0} thumbpr
 }
 if (builder.Configuration["Portal:BridgeKey"]?.Length is not >= 32 && !builder.Configuration.GetSection("Portal:BridgeKeys").GetChildren().Any(k=>k.Value?.Length>=32)) throw new InvalidOperationException("Portal__BridgeKey 또는 Portal__BridgeKeys에 별도 32자 이상 서비스 키를 설정하세요.");
 using var store = new PortalStore(builder.Configuration);
+PortalGraduation.Initialize(store);
 var registrationPolicy=new RegistrationPolicy(builder.Configuration["Registration:PolicyFile"],builder.Environment.IsDevelopment(),builder.Environment.ContentRootPath);
 using(var policyDatabase=store.Open())RegistrationPolicy.EnsureSchema(policyDatabase);
 var dataPath = builder.Services.AddDataProtection().SetApplicationName("YyAnnouncements").PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(store.Root,"keys")));
@@ -38,7 +39,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     o.ExpireTimeSpan=TimeSpan.FromHours(8);o.SlidingExpiration=false;
     o.Events.OnRedirectToLogin=c=>{c.Response.StatusCode=401;return Task.CompletedTask;};
     o.Events.OnRedirectToAccessDenied=c=>{c.Response.StatusCode=403;return Task.CompletedTask;};
-    o.Events.OnValidatePrincipal=async c=>{var person=store.Person(c.Principal!.FindFirstValue(ClaimTypes.NameIdentifier)!);using var sessionDb=store.Open();if(person is not {Active:true} || person.PasswordHash is null || person.Version.ToString()!=c.Principal!.FindFirstValue("version") || !DeviceSessions.Valid(sessionDb,person.Id,c.Principal!.FindFirstValue("version"),c.Principal!.FindFirstValue("sid")) || person.Role=="teacher"&&!VerifiedTeacher(store,person)){c.RejectPrincipal();await c.HttpContext.SignOutAsync();}};
+    o.Events.OnValidatePrincipal=async c=>{var person=store.Person(c.Principal!.FindFirstValue(ClaimTypes.NameIdentifier)!);using var sessionDb=store.Open();if(person is not {Active:true} || person.PasswordHash is null || PortalGraduation.Expired(store,person.Id) || person.Version.ToString()!=c.Principal!.FindFirstValue("version") || !DeviceSessions.Valid(sessionDb,person.Id,c.Principal!.FindFirstValue("version"),c.Principal!.FindFirstValue("sid")) || person.Role=="teacher"&&!VerifiedTeacher(store,person)){c.RejectPrincipal();await c.HttpContext.SignOutAsync();}};
 });
 builder.Services.AddAuthorization(o=>o.AddPolicy("Admin",p=>p.RequireRole("admin")));
 builder.Services.AddRateLimiter(o=>
@@ -79,6 +80,7 @@ if (app.Environment.IsDevelopment() && Directory.Exists(Path.Combine(AppContext.
     app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "wwwroot")) });
 app.UseRouting();
 BackendOperations.UseAudit(app,store.Open,"AnnouncementServer");app.UseAuthentication();app.UseRateLimiter();app.UseAuthorization();
+app.Use(async(c,next)=>{try{PortalGraduation.ProcessDue(store);}catch(Exception error){app.Logger.LogError("Graduation erasure retry required ({ErrorCode})",error.GetType().Name);}await next();});
 RecoveryGuard.Use(app,store.Open);
 app.Use(async(c,next)=>
 {
@@ -100,7 +102,7 @@ app.MapPost("/api/login",async Task<IResult>(Login request,HttpContext c)=>
 {
     if(!Username(request.Username)||request.Password?.Length is not (>=1 and <=128))return Error("계정과 비밀번호를 확인하세요.",401);
     var person=store.Username(request.Username!);
-    if(person is not{Active:true,PasswordHash:not null}||person.LockedUntil>Now)return Error("계정과 비밀번호를 확인하세요.",401);
+    if(person is not{Active:true,PasswordHash:not null}||person.LockedUntil>Now||PortalGraduation.Expired(store,person.Id))return Error("계정과 비밀번호를 확인하세요.",401);
     var verified=hasher.VerifyHashedPassword(person,person.PasswordHash,request.Password!);
     if(verified==PasswordVerificationResult.Failed){store.Execute("UPDATE People SET FailedAttempts=FailedAttempts+1,LockedUntil=CASE WHEN FailedAttempts+1>=5 THEN $until ELSE 0 END WHERE Id=$id",("$until",Now+900_000),("$id",person.Id));return Error("계정과 비밀번호를 확인하세요.",401);}
     if(person.Role=="teacher"&&!VerifiedTeacher(store,person))return Error("학교 교직원 연결 확인을 기다리거나 관리자에게 문의하세요.",403);
@@ -123,6 +125,8 @@ PortalSections.Map(api,admin,app.MapGroup("/bridge"),store);
 PortalEnrollment.Map(app,api,admin,store,protection);
 PortalNotices.Map(api,app.MapGroup("/bridge"),store,app.Configuration,app.Environment);
 PortalTimetables.Map(api,app.MapGroup("/bridge"),store);
+PortalGraduation.Map(admin,app.MapGroup("/bridge"),store);
+try{PortalGraduation.Run(store);}catch(Exception error){app.Logger.LogError("Graduation erasure retry required ({ErrorCode})",error.GetType().Name);}
 app.Services.GetServices<IHostedService>().OfType<PortalMaintenance>().Single().Cleanup();
 BackendOperations.Map(app,store.Open);
 DeviceSessions.Map(app,store.Open);

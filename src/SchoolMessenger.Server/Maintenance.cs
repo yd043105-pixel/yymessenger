@@ -49,7 +49,7 @@ public sealed class Maintenance(Store store, IWebHostEnvironment environment, IC
     {
         var expired = store.Query("""
             SELECT Id FROM Attachments WHERE DeletedAt IS NULL AND
-            ((ExpiresAt IS NOT NULL AND ExpiresAt <= $now) OR (MessageId IS NULL AND UploadedAt <= $orphan AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=Attachments.Id)))
+            ((ExpiresAt IS NOT NULL AND ExpiresAt <= $now) OR (MessageId IS NULL AND UploadedAt <= $orphan AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=Attachments.Id) AND NOT EXISTS(SELECT 1 FROM ScheduledAttachments sa JOIN ScheduledMessages sm ON sm.Id=sa.ScheduleId WHERE sa.AttachmentId=Attachments.Id AND sm.State='pending')))
             """, r => r.GetString(0), ("$now", Now), ("$orphan", Now - 86_400_000));
         var failed=false;
         foreach (var id in expired)

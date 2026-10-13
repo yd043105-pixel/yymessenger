@@ -25,8 +25,9 @@ public static class BackendRecovery
                 candidate.Open();using var tx=candidate.BeginTransaction();using var command=candidate.CreateCommand();command.Transaction=tx;
                 command.CommandText="CREATE TABLE IF NOT EXISTS BackendRecoveryState(Id INTEGER PRIMARY KEY CHECK(Id=1),ReviewRequired INTEGER NOT NULL,RestoredAt INTEGER NOT NULL);INSERT INTO BackendRecoveryState(Id,ReviewRequired,RestoredAt) VALUES(1,1,"+DeviceSessions.Now+") ON CONFLICT(Id) DO UPDATE SET ReviewRequired=1,RestoredAt=excluded.RestoredAt";command.ExecuteNonQuery();
                 command.CommandText=prefix=="School"?"UPDATE Users SET SessionVersion=SessionVersion+1":"UPDATE People SET Version=Version+1";command.ExecuteNonQuery();
-                foreach(var sql in new[]{"UPDATE DeviceSessions SET RevokedAt="+DeviceSessions.Now,"UPDATE TeacherProofs SET Active=0","UPDATE StudentCodes SET Active=0","UPDATE GuardianRequests SET State='rejected' WHERE State='pending'","UPDATE Invites SET UsedAt="+DeviceSessions.Now+" WHERE UsedAt IS NULL","UPDATE StaffProfiles SET ActivationHash=NULL,ExpiresAt=0 WHERE NeedsActivation=1"})
+                foreach(var sql in new[]{"UPDATE DeviceSessions SET RevokedAt="+DeviceSessions.Now,"UPDATE TeacherProofs SET Active=0","UPDATE StudentCodes SET Active=0","UPDATE GuardianRequests SET State='rejected' WHERE State='pending'","UPDATE Invites SET UsedAt="+DeviceSessions.Now+" WHERE UsedAt IS NULL","UPDATE StaffProfiles SET ActivationHash=NULL,ExpiresAt=0 WHERE NeedsActivation=1","UPDATE ScheduledMessages SET State='cancelled',Error='백업 복원으로 예약을 취소했습니다. 확인 후 다시 예약하세요.' WHERE State='pending'"})
                 {var table=sql.Split(' ')[1];if(Table(candidate,table,tx)){command.CommandText=sql;command.ExecuteNonQuery();}}
+                if(Table(candidate,"ScheduledAttachments",tx)){command.CommandText="DELETE FROM ScheduledAttachments";command.ExecuteNonQuery();}
                 foreach(var (table,folder) in new[]{("Attachments","files"),("Files","files"),("ExternalFiles","external-files")})
                 {
                     if(!Table(candidate,table,tx))continue;

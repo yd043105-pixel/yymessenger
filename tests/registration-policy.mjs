@@ -8,12 +8,13 @@ import net from 'node:net';
 
 const root=process.cwd(),sdk=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet');
 const password='Test-'+randomUUID(),key='Bridge-'+randomUUID(),passed=[];
+const embeddedDraft=JSON.parse(readFileSync('config/registration-policy.draft.json','utf8'));
 const check=name=>{passed.push(name);console.log('PASS '+name);};
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 for(const project of ['AnnouncementServer','Server']){
  const portal=project==='AnnouncementServer',setting=portal?'Portal':'School',dir=path.join(root,'.test-data','policy-'+randomUUID());mkdirSync(dir,{recursive:true});
  const file=path.join(dir,'policy.json'),data=path.join(dir,'data');
- let document=JSON.parse(readFileSync('config/registration-policy.draft.json','utf8'));
+ let document=structuredClone(embeddedDraft);
  document.documents.push({id:'optional',title:'가상 선택 항목',version:'test.1',body:'선택 여부 시험용 문구',required:false,action:'consent'});
  const save=()=>writeFileSync(file,JSON.stringify(document));save();
  const listener=net.createServer();await new Promise(r=>listener.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+listener.address().port;await new Promise(r=>listener.close(r));
@@ -47,7 +48,7 @@ for(const project of ['AnnouncementServer','Server']){
    await guest.req('register','POST',{code:invite,username:'invited',password,agreement});db=new DatabaseSync(dbFile);assert.ok(db.prepare('SELECT AcceptedAt FROM RegistrationAgreements WHERE SubjectId=?').get(person.id));db.close();check('AnnouncementServer: invite signup also requires acceptance and rejected agreement does not consume the invitation');
   }
   await stop();document.documents[1].body+='\n새로운 가상 내용';document.documents[1].version='test.2';document.documents[1].action='acknowledgment';save();await start();const changed=await new Client().refresh();policy=await changed.req('registration/policy');assert.notEqual(policy.revision,agreement.revision);await changed.req('register','POST',signup('stale.window',agreement),400);await changed.req('register','POST',signup('new.version',{revision:policy.revision,acceptedIds:['terms','privacy']}));db=new DatabaseSync(dbFile);archive=JSON.parse(db.prepare('SELECT PolicyJson FROM RegistrationPolicies WHERE Revision=?').get(agreement.revision).PolicyJson);assert.equal(archive.documents[1].action,'consent');assert.ok(db.prepare('SELECT 1 FROM RegistrationAgreements WHERE SubjectId=?').get(originalSubject));db.close();check(project+': restart preserves old evidence; changed text/version/action gets a new revision and old signup windows are rejected');
-  await stop();await start('Production','');const blocked=await new Client().refresh();policy=await blocked.req('registration/policy');assert.equal(policy.canRegister,false);await blocked.req('register','POST',signup('production.draft',{revision:policy.revision,acceptedIds:['terms','privacy']}),503);assert.equal(accounts('production.draft'),0);await new Client().login();check(project+': default production draft blocks only new registration and preserves administrator login');
+  await stop();await start('Production','');const blocked=await new Client().refresh();policy=await blocked.req('registration/policy');assert.equal(policy.canRegister,false);assert.deepEqual(policy.documents,embeddedDraft.documents);assert.equal(policy.operator,embeddedDraft.operator);assert.equal(policy.contact,embeddedDraft.contact);check(project+': packaged policy exposes the current school documents verbatim, including version and contact');await blocked.req('register','POST',signup('production.draft',{revision:policy.revision,acceptedIds:['terms','privacy']}),503);assert.equal(accounts('production.draft'),0);await new Client().login();check(project+': default production draft blocks only new registration and preserves administrator login');
   await stop();document.approvedForProduction=true;document.operator='가상 학교';document.contact='가상 시험 담당자';save();await start('Production');const approved=await new Client().refresh();policy=await approved.req('registration/policy');assert.equal(policy.canRegister,true);assert.equal(policy.draft,false);await approved.req('register','POST',signup('production.approved',{revision:policy.revision,acceptedIds:['terms','privacy']}));check(project+': explicitly approved local production configuration enables versioned signup');
  }finally{await stop();}
 }

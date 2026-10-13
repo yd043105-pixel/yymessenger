@@ -41,7 +41,7 @@ public partial class MainWindow
         for (var i = 0; i < 100; i++) { collectionRequests = await Api!.Get<JsonElement[]>("api/submission-requests"); if (collectionRequests.Any(r => r.GetProperty("title").GetString() == "Windows 제출 요청 검증")) break; await Task.Delay(50); }
         var collectionId = collectionRequests.FirstOrDefault(r => r.GetProperty("title").GetString() == "Windows 제출 요청 검증");
         if (collectionId.ValueKind == JsonValueKind.Undefined) throw new InvalidOperationException("Windows 쪽지 제출 요청 생성 실패");
-        await work.Submission(collectionId.GetProperty("id").GetString()!); SavePreview(work, Path.Combine(directory, "submissions-preview.png")); work.Close();
+        await work.Submission(Environment.GetEnvironmentVariable("YY_SUBMISSION_PREVIEW_ID")??collectionId.GetProperty("id").GetString()!); SavePreview(work, Path.Combine(directory, "submissions-preview.png")); work.Close();
         var chat = new ChatWindow(this, people); chat.Show();
         await chat.CreateRoom([other.Id], "UI 검증 대화방");
         for (var i = 0; i < 30 && chat.RoomId is null; i++) await Task.Delay(50);
