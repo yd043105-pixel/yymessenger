@@ -1,3 +1,4 @@
+import {bridgeFetch,bridgeHeaders} from './bridge-client.mjs';
 import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -73,7 +74,7 @@ try{
  const missingCsrf=new Client();missingCsrf.cookies=new Map(parent.cookies);await missingCsrf.req('settings/children','POST',{code:code1},400);
  check('both guardians can link one child; student and parent accounts cannot read other student codes or bypass CSRF');
  const tid=await person(admin,'가상 교사','teacher',null,randomUUID().replaceAll('-',''),[c1]);
- await fetch(base+'/bridge/heartbeat',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({teachers:[{id:tid,active:true,canBroadcast:false}]})});
+ await bridgeFetch(key,base+'/bridge/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({teachers:[{id:tid,active:true,canBroadcast:false}]})});
  const invite=await admin.req('admin/people/'+tid+'/invite','POST');await guest.req('register','POST',{code:invite.code,username:'teacher',password});const teacher=await new Client().login('teacher');
  const sent=await teacher.req('announcements','POST',{clientId:randomUUID().replaceAll('-',''),title:'자녀 대상 공지',body:'연결된 보호자에게만 보내는 가상 공지',audience:'both',classIds:[c1],all:false,attachmentIds:[]});
  assert.equal((await parent.req('announcements')).length,1);assert.equal((await second.req('announcements')).length,1);await signup('late.parent');const late=await new Client().login('late.parent');await late.req('settings/children','POST',{code:code1});await late.req('announcements/'+sent.id,'GET',undefined,404);

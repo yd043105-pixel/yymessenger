@@ -1,3 +1,4 @@
+import {bridgeFetch,bridgeHeaders} from './bridge-client.mjs';
 import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 // Local UI fixture: random credentials, invented people, no school data. Stop with Ctrl+C.
 import {spawn} from 'node:child_process';import{randomUUID}from'node:crypto';import{existsSync,mkdirSync,writeFileSync,readFileSync,cpSync}from'node:fs';import path from'node:path';import net from'node:net';
@@ -28,12 +29,12 @@ await officeManager.req('office/events','POST',{clientId:randomUUID().replaceAll
 const fixtureBookingStart=new Date(Date.now()+12*3600000),fixtureBookingEnd=new Date(fixtureBookingStart.getTime()+3600000);
 await officeManager.req('office/bookings','POST',{clientId:randomUUID().replaceAll('-',''),roomId:fixtureRoom.id,title:'교직원 특별실 예약 검증',start:fixtureBookingStart.toISOString(),end:fixtureBookingEnd.toISOString()});
 fixtureAccess.officeBookingDate=new Date(fixtureBookingStart.getTime()+9*3600000).toISOString().slice(0,10);
-const fixtureDirectory=await(await fetch(portal+'/bridge/directory',{headers:{Authorization:'Bearer '+key}})).json();
+const fixtureDirectory=await(await bridgeFetch(key,portal+'/bridge/directory',{headers:{}})).json();
 const fixtureClass=fixtureDirectory.classes.find(c=>c.grade===1),fixtureTeacher=fixtureDirectory.people.find(p=>p.role==='teacher');
 const baselineId=randomUUID().replaceAll('-',''),datedId=randomUUID().replaceAll('-','');
 const fixtureBatch={id:baselineId,revision:1,owner:fixtureTeacher.internalUserId,clientId:randomUUID().replaceAll('-',''),kind:'base',year:2026,semester:2,start:'2026-08-01',end:'2027-02-28',date:null,fileName:'synthetic.xlsx',publishedAt:Date.now(),withdrawn:false,cells:[{classId:fixtureClass.id,className:fixtureClass.name,day:4,period:1,subject:'가상 수학',teacherId:fixtureTeacher.internalUserId,teacherName:'김여양 선생님'},{classId:fixtureClass.id,className:fixtureClass.name,day:4,period:2,subject:'가상 국어',teacherId:fixtureTeacher.internalUserId,teacherName:'김여양 선생님'}]};
 for(const batch of [fixtureBatch,{...fixtureBatch,id:datedId,revision:2,clientId:randomUUID().replaceAll('-',''),kind:'daily',start:'2026-10-08',end:'2026-10-08',date:'2026-10-08',cells:fixtureBatch.cells.map(c=>({...c,subject:c.period===1?'가상 영어':'',teacherId:c.period===1?c.teacherId:'',teacherName:c.period===1?c.teacherName:''}))}]){
- const response=await fetch(portal+'/bridge/timetable',{method:'POST',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({batch,homerooms:[],notices:[]})});if(!response.ok)throw Error('Synthetic timetable initialization failed '+response.status);
+ const response=await bridgeFetch(key,portal+'/bridge/timetable',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({batch,homerooms:[],notices:[]})});if(!response.ok)throw Error('Synthetic timetable initialization failed '+response.status);
 }
 writeFileSync(path.join(fixture,'access.json'),JSON.stringify({...fixtureAccess,timetableDate:'2026-10-08',timetableClass:fixtureClass.id}));
 console.log('Local timetable fixture ready.');

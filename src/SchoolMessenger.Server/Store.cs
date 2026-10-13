@@ -1,3 +1,4 @@
+using SchoolMessenger.Shared;
 using Microsoft.Data.Sqlite;
 
 namespace SchoolMessenger.Server;
@@ -6,8 +7,10 @@ public sealed record User(string Id, string Username, string Name, string Depart
     bool IsAdmin, bool CanBroadcast, bool Active, int SessionVersion, int FailedAttempts, long LockedUntil);
 public sealed record Registration(string Id, string Username, string Name, string Department, string PasswordHash, string Status, long CreatedAt);
 
-public sealed class Store
+public sealed class Store : IDisposable
 {
+    readonly FileStream lease;
+    public void Dispose() => lease.Dispose();
     public string Root { get; }
     public string Files => Path.Combine(Root, "files");
     public string Database => Path.Combine(Root, "school.db");
@@ -18,6 +21,8 @@ public sealed class Store
         if(File.Exists(Path.Combine(Root,"announcements.db")))throw new InvalidOperationException("교직원 서버와 외부 공지 서버의 데이터 폴더를 분리하세요.");
         BackupDirectory = Path.GetFullPath(config["School:BackupDirectory"] ?? Path.Combine(Root, "backups"));
         Directory.CreateDirectory(Files);
+        lease = BackendDatabase.Acquire(Root);
+        using (var migrated = Open()) BackendDatabase.Migrate(migrated, Root);
         using var connection = Open();
         using var command = connection.CreateCommand();
         command.CommandText = """
@@ -119,9 +124,7 @@ public sealed class Store
         Directory.CreateDirectory(directory);
         using var source = Open();
         var path = Path.Combine(directory, $"school-{DateTime.UtcNow:yyyyMMdd}.db");
-        using var destination = new SqliteConnection($"Data Source={path}");
-        destination.Open();
-        source.BackupDatabase(destination);
+        BackendDatabase.Backup(source,path);
         // Backups contain metadata only; attachment contents never enter database snapshots.
         foreach (var file in Directory.EnumerateFiles(directory, "school-*.db"))
             if (File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddDays(-14)) File.Delete(file);

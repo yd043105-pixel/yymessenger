@@ -1,3 +1,4 @@
+using SchoolMessenger.Shared;
 using System.Collections.Concurrent;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
@@ -59,12 +60,13 @@ public sealed class RemoteHub(Store store, RemoteSessions sessions) : Hub
     void Authenticate()
     {
         var user = store.GetUser(UserId);
-        if (user is not { Active: true } || user.SessionVersion.ToString() != Context.User!.FindFirstValue("version")) { Context.Abort(); throw new HubException("로그인이 만료되었습니다."); }
+        using var sessionDb=store.Open();
+        if (user is not { Active: true } || user.SessionVersion.ToString() != Context.User!.FindFirstValue("version") || !DeviceSessions.Valid(sessionDb,UserId,Context.User!.FindFirstValue("version"),Context.User!.FindFirstValue("sid"))) { Context.Abort(); throw new HubException("로그인이 만료되었습니다."); }
     }
     public override async Task OnConnectedAsync()
     {
         Authenticate(); sessions.Connections[Context.ConnectionId] = UserId;
-        sessions.Live[Context.ConnectionId] = new LiveConnection(Context, UserId, Context.User!.FindFirstValue("version"));
+        sessions.Live[Context.ConnectionId] = new LiveConnection(Context, UserId, Context.User!.FindFirstValue("version"),Context.User!.FindFirstValue("sid"));
         var address = Context.GetHttpContext()!.Connection.RemoteIpAddress!;
         sessions.Addresses[Context.ConnectionId] = (address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address).ToString();
         await Groups.AddToGroupAsync(Context.ConnectionId, RemoteSessions.Group(UserId)); await base.OnConnectedAsync();

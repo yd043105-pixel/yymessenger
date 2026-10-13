@@ -1,3 +1,4 @@
+using SchoolMessenger.Shared;
 using Microsoft.Data.Sqlite;
 using SchoolMessenger.Contracts;
 
@@ -6,8 +7,10 @@ namespace SchoolMessenger.AnnouncementServer;
 public record Account(string Id, string? Username, string Name, string Role, string? ClassId, string? InternalUserId,
     bool CanBroadcast, bool Active, int Version, string? PasswordHash, int FailedAttempts, long LockedUntil, int ScopeVersion=1);
 
-public sealed class PortalStore
+public sealed class PortalStore : IDisposable
 {
+    readonly FileStream lease;
+    public void Dispose() => lease.Dispose();
     public string Root { get; }
     public string Files => Path.Combine(Root, "files");
     public PortalStore(IConfiguration config)
@@ -15,6 +18,8 @@ public sealed class PortalStore
         Root = Path.GetFullPath(config["Portal:DataDirectory"] ?? "portal-data");
         if(File.Exists(Path.Combine(Root,"school.db")))throw new InvalidOperationException("외부 공지 서버에 교직원 데이터 폴더를 사용할 수 없습니다.");
         Directory.CreateDirectory(Files);
+        lease = BackendDatabase.Acquire(Root);
+        using (var migrated = Open()) BackendDatabase.Migrate(migrated, Root);
         Execute("""
             PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS Classes(Id TEXT PRIMARY KEY,Name TEXT NOT NULL,Grade INTEGER NOT NULL);

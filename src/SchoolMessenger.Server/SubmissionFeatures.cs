@@ -1,3 +1,4 @@
+using SchoolMessenger.Shared;
 using System.IO.Compression;
 using System.Security.Claims;
 using System.Text;
@@ -83,7 +84,7 @@ public static class SubmissionFeatures
                 foreach (var attachment in files.AttachmentIds)
                 {
                     using var link = Store.Command(connection, "INSERT INTO SubmissionFiles VALUES($submission,$file)", transaction, ("$submission", submissionId), ("$file", attachment)); link.ExecuteNonQuery();
-                    using var expiry = Store.Command(connection, "UPDATE Attachments SET ExpiresAt=$expires WHERE Id=$file", transaction, ("$expires", now + seconds * 1000L), ("$file", attachment)); expiry.ExecuteNonQuery();
+                    using var expiry = Store.Command(connection, "UPDATE Attachments SET ExpiresAt=MIN(COALESCE(ExpiresAt,UploadedAt+2592000000),$expires) WHERE Id=$file", transaction, ("$expires", now + seconds * 1000L), ("$file", attachment)); expiry.ExecuteNonQuery();
                 }
                 transaction.Commit();
             }
@@ -108,6 +109,7 @@ public static class SubmissionFeatures
                 foreach (var file in target.Files)
                 {
                     if (file.Expired || file.ExpiresAt <= Maintenance.Now || !Guid.TryParseExact(file.Id, "N", out _)) { notes.AppendLine($"{target.Name}: {file.Name} — 만료 또는 삭제"); continue; }
+                    using(var verification=store.Open())if(!StoredFiles.Ready(verification,"office",file.Id,Path.Combine(store.Files,file.Id))){notes.AppendLine($"{target.Name}: {file.Name} — 파일 누락 또는 무결성 실패");continue;}
                     FileStream stream;
                     try { stream = new FileStream(Path.Combine(store.Files, file.Id), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan); }
                     catch (FileNotFoundException) { notes.AppendLine($"{target.Name}: {file.Name} — 파일 없음"); continue; }
@@ -124,7 +126,7 @@ public static class SubmissionFeatures
     static string SafeName(string name) => string.Concat(name.Take(100).Select(c => char.IsControl(c) || "\\/:*?\"<>|".Contains(c) ? '_' : c)).Trim(' ', '.');
 }
 
-public sealed class SubmissionReminders(Store store, IHubContext<MessageHub> hub, IWebHostEnvironment environment, IConfiguration config, ILogger<SubmissionReminders> logger) : BackgroundService
+public sealed class SubmissionReminders(Store store, IWebHostEnvironment environment, IConfiguration config, ILogger<SubmissionReminders> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -134,10 +136,9 @@ public sealed class SubmissionReminders(Store store, IHubContext<MessageHub> hub
             {
                 // A fixed clock is available only in Development for isolated date-boundary/restart tests.
                 var now = environment.IsDevelopment() ? config.GetValue<long?>("School:ReminderNow") ?? Maintenance.Now : Maintenance.Now;
-                foreach (var notification in Process(now))
-                    try { await hub.Clients.Group(notification.User).SendAsync("NewMessage", notification.Message); } catch { /* Offline delivery is durable. */ }
+                Process(now);
             }
-            catch (Exception error) { logger.LogError(error, "Submission reminder processing failed"); }
+            catch (Exception error) { logger.LogError("Submission reminder processing failed ({ErrorCode})",error.GetType().Name); }
             try { await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken); } catch (OperationCanceledException) { break; }
         }
     }
@@ -167,6 +168,7 @@ public sealed class SubmissionReminders(Store store, IHubContext<MessageHub> hub
             using var insert = Store.Command(connection, "INSERT INTO Messages VALUES($id,$owner,$client,'system-reminder',$title,$body,$now)", transaction, ("$id", id), ("$owner", target.Owner), ("$client", "reminder:" + id), ("$title", "[자동 알림] " + target.Title), ("$body", body), ("$now", now)); insert.ExecuteNonQuery();
             using var recipient = Store.Command(connection, "INSERT INTO Recipients(MessageId,UserId) VALUES($id,$user)", transaction, ("$id", id), ("$user", target.User)); recipient.ExecuteNonQuery();
             using var reminder = Store.Command(connection, "INSERT INTO SubmissionReminders VALUES($request,$user,$day,$message)", transaction, ("$request", target.Request), ("$user", target.User), ("$day", day.ToString("yyyy-MM-dd")), ("$message", id)); reminder.ExecuteNonQuery();
+            MessageDelivery.Enqueue(connection,transaction,"message:"+id+":"+target.User,target.User,"NewMessage",id,now);
             delivered.Add((target.User, id));
         }
         transaction.Commit(); return delivered;

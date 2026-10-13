@@ -9,4 +9,5 @@
     <Compile Include="../SchoolMessenger.Shared/TimetableData.cs" Link="TimetableData.cs" />
     <Content Include="../SchoolMessenger.Shared/updates.json;../SchoolMessenger.Shared/update-notice.js;../SchoolMessenger.Shared/update-notice.css;../SchoolMessenger.Shared/timetable.js;../SchoolMessenger.Shared/timetable.css" Link="wwwroot/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup><Compile Include="../SchoolMessenger.Shared/Backend/*.cs" Link="Backend/%(Filename)%(Extension)" /></ItemGroup>
 </Project>

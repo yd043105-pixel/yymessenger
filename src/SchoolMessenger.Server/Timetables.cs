@@ -190,7 +190,7 @@ public sealed class Timetables:BackgroundService
     {
         HttpClient? http=null;
         if(Uri.TryCreate(config["Announcements:Address"],UriKind.Absolute,out var address))
-        {http=new(new HttpClientHandler{AllowAutoRedirect=false}){BaseAddress=new Uri(address.AbsoluteUri.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(60)};http.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue("Bearer",config["Announcements:BridgeKey"]);}
+        {http=new(new BridgeSigningHandler(config)){BaseAddress=new Uri(address.AbsoluteUri.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(60)};}
         try{while(!stoppingToken.IsCancellationRequested)
         {
             try

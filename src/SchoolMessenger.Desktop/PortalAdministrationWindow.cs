@@ -30,7 +30,8 @@ public sealed class PortalAdministrationWindow:Window
     }
     async Task Load()
     {
-        body.Children.Clear();Button("학급·학교 명부 등록",Directory);Button("보호자 연결 관리",Families);Button("로그아웃",async()=>{try{await api!.Send<JsonElement>(HttpMethod.Post,"api/logout");}finally{api!.Dispose();api=null;Login();}});
+        body.Children.Clear();Button("학급·학교 명부 등록",Directory);Button("보호자 연결 신청 심사",GuardianRequests);Button("보호자 연결 관리",Families);Button("로그아웃",async()=>{try{await api!.Send<JsonElement>(HttpMethod.Post,"api/logout");}finally{api!.Dispose();api=null;Login();}});
+        await RecoveryReview.Add(body,api!,this,Load);
         var people=await api!.Get<JsonElement>("api/admin/people");body.Children.Add(Text("가입 승인 · 계정 상태 · 고유번호"));
         foreach(var person in people.EnumerateArray())Button(person.GetProperty("name").GetString()+" · "+person.GetProperty("role").GetString()+" · "+(person.GetProperty("active").GetBoolean()?"활성":"승인 대기/중지"),()=>Person(person));
     }
@@ -57,6 +58,31 @@ public sealed class PortalAdministrationWindow:Window
         var name=Field("학교 명부의 이름");var role=new ComboBox{ItemsSource=new[]{"student","parent","teacher"},SelectedIndex=0};body.Children.Add(Text("역할 · student 학생 / parent 보호자 / teacher 교사"));body.Children.Add(role);
         var classes=await api!.Get<JsonElement>("api/admin/classes");var choices=classes.EnumerateArray().Select(c=>new Choice(c.GetProperty("id").GetString()!,c.GetProperty("name").GetString()!)).ToArray();var scope=new ComboBox{ItemsSource=choices,SelectedIndex=choices.Length>0?0:-1};body.Children.Add(Text("학생 소속 또는 교사 담당 학급"));body.Children.Add(scope);var internalId=Field("교사인 경우 교내 계정 ID · PC 계정 관리에서 확인");
         Button("명부 계정 등록",async()=>{var selected=role.SelectedItem as string??"student";var room=(scope.SelectedItem as Choice)?.Id;await api.Send<JsonElement>(HttpMethod.Post,"api/admin/people",new{name=name.Text,role=selected,classId=selected=="student"?room:null,internalUserId=selected=="teacher"?internalId.Text:null,classIds=selected=="teacher"&&room is not null?new[]{room}:[],canBroadcast=false});await Load();});
+    }
+    async Task GuardianRequests()
+    {
+        body.Children.Clear();Button("계정 관리로",Load);
+        body.Children.Add(Text("고유번호만으로 보호자 신원을 확인할 수 없습니다. 학교의 확인 절차로 본인과 자녀 관계를 확인한 뒤 승인하세요. 신청은 7일 후 또는 번호 재발급 시 다시 받아야 합니다."));
+        var people=await api!.Get<JsonElement>("api/admin/people");
+        var names=people.EnumerateArray().ToDictionary(p=>p.GetProperty("id").GetString()!,p=>p.GetProperty("name").GetString()!);
+        var requests=await api.Get<JsonElement>("api/admin/guardian-requests");
+        if(requests.GetArrayLength()==0)body.Children.Add(Text("심사할 연결 신청이 없습니다."));
+        foreach(var request in requests.EnumerateArray())
+        {
+            var parent=request.GetProperty("parentId").GetString()!;var student=request.GetProperty("studentId").GetString()!;
+            var label=names.GetValueOrDefault(parent,"계정 확인 필요")+" · "+names.GetValueOrDefault(student,"학생 확인 필요");
+            body.Children.Add(Text(label));
+            Button("보호자 확인 후 승인",async()=>
+            {
+                if(MessageBox.Show(this,label+"\n학교 절차로 본인과 보호자 관계를 확인했습니까? 승인하면 자녀의 소식과 시간표를 열람할 수 있습니다.","보호자 연결 심사",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;
+                await api.Send<JsonElement>(HttpMethod.Post,"api/admin/guardian-requests/"+parent+"/"+student+"/approve");await GuardianRequests();
+            });
+            Button("신청 반려",async()=>
+            {
+                if(MessageBox.Show(this,label+"\n이 연결 신청을 반려할까요?","보호자 연결 심사",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;
+                await api.Send<JsonElement>(HttpMethod.Delete,"api/admin/guardian-requests/"+parent+"/"+student);await GuardianRequests();
+            });
+        }
     }
     async Task Families()
     {

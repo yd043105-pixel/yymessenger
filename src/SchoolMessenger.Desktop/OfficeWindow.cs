@@ -88,6 +88,7 @@ public sealed partial class OfficeWindow:Window
             JsonElement value;try{value=await api.Send<JsonElement>(HttpMethod.Post,"api/admin/staff",new StaffAccountRequest(login.Text,name.Text,department.Text,ip.Text,password.Password));}finally{password.Clear();}
             MessageBox.Show(this,"개별 전달할 활성화 번호:\n"+value.GetProperty("activationCode").GetString()+"\n유효 기간: 7일. 번호는 이 응답에서만 표시됩니다.","교직원 등록");await Administration();
         });
+        await RecoveryReview.Add(body,api,this,Administration);
         var pending=await api.Get<JsonElement>("api/admin/registrations");foreach(var request in pending.EnumerateArray()){body.Children.Add(Text("가입 신청 · "+request.GetProperty("name").GetString()+" · "+request.GetProperty("department").GetString()));Button("신청 승인",async()=>{await api.Send<JsonElement>(HttpMethod.Post,"api/admin/registrations/"+request.GetProperty("id").GetString()+"/approve");await Administration();});Button("신청 반려",async()=>{await api.Send<JsonElement>(HttpMethod.Post,"api/admin/registrations/"+request.GetProperty("id").GetString()+"/reject");await Administration();});}
         var users=await api.Get<JsonElement>("api/admin/office/permissions");foreach(var user in users.EnumerateArray())
         {

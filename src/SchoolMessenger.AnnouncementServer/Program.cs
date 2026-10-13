@@ -11,6 +11,7 @@ using SchoolMessenger.Shared;
 using static SchoolMessenger.AnnouncementServer.PortalSecurity;
 
 var builder = WebApplication.CreateBuilder(args);
+if(BackendRecovery.TryRun(builder.Configuration,"Portal","announcements.db"))return;
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 105L*1024*1024);
 if (builder.Configuration["Portal:CertificateThumbprint"] is {Length:>0} thumbprint)
 {
@@ -20,8 +21,8 @@ if (builder.Configuration["Portal:CertificateThumbprint"] is {Length:>0} thumbpr
         ?? throw new InvalidOperationException("유효한 공지 서버 인증서와 개인키가 필요합니다.");
     builder.WebHost.ConfigureKestrel(o=>o.ConfigureHttpsDefaults(https=>https.ServerCertificate=certificate));
 }
-if (builder.Configuration["Portal:BridgeKey"]?.Length is not >= 32) throw new InvalidOperationException("Portal__BridgeKey에 별도 32자 이상 서비스 키를 설정하세요.");
-var store = new PortalStore(builder.Configuration);
+if (builder.Configuration["Portal:BridgeKey"]?.Length is not >= 32 && !builder.Configuration.GetSection("Portal:BridgeKeys").GetChildren().Any(k=>k.Value?.Length>=32)) throw new InvalidOperationException("Portal__BridgeKey 또는 Portal__BridgeKeys에 별도 32자 이상 서비스 키를 설정하세요.");
+using var store = new PortalStore(builder.Configuration);
 var registrationPolicy=new RegistrationPolicy(builder.Configuration["Registration:PolicyFile"],builder.Environment.IsDevelopment(),builder.Environment.ContentRootPath);
 using(var policyDatabase=store.Open())RegistrationPolicy.EnsureSchema(policyDatabase);
 var dataPath = builder.Services.AddDataProtection().SetApplicationName("YyAnnouncements").PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(store.Root,"keys")));
@@ -37,7 +38,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     o.ExpireTimeSpan=TimeSpan.FromHours(8);o.SlidingExpiration=false;
     o.Events.OnRedirectToLogin=c=>{c.Response.StatusCode=401;return Task.CompletedTask;};
     o.Events.OnRedirectToAccessDenied=c=>{c.Response.StatusCode=403;return Task.CompletedTask;};
-    o.Events.OnValidatePrincipal=async c=>{var person=store.Person(c.Principal!.FindFirstValue(ClaimTypes.NameIdentifier)!);if(person is not {Active:true} || person.PasswordHash is null || person.Version.ToString()!=c.Principal!.FindFirstValue("version") || person.Role=="teacher"&&!VerifiedTeacher(store,person)){c.RejectPrincipal();await c.HttpContext.SignOutAsync();}};
+    o.Events.OnValidatePrincipal=async c=>{var person=store.Person(c.Principal!.FindFirstValue(ClaimTypes.NameIdentifier)!);using var sessionDb=store.Open();if(person is not {Active:true} || person.PasswordHash is null || person.Version.ToString()!=c.Principal!.FindFirstValue("version") || !DeviceSessions.Valid(sessionDb,person.Id,c.Principal!.FindFirstValue("version"),c.Principal!.FindFirstValue("sid")) || person.Role=="teacher"&&!VerifiedTeacher(store,person)){c.RejectPrincipal();await c.HttpContext.SignOutAsync();}};
 });
 builder.Services.AddAuthorization(o=>o.AddPolicy("Admin",p=>p.RequireRole("admin")));
 builder.Services.AddRateLimiter(o=>
@@ -76,14 +77,20 @@ app.Use(async(c,next)=>
 app.UseDefaultFiles();app.UseStaticFiles();
 if (app.Environment.IsDevelopment() && Directory.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot")))
     app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "wwwroot")) });
-app.UseRouting();app.UseAuthentication();app.UseRateLimiter();app.UseAuthorization();
+app.UseRouting();
+BackendOperations.UseAudit(app,store.Open,"AnnouncementServer");app.UseAuthentication();app.UseRateLimiter();app.UseAuthorization();
+RecoveryGuard.Use(app,store.Open);
 app.Use(async(c,next)=>
 {
-    if(c.Request.Path.StartsWithSegments("/bridge")&&!Bridge(c,app.Configuration)){c.Response.StatusCode=401;return;}
+    if(c.Request.Path.StartsWithSegments("/bridge")&&!await BridgeAuthentication.Verify(c,app.Configuration,(service,nonce,expires)=>
+    {
+        store.Execute("DELETE FROM BridgeNonces WHERE ExpiresAt<$now",("$now",Now));
+        return store.Execute("INSERT OR IGNORE INTO BridgeNonces(Service,Nonce,ExpiresAt) VALUES($service,$nonce,$expires)",( "$service",service),("$nonce",nonce),("$expires",expires))==1;
+    })){c.Response.StatusCode=401;return;}
     if(c.Request.Path.StartsWithSegments("/api")&&c.Request.Method is "POST" or "PATCH" or "DELETE")
         try{await c.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(c);}catch(AntiforgeryValidationException){await Error("요청 인증 만료. 다시 로그인하세요.").ExecuteAsync(c);return;}
     if(c.User.Identity?.IsAuthenticated==true&&c.Request.Path.StartsWithSegments("/api")&&store.Person(Id(c)) is{Role:"parent"} parent&&!store.Regular(parent)
-        &&c.Request.Path!="/api/session"&&c.Request.Path!="/api/login"&&c.Request.Path!="/api/register"&&c.Request.Path!="/api/registration/classes"&&c.Request.Path!="/api/registration/policy"&&c.Request.Path!="/api/logout"&&c.Request.Path!="/api/children"&&!c.Request.Path.StartsWithSegments("/api/settings"))
+        &&c.Request.Path!="/api/session"&&c.Request.Path!="/api/login"&&c.Request.Path!="/api/register"&&c.Request.Path!="/api/registration/classes"&&c.Request.Path!="/api/registration/policy"&&c.Request.Path!="/api/logout"&&!c.Request.Path.StartsWithSegments("/api/sessions")&&c.Request.Path!="/api/children"&&!c.Request.Path.StartsWithSegments("/api/settings"))
     {await Error("임시회원입니다. 설정에서 자녀 고유번호를 입력하면 학교 소식과 시간표를 볼 수 있습니다.",403).ExecuteAsync(c);return;}
     await next();
 });
@@ -99,7 +106,9 @@ app.MapPost("/api/login",async Task<IResult>(Login request,HttpContext c)=>
     if(person.Role=="teacher"&&!VerifiedTeacher(store,person))return Error("학교 교직원 연결 확인을 기다리거나 관리자에게 문의하세요.",403);
     if(verified==PasswordVerificationResult.SuccessRehashNeeded)store.Execute("UPDATE People SET PasswordHash=$hash WHERE Id=$id AND PasswordHash=$old",("$hash",hasher.HashPassword(person,request.Password!)),("$id",person.Id),("$old",person.PasswordHash));
     store.Execute("UPDATE People SET FailedAttempts=0,LockedUntil=0 WHERE Id=$id",("$id",person.Id));
-    await c.SignInAsync(new ClaimsPrincipal(new ClaimsIdentity(new[]{new Claim(ClaimTypes.NameIdentifier,person.Id),new Claim(ClaimTypes.Name,person.Name),new Claim(ClaimTypes.Role,person.Role),new Claim("version",person.Version.ToString())},CookieAuthenticationDefaults.AuthenticationScheme)),new AuthenticationProperties{IsPersistent=request.RememberLogin,ExpiresUtc=DateTimeOffset.UtcNow.Add(request.RememberLogin?TimeSpan.FromDays(30):TimeSpan.FromHours(8))});
+    var expires=DateTimeOffset.UtcNow.Add(request.RememberLogin?TimeSpan.FromDays(30):TimeSpan.FromHours(8));
+    using var sessionDb=store.Open();var sid=DeviceSessions.Create(sessionDb,person.Id,person.Version.ToString(),expires);
+    await c.SignInAsync(new ClaimsPrincipal(new ClaimsIdentity(new[]{new Claim(ClaimTypes.NameIdentifier,person.Id),new Claim(ClaimTypes.Name,person.Name),new Claim(ClaimTypes.Role,person.Role),new Claim("version",person.Version.ToString()),new Claim("sid",sid)},CookieAuthenticationDefaults.AuthenticationScheme)),new AuthenticationProperties{IsPersistent=request.RememberLogin,ExpiresUtc=expires});
     return Results.Ok(store.Public(person));
 }).RequireRateLimiting("login");
 app.MapGet("/api/registration/policy",()=>registrationPolicy.Current).RequireRateLimiting("login");
@@ -115,6 +124,8 @@ PortalEnrollment.Map(app,api,admin,store,protection);
 PortalNotices.Map(api,app.MapGroup("/bridge"),store,app.Configuration,app.Environment);
 PortalTimetables.Map(api,app.MapGroup("/bridge"),store);
 app.Services.GetServices<IHostedService>().OfType<PortalMaintenance>().Single().Cleanup();
+BackendOperations.Map(app,store.Open);
+DeviceSessions.Map(app,store.Open);
 app.Run();
 
 record Login(string? Username,string? Password,bool RememberLogin=false);

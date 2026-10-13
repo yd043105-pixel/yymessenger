@@ -73,8 +73,8 @@ public sealed partial class MessengerPage
                 if(sending)return;sending=true;stack.IsEnabled=false;result.Text="";
                 try
                 {
-                    await source.Send("api/settings/children",new MobileFamilyCode(code.Text));code.Text="";await source.Refresh();await RefreshChildren();
-                    if(Current(source,version))result.Text="자녀 연결 완료. 정회원으로 이용할 수 있습니다.";
+                    var linked=await source.Send("api/settings/children",new MobileFamilyCode(code.Text));code.Text="";await source.Refresh();await RefreshChildren();
+                    if(Current(source,version))result.Text=linked.TryGetProperty("message",out var message)?message.GetString():"자녀 연결 상태를 확인하세요.";
                 }
                 catch(Exception e){result.Text=e.Message;}
                 finally{sending=false;stack.IsEnabled=true;}

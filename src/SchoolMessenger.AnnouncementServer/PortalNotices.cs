@@ -69,7 +69,8 @@ public static class PortalNotices
             if(!Guid.TryParseExact(id,"N",out _))return Results.NotFound();
             var file=store.Query("SELECT Name,NoticeId,ExpiresAt,DeletedAt FROM Files WHERE Id=$id",r=>new{name=r.GetString(0),notice=PortalStore.Text(r,1),expires=r.IsDBNull(2)?0:r.GetInt64(2),deleted=!r.IsDBNull(3)},("$id",id)).FirstOrDefault();
             if(file?.notice is null||!CanRead(store,file.notice,Id(c),false))return Results.NotFound();
-            if(file.deleted||file.expires<=Now||!File.Exists(Path.Combine(store.Files,id)))return Error("공지 첨부의 30일 보관 기간이 만료되었거나 파일이 없습니다.",410);
+            using var verified=store.Open();
+            if(file.deleted||file.expires<=Now||!StoredFiles.Ready(verified,"portal",id,Path.Combine(store.Files,id)))return Error("공지 첨부의 30일 보관 기간이 만료되었거나 파일이 없습니다.",410);
             return Results.File(Path.Combine(store.Files,id),"application/octet-stream",file.name,enableRangeProcessing:false);
         });
     }
@@ -100,7 +101,7 @@ public static class PortalNotices
         foreach(var target in targets){using var add=PortalStore.Command(db,"INSERT INTO Targets(NoticeId,UserId,StudentId,ClassId) VALUES($id,$user,$student,$class)",tx,("$id",id),("$user",target.UserId),("$student",target.StudentId),("$class",target.ClassId));add.ExecuteNonQuery();}
         foreach(var section in (directory.Sections??[]).Where(s=>(request.SectionIds??[]).Contains(s.Id)))foreach(var member in section.Members.Where(m=>targets.Any(t=>t.StudentId==m.StudentId))){using var add=PortalStore.Command(db,"INSERT INTO NoticeSectionMembers VALUES($notice,$section,$student,$stamp)",tx,("$notice",id),("$section",section.Id),("$student",member.StudentId),("$stamp",member.Stamp));add.ExecuteNonQuery();}
         var seconds=environment.IsDevelopment()?Math.Max(1,config.GetValue("Portal:RetentionSeconds",2_592_000)):2_592_000;
-        foreach(var file in request.AttachmentIds){using var bind=PortalStore.Command(db,"UPDATE Files SET NoticeId=$notice,ExpiresAt=$expires WHERE Id=$id",tx,("$notice",id),("$expires",now+seconds*1000L),("$id",file));bind.ExecuteNonQuery();}
+        foreach(var file in request.AttachmentIds){using var bind=PortalStore.Command(db,"UPDATE Files SET NoticeId=$notice,ExpiresAt=MIN(COALESCE(ExpiresAt,UploadedAt+2592000000),$expires) WHERE Id=$id",tx,("$notice",id),("$expires",now+seconds*1000L),("$id",file));bind.ExecuteNonQuery();}
         tx.Commit();return Results.Ok(new{id,duplicate=false});
     }
     static async Task<IResult> Upload(PortalStore store,string teacherId,HttpContext c,IConfiguration config,IHostEnvironment environment)
@@ -112,9 +113,11 @@ public static class PortalNotices
         string name;try{name=FilePolicy.Name(file.FileName);}catch(FilePolicyException error){return Error(error.Message,error.Status);}
         if(new DriveInfo(Path.GetPathRoot(store.Root)!).AvailableFreeSpace<file.Length+FilePolicy.MaxStaged)return Error("서버 저장 공간이 부족합니다.",507);
         var id=Guid.NewGuid().ToString("N");var path=Path.Combine(store.Files,id);var keep=false;
+        using(var state=store.Open())StoredFiles.State(state,"portal",id,"uploading");
         try
         {
             await using(var output=new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.None,81920,true))await file.CopyToAsync(output,c.RequestAborted);
+            using(var state=store.Open())StoredFiles.State(state,"portal",id,"scanning");
             await FilePolicy.Scan(path,name,environment.IsDevelopment(),config["Portal:ScannerPath"],c.RequestAborted);
             var current=store.Person(teacherId);if(current is null||!VerifiedTeacher(store,current))return Error("교사 권한이 변경되었습니다.",403);
             using var input=File.OpenRead(path);var hash=Convert.ToHexString(await SHA256.HashDataAsync(input,c.RequestAborted));
@@ -126,11 +129,11 @@ public static class PortalNotices
                 if(previous.notice is not null||previous.deleted||previous.uploaded<=Now-86_400_000)return Error("이미 사용했거나 만료된 파일입니다.",409);
                 return Results.Ok(new PortalFile(previous.id,previous.name,previous.size));
             }
-            using var insert=PortalStore.Command(db,"INSERT INTO Files(Id,OwnerId,ClientId,Hash,Name,Size,UploadedAt) SELECT $id,$owner,$client,$hash,$name,$size,$now WHERE (SELECT COALESCE(SUM(Size),0) FROM Files WHERE OwnerId=$owner AND NoticeId IS NULL AND DeletedAt IS NULL)+$size<=$quota",tx,("$id",id),("$owner",teacherId),("$client",form["clientId"].ToString()),("$hash",hash),("$name",name),("$size",file.Length),("$now",Now),("$quota",FilePolicy.MaxStaged));
-            if(insert.ExecuteNonQuery()!=1)return Error("미게시 첨부가 500MB를 넘습니다.",413);tx.Commit();keep=true;return Results.Ok(new PortalFile(id,name,file.Length));
+            using var insert=PortalStore.Command(db,"INSERT INTO Files(Id,OwnerId,ClientId,Hash,Name,Size,UploadedAt,ExpiresAt) SELECT $id,$owner,$client,$hash,$name,$size,$now,$expires WHERE (SELECT COALESCE(SUM(Size),0) FROM Files WHERE OwnerId=$owner AND NoticeId IS NULL AND DeletedAt IS NULL)+$size<=$quota",tx,("$id",id),("$owner",teacherId),("$client",form["clientId"].ToString()),("$hash",hash),("$name",name),("$size",file.Length),("$now",Now),("$expires",Now+(environment.IsDevelopment()?Math.Max(1,config.GetValue("Portal:RetentionSeconds",2_592_000)):2_592_000)*1000L),("$quota",FilePolicy.MaxStaged));
+            if(insert.ExecuteNonQuery()!=1)return Error("미게시 첨부가 500MB를 넘습니다.",413);StoredFiles.State(db,"portal",id,"ready",hash,tx);tx.Commit();keep=true;return Results.Ok(new PortalFile(id,name,file.Length));
         }
         catch(FilePolicyException error){return Error(error.Message,error.Status);}
-        finally{if(!keep)File.Delete(path);}
+        finally{if(!keep){File.Delete(path);using var state=store.Open();StoredFiles.State(state,"portal",id,"rejected");}}
     }
     static IResult Retract(PortalStore store,string id,string teacherId)
     {

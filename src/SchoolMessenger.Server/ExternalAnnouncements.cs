@@ -40,8 +40,8 @@ public sealed class ExternalAnnouncements : BackgroundService
             address.Scheme!="https"&&!(environment.IsDevelopment()&&address.Scheme=="http"&&address.IsLoopback))throw new InvalidOperationException("외부 공지 주소는 HTTPS 서버의 기본 주소여야 합니다.");
         var key=config["Announcements:BridgeKey"];
         if(key is not{Length:>=32})throw new InvalidOperationException("외부 공지 연결 키가 필요합니다.");
-        http=new HttpClient(new HttpClientHandler{UseCookies=false,AllowAutoRedirect=false}){BaseAddress=address,Timeout=TimeSpan.FromSeconds(120)};
-        http.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue("Bearer",key);
+        http=new HttpClient(new BridgeSigningHandler(config)){BaseAddress=address,Timeout=TimeSpan.FromSeconds(120)};
+
     }
     public override void Dispose(){http?.Dispose();base.Dispose();}
     static string Owner(HttpContext c)=>c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -145,8 +145,9 @@ public sealed class ExternalAnnouncements : BackgroundService
             await using(var stream=File.Create(path))await file.CopyToAsync(stream,c.RequestAborted);
             await FilePolicy.Scan(path,name,environment.IsDevelopment(),config["School:ScannerPath"],c.RequestAborted);
             if(store.GetUser(Owner(c)) is not{Active:true})return Error("교사 계정이 비활성화되었습니다.",403);
-            var inserted=store.Execute("INSERT INTO ExternalFiles(Id,OwnerId,Name,Size,UploadedAt) SELECT $id,$owner,$name,$size,$now WHERE (SELECT COALESCE(SUM(Size),0) FROM ExternalFiles WHERE OwnerId=$owner AND JobId IS NULL AND DeletedAt IS NULL)+$size<=$quota",("$id",id),("$owner",Owner(c)),("$name",name),("$size",file.Length),("$now",Now),("$quota",FilePolicy.MaxStaged));
-            if(inserted==0)return Error("미게시 첨부는 500MB까지입니다.",413);kept=true;return Results.Ok(new PortalFile(id,name,file.Length));
+            using var db=store.Open();using var tx=db.BeginTransaction();
+            using var insert=Store.Command(db,"INSERT INTO ExternalFiles(Id,OwnerId,Name,Size,UploadedAt,ExpiresAt) SELECT $id,$owner,$name,$size,$now,$expires WHERE (SELECT COALESCE(SUM(Size),0) FROM ExternalFiles WHERE OwnerId=$owner AND JobId IS NULL AND DeletedAt IS NULL)+$size<=$quota",tx,("$id",id),("$owner",Owner(c)),("$name",name),("$size",file.Length),("$now",Now),("$expires",Now+2_592_000_000L),("$quota",FilePolicy.MaxStaged));
+            if(insert.ExecuteNonQuery()==0)return Error("미게시 첨부는 500MB까지입니다.",413);StoredFiles.State(db,"external",id,"ready",StoredFiles.Hash(path),tx);tx.Commit();kept=true;return Results.Ok(new PortalFile(id,name,file.Length));
         }catch(FilePolicyException e){return Error(e.Message,e.Status);}finally{if(!kept)File.Delete(path);}
     }
     protected override async Task ExecuteAsync(CancellationToken token)
@@ -209,7 +210,7 @@ public sealed class ExternalAnnouncements : BackgroundService
                 {
                     if(file.Remote is null)
                     {
-                        if(!File.Exists(Path.Combine(Files,file.Id)))throw new BridgeFailure("첨부를 찾을 수 없습니다.",409);
+                        using var verification=store.Open();if(file.Expires<=Now||!StoredFiles.Ready(verification,"external",file.Id,Path.Combine(Files,file.Id)))throw new BridgeFailure("첨부가 만료되었거나 무결성 확인에 실패했습니다.",409);
                         using var form=new MultipartFormDataContent();form.Add(new StringContent(file.Id),"clientId");form.Add(new StreamContent(File.OpenRead(Path.Combine(Files,file.Id))),"file",file.Name);
                         using var upload=await http.PostAsync("bridge/attachments?teacherId="+job.Teacher,form,token);await Check(upload);
                         var remote=await upload.Content.ReadFromJsonAsync<PortalFile>(Json,token)??throw new IOException();
@@ -224,7 +225,7 @@ public sealed class ExternalAnnouncements : BackgroundService
                 detail=await http.GetFromJsonAsync<PortalNoticeDetail>("bridge/announcements/"+result.GetProperty("id").GetString()+"?teacherId="+job.Teacher,Json,token)??throw new IOException();
             }
             store.Execute("UPDATE ExternalOutbox SET State=CASE WHEN Withdraw=1 AND $state!='withdrawn' THEN 'withdraw-pending' ELSE $state END,RemoteId=$remote,Detail=$detail,Error=NULL,Attempts=0,NextAttempt=$next WHERE Id=$id",("$state",detail.Notice.Withdrawn?"withdrawn":"published"),("$remote",detail.Notice.Id),("$detail",JsonSerializer.Serialize(detail,Json)),("$next",Now+(environment.IsDevelopment()?2000:30000)),("$id",job.Id));
-            foreach(var file in detail.Attachments)store.Execute("UPDATE ExternalFiles SET ExpiresAt=$expires WHERE JobId=$job AND RemoteId=$remote",("$expires",file.ExpiresAt),("$job",job.Id),("$remote",file.Id));
+            foreach(var file in detail.Attachments)store.Execute("UPDATE ExternalFiles SET ExpiresAt=MIN(COALESCE(ExpiresAt,UploadedAt+2592000000),$expires) WHERE JobId=$job AND RemoteId=$remote",("$expires",file.ExpiresAt),("$job",job.Id),("$remote",file.Id));
         }
         catch(OperationCanceledException)when(token.IsCancellationRequested){throw;}
         catch(Exception e)

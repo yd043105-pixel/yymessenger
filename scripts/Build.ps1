@@ -1,4 +1,4 @@
-﻿param(
+param(
     [switch]$SkipTests,
     [switch]$HeadlessTests,
     [ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')][string]$Version
@@ -41,6 +41,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Registration agreement verification failed' }
         node tests\announcement-bridge.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Announcement bridge verification failed' }
+        node tests\backend-hardening.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Backend hardening verification failed' }
         node tests\data-boundaries.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Server data isolation verification failed' }
         & $dotnetExecutable build tests\TimetableChecks -p:RestoreLockedMode=true --nologo -v quiet
@@ -69,6 +71,7 @@ try {
     Copy-Item -LiteralPath 'docs\family-registration.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\teacher-office-operations.md','docs\teacher-office-review-2026-10-13.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\registration-policy-operations.md','docs\app-operation-guide.md','docs\committee-readiness.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\backend' -Destination $packageDocs -Recurse -Force
     $packageConfig=Join-Path $packageDirectory 'config'
     New-Item -ItemType Directory -Path $packageConfig -Force | Out-Null
     Copy-Item -LiteralPath 'config\registration-policy.draft.json' -Destination $packageConfig

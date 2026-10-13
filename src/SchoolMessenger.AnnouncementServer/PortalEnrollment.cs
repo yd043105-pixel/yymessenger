@@ -1,3 +1,4 @@
+using SchoolMessenger.Shared;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -71,8 +72,17 @@ public static class PortalEnrollment
             using var fail=PortalStore.Command(db,"UPDATE FamilyCodeAttempts SET Failures=Failures+1,LockedUntil=CASE WHEN Failures+1>=5 THEN $until ELSE 0 END WHERE ParentId=$id",tx,("$until",Now+900_000),("$id",parent));fail.ExecuteNonQuery();tx.Commit();
             return Error("고유번호를 확인하세요. 영문 대소문자를 구분하며 승인된 재학생의 번호만 사용할 수 있습니다.");
         }
+        var mode=c.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment()?"CodeOnly":c.RequestServices.GetRequiredService<IConfiguration>()["Portal:GuardianBindingMode"]??"SchoolReview";
+        if(mode!="SchoolReview"&&mode!="CodeOnly")return Error("학부모 연결 정책 설정을 확인하세요.",503);
+        if(mode=="CodeOnly"&&!c.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment()&&!c.RequestServices.GetRequiredService<IConfiguration>().GetValue("Portal:GuardianCodeOnlyApproved",false))return Error("학교의 학부모 본인확인 정책 승인이 필요합니다.",503);
+        if(mode=="SchoolReview"&&store.Query("SELECT 1 FROM Families WHERE ParentId=$parent AND StudentId=$student",r=>r.GetInt32(0),("$parent",parent),("$student",student)).Count==0)
+        {
+            using var pending=PortalStore.Command(db,"INSERT INTO GuardianRequests(ParentId,StudentId,CodeHash,RequestedAt,State) VALUES($parent,$student,$hash,$now,'pending') ON CONFLICT(ParentId,StudentId) DO UPDATE SET CodeHash=excluded.CodeHash,RequestedAt=excluded.RequestedAt,State='pending',ReviewedBy=NULL,ReviewedAt=NULL",tx,("$parent",parent),("$student",student),("$hash",Hash(request.Code!)),("$now",Now));pending.ExecuteNonQuery();
+            BackendOperations.Audit(db,tx,parent,"guardian.request","pending",c.TraceIdentifier);tx.Commit();return Results.Ok(new{membership="pending",message="자녀 연결을 신청했습니다. 학교가 보호자 관계를 확인하면 이용할 수 있습니다."});
+        }
         using(var add=PortalStore.Command(db,"INSERT OR IGNORE INTO Families(ParentId,StudentId,Stamp) VALUES($parent,$student,lower(hex(randomblob(16))))",tx,("$parent",parent),("$student",student)))add.ExecuteNonQuery();
         using(var reset=PortalStore.Command(db,"UPDATE FamilyCodeAttempts SET Failures=0,LockedUntil=0 WHERE ParentId=$id",tx,("$id",parent)))reset.ExecuteNonQuery();
+        BackendOperations.Audit(db,tx,parent,"guardian.link","success",c.TraceIdentifier);
         tx.Commit();return Results.Ok(new{membership="regular",message="자녀가 연결되었습니다. 정회원으로 이용할 수 있습니다."});
     }
     public static void Map(WebApplication app,RouteGroupBuilder api,RouteGroupBuilder admin,PortalStore store,IDataProtectionProvider protection)
@@ -85,6 +95,16 @@ public static class PortalEnrollment
             return Results.Ok(new{membership=store.Regular(person)?"regular":"temporary",studentCode=person.Role=="student"?Code(store,protection,person.Id):null});
         });
         api.MapPost("/settings/children",(HttpContext c,FamilyCode request)=>Link(store,c,request)).RequireRateLimiting("family-code");
+        admin.MapGet("/guardian-requests",()=>store.Query("SELECT ParentId,StudentId,RequestedAt FROM GuardianRequests WHERE State='pending' ORDER BY RequestedAt",r=>new{parentId=r.GetString(0),studentId=r.GetString(1),requestedAt=r.GetInt64(2)}));
+        admin.MapPost("/guardian-requests/{parent}/{student}/approve",(string parent,string student,HttpContext c)=>
+        {
+            using var db=store.Open();using var tx=db.BeginTransaction(deferred:false);
+            using var valid=PortalStore.Command(db,"SELECT 1 FROM GuardianRequests g JOIN People p ON p.Id=g.ParentId JOIN People s ON s.Id=g.StudentId JOIN StudentCodes k ON k.StudentId=s.Id AND k.Hash=g.CodeHash AND k.Active=1 WHERE g.ParentId=$parent AND g.StudentId=$student AND g.State='pending' AND g.RequestedAt>$cutoff AND p.Role='parent' AND p.Active=1 AND s.Role='student' AND s.Active=1 AND s.ClassId IS NOT NULL",tx,("$parent",parent),("$student",student),("$cutoff",Now-7*86_400_000L));if(valid.ExecuteScalar() is null)return Error("신청이 만료되었거나 학생 번호·계정이 변경되었습니다. 다시 신청하세요.",409);
+            using(var add=PortalStore.Command(db,"INSERT OR IGNORE INTO Families(ParentId,StudentId,Stamp) VALUES($parent,$student,lower(hex(randomblob(16))))",tx,("$parent",parent),("$student",student)))add.ExecuteNonQuery();
+            using(var update=PortalStore.Command(db,"UPDATE GuardianRequests SET State='approved',ReviewedBy=$admin,ReviewedAt=$now WHERE ParentId=$parent AND StudentId=$student",tx,("$admin",Id(c)),("$now",Now),("$parent",parent),("$student",student)))update.ExecuteNonQuery();
+            BackendOperations.Audit(db,tx,Id(c),"guardian.approve","success",c.TraceIdentifier);tx.Commit();return Results.Ok();
+        });
+        admin.MapDelete("/guardian-requests/{parent}/{student}",(string parent,string student,HttpContext c)=>store.Execute("UPDATE GuardianRequests SET State='rejected',ReviewedBy=$admin,ReviewedAt=$now WHERE ParentId=$parent AND StudentId=$student AND State='pending'",("$admin",Id(c)),("$now",Now),("$parent",parent),("$student",student))==1?Results.Ok():Results.NotFound());
         admin.MapGet("/people/{id}/student-code",(string id)=>store.Person(id) is{Role:"student",Active:true}?Results.Ok(new{code=Code(store,protection,id)}):Error("학교가 승인한 재학생의 번호만 확인할 수 있습니다."));
         admin.MapPost("/people/{id}/student-code/reissue",(string id)=>store.Person(id) is{Role:"student",Active:true}?Results.Ok(new{code=Code(store,protection,id,true)}):Error("학교가 승인한 재학생의 번호만 재발급할 수 있습니다."));
     }

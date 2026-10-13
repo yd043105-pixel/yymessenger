@@ -1,3 +1,4 @@
+import {bridgeFetch,bridgeHeaders} from './bridge-client.mjs';
 import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 import {sectionChecks} from './sections.mjs';
 import assert from 'node:assert/strict';
@@ -30,13 +31,24 @@ class Client{
  async login(username){this.csrf=(await this.request('/api/session')).csrfToken;await this.request('/api/login','POST',{username,password,rememberLogin:true});const session=await this.request('/api/session');this.csrf=session.csrfToken;this.user=session.user;return this;}
  async upload(name,text,clientId=randomUUID().replaceAll('-','')){const form=new FormData();form.append('clientId',clientId);form.append('file',new Blob([text]),name);return this.request('/api/attachments','POST',form);}
 }
-const serviceHeaders={Authorization:'Bearer '+bridgeKey};
-async function service(route,method='GET',body,expected=200){const response=await fetch(address+'/bridge'+route,{method,headers:{...serviceHeaders,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});const text=await response.text();assert.equal(response.status,expected,'bridge '+route+': '+text);return text?JSON.parse(text):null;}
+
+async function service(route,method='GET',body,expected=200){const response=await bridgeFetch(bridgeKey,address+'/bridge'+route,{method,headers:{...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});const text=await response.text();assert.equal(response.status,expected,'bridge '+route+': '+text);return text?JSON.parse(text):null;}
 async function register(admin,personId,username,extra={}){const invite=await admin.request('/api/admin/people/'+personId+'/invite','POST');const guest=new Client();guest.csrf=(await guest.request('/api/session')).csrfToken;await guest.request('/api/register','POST',{code:invite.code,username,password,...extra});await guest.request('/api/register','POST',{code:invite.code,username:username+'.again',password},400);return new Client().login(username);}
 async function person(admin,name,role,classId=null,internalUserId=null,classIds=[],canBroadcast=false){return (await admin.request('/api/admin/people','POST',{name,role,classId,internalUserId,classIds,canBroadcast})).id;}
 function post(classId,title='가정통신문',overrides={}){return{clientId:randomUUID().replaceAll('-',''),title,body:'내일까지 확인해 주세요. <svg onload=alert(1)>',audience:'both',classIds:[classId],all:false,attachmentIds:[],...overrides};}
 try{
  start();await ready();
+ const signedUrl=address+'/bridge/directory',signed=bridgeHeaders(bridgeKey,signedUrl);
+ assert.equal((await fetch(signedUrl,{headers:{Authorization:'Bearer '+bridgeKey}})).status,401);
+ assert.equal((await fetch(signedUrl,{headers:signed})).status,200);
+ assert.equal((await fetch(signedUrl,{headers:signed})).status,401);
+ assert.equal((await bridgeFetch(bridgeKey,signedUrl,{}, {time:Math.floor(Date.now()/1000)-3600})).status,401);
+ assert.equal((await bridgeFetch(bridgeKey,signedUrl,{}, {service:'unknown'})).status,401);
+ assert.equal((await bridgeFetch('invalid-key-that-is-long-enough-for-testing',signedUrl)).status,401);
+ const tamperUrl=address+'/bridge/heartbeat',payload=JSON.stringify({teachers:[]});
+ assert.equal((await fetch(tamperUrl,{method:'POST',headers:{...bridgeHeaders(bridgeKey,tamperUrl,'POST',payload),'Content-Type':'application/json'},body:payload+' '})).status,401);
+ check('bridge rejects unsigned credentials, replay, stale time, unknown service, wrong key and body tampering');
+
  for(const asset of ['updates.json','update-notice.js','update-notice.css'])assert.equal((await fetch(address+'/'+asset)).status,200);
  assert.equal((await(await fetch(address+'/updates.json')).json()).version,JSON.parse(readFileSync('src/SchoolMessenger.Shared/updates.json','utf8')).version);
  check('external web serves bundled release notes and popup assets without exposing account data');
