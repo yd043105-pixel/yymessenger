@@ -39,6 +39,7 @@ for(const project of ['Server','AnnouncementServer']){
   await start();const a=await new Client(base).login(),b=await new Client(base).login();
   const sessions=await a.request('sessions');assert.equal(sessions.length,2);assert.equal(sessions.filter(s=>s.current).length,1);
   await a.request('sessions/'+sessions.find(s=>!s.current).id,'DELETE');await b.request(portal?'admin/status':'messages','GET',undefined,401);await a.request('sessions/'+randomUUID(),'DELETE',undefined,404);
+  await a.request('logout','POST');await a.login();assert.equal((await a.request('sessions')).length,1);
   check(project+': selected session revoked without revoking the current device');
   const status=await a.request('admin/backend-status');engines[project]=status.sqliteVersion;
   await new Client(base).request('admin/backend-status','GET',undefined,401);await wait(async()=>(await a.request('admin/backend-status')).jobs.some(j=>j.name==='backup'&&j.lastSuccess));
@@ -84,6 +85,13 @@ for(const project of ['Server','AnnouncementServer']){
    check('temporary SQLite write contention waits and commits after the lock is released');
    db=openDb();db.prepare('UPDATE MessageEvents SET DeliveredAt=NULL,NextAttempt=? WHERE Sequence=(SELECT MAX(Sequence) FROM MessageEvents)').run(Date.now()+60000);db.close();
 
+  }
+  if(portal){
+   // Synthetic seeded accounts isolate login throughput from separately tested signup/approval flows.
+   db=openDb();const fixtureHash=db.prepare("SELECT PasswordHash FROM People WHERE Username='admin'").get().PasswordHash;
+   const seed=db.prepare("INSERT INTO People(Id,Username,Name,Role,PasswordHash) VALUES(?,?,?,'parent',?)");db.exec('BEGIN');for(let i=0;i<100;i++)seed.run(randomUUID().replaceAll('-',''),'load.parent.'+i,'가상 부하 보호자 '+i,fixtureHash);db.exec('COMMIT');db.close();
+   const parents=await Promise.all(Array.from({length:100},(_,i)=>new Client(base).login('load.parent.'+i)));assert.equal(new Set(parents.map(p=>p.user.id)).size,100);for(const parent of parents)assert.equal((await parent.request('sessions')).length,1);
+   check('100 distinct synthetic parent accounts can sign in concurrently behind a shared IP; session ownership stays separate');
   }
   if(portal){
    const room=await a.request('admin/classes','POST',{name:'가상 정책 학급',grade:1});

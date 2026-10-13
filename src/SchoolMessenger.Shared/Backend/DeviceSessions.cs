@@ -35,8 +35,8 @@ public static class DeviceSessions
         app.MapGet("/api/sessions", (HttpContext context) =>
         {
             using var db = open(); using var query = db.CreateCommand();
-            query.CommandText = "SELECT Id,CreatedAt,ExpiresAt,TokenHash FROM DeviceSessions WHERE UserId=$user AND RevokedAt IS NULL AND ExpiresAt>$now ORDER BY CreatedAt DESC";
-            query.Parameters.AddWithValue("$user", context.User.FindFirstValue(ClaimTypes.NameIdentifier)!); query.Parameters.AddWithValue("$now", Now);
+            query.CommandText = "SELECT Id,CreatedAt,ExpiresAt,TokenHash FROM DeviceSessions WHERE UserId=$user AND UserVersion=$version AND RevokedAt IS NULL AND ExpiresAt>$now ORDER BY CreatedAt DESC";
+            query.Parameters.AddWithValue("$user", context.User.FindFirstValue(ClaimTypes.NameIdentifier)!); query.Parameters.AddWithValue("$now", Now);query.Parameters.AddWithValue("$version",context.User.FindFirstValue("version")!);
             using var reader = query.ExecuteReader(); var result = new List<object>();
             while (reader.Read()) result.Add(new { id=reader.GetString(0), createdAt=reader.GetInt64(1), expiresAt=reader.GetInt64(2), current=reader.GetString(3)==Hash(context.User.FindFirstValue("sid") ?? "") });
             return Results.Ok(result);

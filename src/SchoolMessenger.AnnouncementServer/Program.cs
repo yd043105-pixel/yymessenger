@@ -45,7 +45,7 @@ builder.Services.AddRateLimiter(o=>
 {
     o.RejectionStatusCode=429;
     o.GlobalLimiter=PartitionedRateLimiter.Create<HttpContext,string>(c=>RateLimitPartition.GetFixedWindowLimiter(c.User.Identity?.IsAuthenticated==true?"user:"+Id(c):"ip:"+c.Connection.RemoteIpAddress,_=>new FixedWindowRateLimiterOptions{PermitLimit=600,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
-    o.AddPolicy("login",c=>RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString()??"local",_=>new FixedWindowRateLimiterOptions{PermitLimit=60,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
+    o.AddPolicy("login",c=>RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString()??"local",_=>new FixedWindowRateLimiterOptions{PermitLimit=Math.Clamp(builder.Configuration.GetValue("Portal:LoginLimitPerMinute",120),20,300),Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
     o.AddPolicy("upload",_=>RateLimitPartition.GetConcurrencyLimiter("uploads",_=>new ConcurrencyLimiterOptions{PermitLimit=4,QueueLimit=0}));
     o.AddPolicy("family-code",c=>RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString()??"local",_=>new FixedWindowRateLimiterOptions{PermitLimit=100,Window=TimeSpan.FromMinutes(15),QueueLimit=0}));
 });

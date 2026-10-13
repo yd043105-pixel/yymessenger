@@ -21,3 +21,5 @@ PBKDF2-HMAC-SHA512 최소 220000 반복과 기존 재해시를 유지한다. 계
 [ASP.NET Core 쿠키 검증](https://learn.microsoft.com/en-us/aspnet/core/security/authentication/cookie?view=aspnetcore-10.0).
 
 쿠키 Secure는 실제 HTTPS 요청에서 설정된다. 합성 검사의 loopback HTTP 예외는 기존 동작을 유지한다. 실제 외부 요청은 HTTPS를 요구하며, TLS를 종료하는 프록시를 사용한다면 실제 전달 헤더·호스트·쿠키 정책을 별도 확인해야 한다. 확인 없이 프록시를 신뢰하도록 구성하지 않았다.
+
+교내·학교 소식 로그인 IP 한도는 기본 분당 120회이며 School/Portal:LoginLimitPerMinute로 20~300회 범위에서 조정한다. 학교 Wi-Fi 및 이동통신 공통 IP의 정상 동시 로그인을 고려하되 계정별 DB 잠금을 유지한다. 세션 목록은 현재 계정 버전에 유효한 로그인만 표시한다.
