@@ -60,7 +60,7 @@ try {
     if($RunNativeUi){
         $env:YY_INSTALLED_CLIENT=$installedExe
         Push-Location $projectRoot
-        try{node tests/smoke.mjs --ui --skip-native-input;if($LASTEXITCODE -ne 0){throw 'Installed native UI failed.'}}finally{Pop-Location}
+        try{$nativeArguments=@('tests/smoke.mjs','--ui','--skip-native-input');if($env:YY_PACKAGE_ROOT){$nativeArguments+='--package'};node @nativeArguments;if($LASTEXITCODE -ne 0){throw 'Installed native UI failed.'}}finally{Pop-Location}
         Check 'installed executable passes actual native messaging UI and feature checks'
     }
     $run=[Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($runPath);$run.SetValue($startupEntry,'"C:\FakePortable\SchoolMessenger.exe" --startup');$run.Dispose()

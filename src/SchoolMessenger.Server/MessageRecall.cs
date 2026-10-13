@@ -23,8 +23,8 @@ public static class MessageRecall
             if(own.ExecuteScalar() is null)return Results.NotFound();
             using var existing=Store.Command(connection,"SELECT 1 FROM MessageRecalls WHERE MessageId=$id",tx,("$id",id));
             if(existing.ExecuteScalar() is not null)return Results.Ok(new{recalled=true});
-            using var blocked=Store.Command(connection,"SELECT EXISTS(SELECT 1 FROM Recipients WHERE MessageId=$id AND ReadAt IS NOT NULL) OR EXISTS(SELECT 1 FROM Submissions WHERE RequestId=$id) OR EXISTS(SELECT 1 FROM Todos WHERE SourceId=$id AND Status<>'suggested')",tx,("$id",id));
-            if(Convert.ToInt32(blocked.ExecuteScalar())!=0)return Results.Json(new{error="이미 읽었거나 제출·할 일 등록이 진행된 메시지는 회수할 수 없습니다."},statusCode:409);
+            using var unread=Store.Command(connection,"SELECT EXISTS(SELECT 1 FROM Recipients WHERE MessageId=$id AND ReadAt IS NULL)",tx,("$id",id));
+            if(Convert.ToInt32(unread.ExecuteScalar())==0)return Results.Json(new{error="모든 수신자가 읽은 메시지는 회수할 수 없습니다."},statusCode:409);
             var targets=new List<string>{user};using(var recipients=Store.Command(connection,"SELECT UserId FROM Recipients WHERE MessageId=$id",tx,("$id",id)))using(var reader=recipients.ExecuteReader())while(reader.Read())targets.Add(reader.GetString(0));
             foreach(var target in targets.Distinct())MessageDelivery.Enqueue(connection,tx,"recall:"+id+":"+target,target,"MessageRecalled",id,Maintenance.Now);
             foreach(var sql in new[]{"INSERT INTO MessageRecalls VALUES($id,$now)","UPDATE Messages SET Title='회수된 메시지',Body='' WHERE Id=$id","DELETE FROM Todos WHERE SourceId=$id AND Status='suggested'","UPDATE SubmissionRequests SET Closed=1 WHERE MessageId=$id","UPDATE Attachments SET ExpiresAt=MIN(ExpiresAt,$now) WHERE MessageId=$id"})

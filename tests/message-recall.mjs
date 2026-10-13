@@ -19,15 +19,31 @@ export async function recallChecks({owner,recipient,observer,admin,data,address,
  const db=new DatabaseSync(path.join(data,'school.db'));assert.equal(db.prepare('SELECT Body FROM Messages WHERE Id=?').get(message.id).Body,'');db.close();
  await admin.request('/api/admin/maintenance','POST');assert.equal(existsSync(path.join(data,'files',file.id)),false);
  check('sender-only unread recall, retry tombstones, hidden content/files/task suggestions and durable recall synchronization');
- const read=await send();await recipient.request('/api/messages/'+read.id);await owner.request('/api/messages/'+read.id+'/recall','POST',{},409);
+ const read=await send();await recipient.request('/api/messages/'+read.id);
  assert.ok((await owner.request('/api/messages/'+read.id)).recipients.find(r=>r.id===recipient.user.id).readAt);
- const attachment=await owner.upload('열람.txt','파일 열람 검사');const download=await send({attachmentIds:[attachment.id]});await recipient.request('/api/attachments/'+attachment.id+'/download');await owner.request('/api/messages/'+download.id+'/recall','POST',{},409);
- check('opening content or downloading attachments commits a read receipt before recall is allowed');
+ await owner.request('/api/messages/'+read.id+'/recall','POST');
+ for(const c of [recipient,observer]){await c.request('/api/messages/'+read.id,'GET',undefined,404);assert.ok(!(await c.request('/api/messages')).some(m=>m.id===read.id));assert.ok((await c.request('/api/messages/changes')).events.some(e=>e.kind==='MessageRecalled'&&e.resourceId===read.id));}
+ const attachment=await owner.upload('열람.txt','파일 열람 검사');const download=await send({attachmentIds:[attachment.id]});await recipient.request('/api/attachments/'+attachment.id+'/download');await owner.request('/api/messages/'+download.id+'/recall','POST');await recipient.request('/api/attachments/'+attachment.id+'/download','GET',undefined,404);
+ const allRead=await send();await recipient.request('/api/messages/'+allRead.id);await observer.request('/api/messages/'+allRead.id);await owner.request('/api/messages/'+allRead.id+'/recall','POST',{},409);
+ const single=await send({recipientIds:[recipient.user.id]});await recipient.request('/api/messages/'+single.id);await owner.request('/api/messages/'+single.id+'/recall','POST',{},409);
+ check('one remaining unread recipient permits recall even after another opens/downloads; read and unread recipients lose access; all-read and one-person read messages cannot be recalled');
  for(let i=0;i<12;i++){
-  const race=await send();const responses=await Promise.all([fetch(address+'/api/messages/'+race.id,{headers:{Cookie:[...recipient.cookies].map(([k,v])=>k+'='+v).join('; ')}}),fetch(address+'/api/messages/'+race.id+'/recall',{method:'POST',headers:{Cookie:[...owner.cookies].map(([k,v])=>k+'='+v).join('; '),'X-CSRF-TOKEN':owner.csrf,'Content-Type':'application/json'},body:'{}'})]);
+  const race=await send();await observer.request('/api/messages/'+race.id);const responses=await Promise.all([fetch(address+'/api/messages/'+race.id,{headers:{Cookie:[...recipient.cookies].map(([k,v])=>k+'='+v).join('; ')}}),fetch(address+'/api/messages/'+race.id+'/recall',{method:'POST',headers:{Cookie:[...owner.cookies].map(([k,v])=>k+'='+v).join('; '),'X-CSRF-TOKEN':owner.csrf,'Content-Type':'application/json'},body:'{}'})]);
   assert.ok((responses[0].status===200&&responses[1].status===409)||(responses[0].status===404&&responses[1].status===200),responses.map(r=>r.status).join(','));await Promise.all(responses.map(r=>r.arrayBuffer()));
  }
- check('twelve concurrent message-open/recall races have exactly one authorized outcome');
+ check('twelve concurrent last-unread-open/recall races have exactly one authorized outcome');
+ const active=await send({body:'내일까지 확인서를 제출해주세요.',submissionDeadline:Date.now()+3*86400000});
+ const task=(await recipient.request('/api/todos')).find(t=>t.sourceId===active.id);
+ await recipient.request('/api/todos/'+task.id,'PATCH',{title:task.title,dueDate:task.dueDate,status:'open',revision:task.revision});
+ const collected=await recipient.upload('회수요청_제출.txt','이미 제출한 가상 자료');
+ await recipient.request('/api/submission-requests/'+active.id+'/submit','POST',{clientId:randomUUID(),attachmentIds:[collected.id]});
+ await recipient.request('/api/messages/'+active.id);
+ await owner.request('/api/messages/'+active.id+'/recall','POST');
+ for(const c of [owner,recipient,observer])await c.request('/api/submission-requests/'+active.id,'GET',undefined,404);
+ await recipient.request('/api/attachments/'+collected.id+'/download','GET',undefined,404);
+ assert.equal((await recipient.request('/api/todos')).find(t=>t.id===task.id).status,'open');
+ const activityDb=new DatabaseSync(path.join(data,'school.db'));assert.equal(activityDb.prepare('SELECT Closed FROM SubmissionRequests WHERE MessageId=?').get(active.id).Closed,1);assert.equal(activityDb.prepare('SELECT COUNT(*) n FROM Submissions WHERE RequestId=?').get(active.id).n,1);activityDb.close();
+ check('remaining unread recipient still allows recall after task confirmation/submission; registered tasks persist and collection access closes');
  const request=await send({submissionDeadline:Date.now()+3*86400000});
  const firstFile=await recipient.upload('초안.txt','회수할 초안');const firstPacket={clientId:randomUUID(),attachmentIds:[firstFile.id]};const first=await recipient.request('/api/submission-requests/'+request.id+'/submit','POST',firstPacket);
  const secondFile=await recipient.upload('수정.txt','회수할 수정본');const second=await recipient.request('/api/submission-requests/'+request.id+'/submit','POST',{clientId:randomUUID(),attachmentIds:[secondFile.id]});

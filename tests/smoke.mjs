@@ -17,7 +17,7 @@ const dotnet = existsSync(localDotnet) ? localDotnet : process.env.DOTNET_ROOT ?
 const serverDll = path.join(root, 'src/SchoolMessenger.Server/bin/Debug/net10.0/SchoolMessenger.Server.dll');
 const packaged = process.argv.includes('--package');
 const skipNativeInput = process.argv.includes('--skip-native-input');
-const packageRoot = path.join(root, 'artifacts/여양고-교무메신저');
+const packageRoot = process.env.YY_PACKAGE_ROOT ?? path.join(root, 'artifacts/여양고-교무메신저');
 const data = path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'), randomUUID());
 const password = 'Test-' + randomUUID();
 mkdirSync(path.join(root, 'artifacts'), { recursive: true });

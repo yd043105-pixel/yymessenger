@@ -63,8 +63,8 @@ public partial class MailboxWindow : Window
         DetailBody.Text = detail.Message.Body;
         try{main.Archive.Save(detail);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException){StatusLabel.Text="메시지는 서버에 보관됐지만 PC 암호화 사본을 저장하지 못했습니다.";}
         RecallButton.Visibility=detail.Message.SenderId==Api.Session!.User!.Id?Visibility.Visible:Visibility.Collapsed;
-        RecallButton.IsEnabled=detail.Recipients.All(r=>r.ReadAt is null);
-        RecallButton.ToolTip="수신자 중 아무도 읽지 않았을 때만 회수할 수 있습니다.";
+        RecallButton.IsEnabled=detail.Recipients.Any(r=>r.ReadAt is null);
+        RecallButton.ToolTip="안 읽은 수신자가 한 명 이상 남아 있으면 회수할 수 있습니다.";
         SubmissionButton.Visibility = detail.SubmissionRequest ? Visibility.Visible : Visibility.Collapsed;
         var index = messages.ToList().FindIndex(m => m.Id == id);
         if (index >= 0)
@@ -111,8 +111,22 @@ public partial class MailboxWindow : Window
     {
         if(Api is null||detail is null)return;
         var id=detail.Message.Id;
-        if(MessageBox.Show(this,"아무도 읽지 않은 메시지를 회수할까요? 수신자 메시지함과 첨부파일에서 제거됩니다.","메시지 회수",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;
+        var prompt="메시지를 회수할까요? 읽은 사람을 포함한 전체 수신자의 메시지함과 첨부 접근에서 제거됩니다. 이미 저장한 사본은 회수할 수 없습니다.";
+        if(detail.SubmissionRequest)prompt+="\n연결된 파일 제출 요청도 종료됩니다.";
+        if(MessageBox.Show(this,prompt,"메시지 회수",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;
         await Run(async()=>{await Api.Send<JsonElement>(HttpMethod.Post,$"api/messages/{id}/recall");main.Archive.Remove(id);detail=null;DetailBody.Text="";DetailPanel.Visibility=Visibility.Collapsed;EmptyHint.Visibility=Visibility.Visible;await Refresh();StatusLabel.Text="메시지를 회수했습니다.";});
+    }
+    internal async Task VerifyRecallState()
+    {
+        var me=Api!.Session!.User!.Id;
+        var other=(await Api.Get<UserInfo[]>("api/admin/users")).First(u=>u.Active&&u.Id!=me);
+        var saved=await Api.Send<JsonElement>(HttpMethod.Post,"api/messages",new{clientId=Guid.NewGuid().ToString(),title="회수 버튼 상태 검증",body="가상 읽음 상태 검사",recipientIds=new[]{me,other.Id},attachmentIds=Array.Empty<string>(),all=false});
+        var id=saved.GetProperty("id").GetString()!;
+        await OpenDetail(id);
+        if(!RecallButton.IsEnabled||detail!.Recipients.Count(r=>r.ReadAt is not null)!=1)throw new InvalidOperationException("일부 읽음 상태에서 회수 버튼이 활성화되지 않았습니다.");
+        using var reader=new Api(Api.Address.AbsoluteUri);await reader.Login(other.Username,Environment.GetEnvironmentVariable("SCHOOL_UI_PASSWORD")!);
+        await reader.Get<Detail>("api/messages/"+id);await OpenDetail(id);
+        if(RecallButton.IsEnabled)throw new InvalidOperationException("모두 읽은 상태에서 회수 버튼이 활성화되었습니다.");
     }
     void OpenSubmission(object sender, RoutedEventArgs e) { if (detail is not null) new WorkWindow(main, detail.SubmissionRequestId ?? detail.Message.Id).Show(); }
     async void Download(object sender, RoutedEventArgs e)

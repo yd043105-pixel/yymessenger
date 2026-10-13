@@ -464,6 +464,7 @@ public partial class MainWindow : Window
             for (var i = 0; i < 100 && compose.IsVisible; i++) await Task.Delay(100);
             if (compose.IsVisible) throw new InvalidOperationException("작성 창 전송 실패: " + compose.Feedback.Text);
             if (!(await Api.Get<MessageItem[]>("api/messages?box=sent")).Any(m => m.Title == "Windows 앱 전송 검증")) throw new InvalidOperationException("전송 기록 없음");
+            var recallCheck=OpenMailbox("sent");await recallCheck.VerifyRecallState();recallCheck.Close();
             var registration = new RegistrationWindow(ServerAddress.Text) { Owner = this }; registration.Show();
             await registration.PolicyReady;
             foreach(var choice in registration.PolicyChoices.Values){choice.IsEnabled=true;choice.IsChecked=true;}
