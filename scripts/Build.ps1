@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$SkipTests,
     [switch]$HeadlessTests,
     [ValidatePattern('^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$')][string]$Version
