@@ -73,6 +73,7 @@ jobs:
       - name: Build iOS simulator app
         env:
           IOS_VERIFICATION: 'true'
+          YY_SCHOOL_APP: Combined
         run: bash scripts/Build-iOS.sh simulator
       - name: Build synthetic school and announcement services
         run: |
