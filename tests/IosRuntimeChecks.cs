@@ -106,7 +106,7 @@ internal static class IosRuntimeChecks
                 await Tap("시간표 · 내 수업 / 학급");await Wait(()=>CurrentPage.Title=="우리 학급 시간표");
                 Controls.OfType<DatePicker>().Single().Date=DateTime.ParseExact(fixture.GetProperty("timetableDate").GetString()!,"yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture);
                 await Tap("선택한 날짜 보기");await Wait(()=>Has("가상 영어"));
-                Check(Has("변경 전: 가상 수학")&&Has("2교시 · 수업 없음")&&Has("일자별 시간표 적용"),"native iOS displays dated replacement, previous lesson and explicitly empty period");
+                Check(Has("변경 전: 가상 수학")&&Has("2교시 · 10:00–10:50 · 수업 없음")&&Has("일자별 시간표 적용"),"native iOS displays dated replacement, previous lesson, exact school bell time and explicitly empty period");
                 Controls.OfType<DatePicker>().Single().Date=new DateTime(2026,10,15);await Tap("선택한 날짜 보기");await Wait(()=>Has("기초시간표 적용"));
                 Check(Has("가상 수학")&&Has("가상 국어"),"native iOS falls back to baseline when no dated workbook exists");
                 Controls.OfType<Picker>().Single().SelectedIndex=1;await Tap("선택한 날짜 보기");await Wait(()=>Has("아직 시간표가 등록되지 않은 학급이 있습니다."));
