@@ -22,6 +22,7 @@ public static class GraduationErasure
         {
             Execute("StudentCodes","INSERT OR IGNORE INTO RetiredStudentCodes SELECT Hash FROM StudentCodes WHERE StudentId=$id",id);
             foreach(var (table,predicate) in new[]{
+                ("CounselingBookings","StudentId=$id OR RequesterId=$id"),
                 ("Targets","UserId=$id OR StudentId=$id"),("NoticeSectionMembers","StudentId=$id"),
                 ("SectionMembers","StudentId=$id"),("Families","ParentId=$id OR StudentId=$id"),
                 ("GuardianRequests","ParentId=$id OR StudentId=$id"),("Invites","PersonId=$id"),

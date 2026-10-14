@@ -115,6 +115,9 @@ public sealed partial class MessengerPage
             var daily=new VerticalStackLayout{Spacing=3};var day=Text(today.ToString("M월 d일 dddd",CultureInfo.GetCultureInfo("ko-KR")),12);day.TextColor=Blue;daily.Add(day);
             var timetable=MakeAction("시간표 · 내 수업 / 학급",()=>Timetable());timetable.BackgroundColor=Colors.Transparent;timetable.TextColor=Navy;timetable.FontSize=17;timetable.FontAttributes=FontAttributes.Bold;timetable.HorizontalOptions=LayoutOptions.Fill;timetable.Padding=new Thickness(0,4);daily.Add(timetable);
             var timetableCard=Card(daily,18);timetableCard.Background=new LinearGradientBrush{StartPoint=new Point(0,0),EndPoint=new Point(1,1),GradientStops={new GradientStop(Color.FromArgb("#FCFFFFFF"),0),new GradientStop(Pale,1)}};body.Add(timetableCard);
+            var counseling=new VerticalStackLayout{Spacing=4};counseling.Add(Text(source.Office||role=="teacher"?"상담 시간과 신청 현황":"선생님과 만나는 시간",16,true));
+            counseling.Add(Text(source.Office||role=="teacher"?"담당 학급의 예약일·시간을 열고 확인하세요.":"열린 시간을 선택해 신청하고 내 예약을 확인하세요.",12));
+            counseling.Add(MakeAction(source.Office||role=="teacher"?"상담 예약 관리":"상담 예약 신청 · 내 예약",Counseling,true));body.Add(Card(counseling));
             if(source.Office)
             {
                 var shortcuts=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Star)},ColumnSpacing=12};

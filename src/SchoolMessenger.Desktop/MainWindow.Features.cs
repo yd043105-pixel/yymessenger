@@ -20,6 +20,7 @@ public partial class MainWindow
     void OpenWorkClick(object sender, RoutedEventArgs e) { if (Api is not null) new WorkWindow(this).Show(); }
     void OpenAnnouncementClick(object sender, RoutedEventArgs e) { if (Api is not null) new AnnouncementWindow(this).Show(); }
     void OpenTimetableClick(object sender,RoutedEventArgs e){if(Api is not null)new TimetableWindow(this).Show();}
+    void OpenCounselingClick(object sender,RoutedEventArgs e){if(Api is not null)new CounselingWindow(this).Show();}
     void OpenChat(string[]? ids = null)
     {
         if (Api is null) return;

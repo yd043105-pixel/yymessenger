@@ -161,5 +161,8 @@ internal record MobileEmpty;
 [JsonSerializable(typeof(OfficeRoomRequest))]
 [JsonSerializable(typeof(OfficeBookingRequest))]
 [JsonSerializable(typeof(OfficeRevision))]
+[JsonSerializable(typeof(CounselingOpen))]
+[JsonSerializable(typeof(CounselingReserve))]
+[JsonSerializable(typeof(CounselingView))]
 [JsonSerializable(typeof(JsonElement))]
 internal partial class MobileJson:JsonSerializerContext;

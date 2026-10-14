@@ -8,7 +8,7 @@ using SchoolMessenger.Shared;
 
 namespace SchoolMessenger.Server;
 
-public sealed class ExternalAnnouncements : BackgroundService
+public sealed partial class ExternalAnnouncements : BackgroundService
 {
     readonly Store store;
     readonly IConfiguration config;
@@ -59,6 +59,7 @@ public sealed class ExternalAnnouncements : BackgroundService
     List<LocalFile> JobFiles(string id)=>store.Query("SELECT Id,Name,Size,RemoteId,UploadedAt,ExpiresAt FROM ExternalFiles WHERE JobId=$job AND DeletedAt IS NULL",r=>new LocalFile(r.GetString(0),r.GetString(1),r.GetInt64(2),r.IsDBNull(3)?null:r.GetString(3),r.GetInt64(4),r.IsDBNull(5)?null:r.GetInt64(5)),("$job",id));
     public static void Map(WebApplication app,ExternalAnnouncements service)
     {
+        MapCounseling(app,service);
         var api=app.MapGroup("/api/external-announcements").RequireAuthorization();
         api.MapGet("/setup",(HttpContext c)=>
         {

@@ -13,6 +13,7 @@ public sealed class PortalMaintenance(PortalStore store,IConfiguration config,IH
     void CleanupCore()
     {
         var now=PortalSecurity.Now;
+        PortalCounseling.Cleanup(store);
         var expired=store.Query("SELECT Id FROM Files WHERE DeletedAt IS NULL AND (ExpiresAt<=$now OR NoticeId IS NULL AND UploadedAt<=$cutoff)",r=>r.GetString(0),("$now",now),("$cutoff",now-86_400_000));
         var failed=false;
         foreach(var id in expired){try{File.Delete(Path.Combine(store.Files,id));store.Execute("UPDATE Files SET DeletedAt=$now WHERE Id=$id",("$now",now),("$id",id));using var verified=store.Open();StoredFiles.State(verified,"portal",id,"expired");}catch(IOException){failed=true;}catch(UnauthorizedAccessException){failed=true;}}

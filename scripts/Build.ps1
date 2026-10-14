@@ -24,6 +24,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "$project 빌드 실패" }
     }
     if (-not $SkipTests) {
+        node tests\counseling.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Counseling integration verification failed' }
         node tests\server-resources.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Server resource control verification failed' }
         if (-not $HeadlessTests) {
@@ -81,6 +83,7 @@ try {
     Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-operations.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\home-letter-images.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\counseling-integration.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\family-registration.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\teacher-office-operations.md','docs\teacher-office-review-2026-10-13.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\registration-policy-operations.md','docs\app-operation-guide.md','docs\committee-readiness.md' -Destination $packageDocs

@@ -52,6 +52,7 @@ builder.Services.AddRateLimiter(o=>
     o.AddPolicy("login",c=>RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString()??"local",_=>new FixedWindowRateLimiterOptions{PermitLimit=Math.Clamp(builder.Configuration.GetValue("Portal:LoginLimitPerMinute",120),20,300),Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
     o.AddPolicy("upload",_=>RateLimitPartition.GetConcurrencyLimiter("uploads",_=>new ConcurrencyLimiterOptions{PermitLimit=4,QueueLimit=0}));
     o.AddPolicy("family-code",c=>RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString()??"local",_=>new FixedWindowRateLimiterOptions{PermitLimit=100,Window=TimeSpan.FromMinutes(15),QueueLimit=0}));
+    o.AddPolicy("counseling",c=>RateLimitPartition.GetFixedWindowLimiter(c.User.FindFirstValue(ClaimTypes.NameIdentifier)??c.Request.Query["teacherId"].ToString()+":"+c.Connection.RemoteIpAddress,_=>new FixedWindowRateLimiterOptions{PermitLimit=120,Window=TimeSpan.FromMinutes(1),QueueLimit=0}));
 });
 var app=builder.Build();
 var hasher=app.Services.GetRequiredService<PasswordHasher<Account>>();
@@ -137,6 +138,7 @@ PortalSections.Map(api,admin,app.MapGroup("/bridge"),store);
 PortalEnrollment.Map(app,api,admin,store,protection);
 PortalNotices.Map(api,app.MapGroup("/bridge"),store,app.Configuration,app.Environment);
 PortalTimetables.Map(api,app.MapGroup("/bridge"),store);
+PortalCounseling.Map(api,app.MapGroup("/bridge"),store);
 PortalGraduation.Map(admin,app.MapGroup("/bridge"),store);
 try{PortalGraduation.Run(store);}catch(Exception error){app.Logger.LogError("Graduation erasure retry required ({ErrorCode})",error.GetType().Name);}
 app.Services.GetServices<IHostedService>().OfType<PortalMaintenance>().Single().Cleanup();
