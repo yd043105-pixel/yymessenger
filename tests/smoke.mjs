@@ -212,7 +212,7 @@ try {
     }
   }
   await workChecks({ Client, admin, password, address, data, check, start, stop, ready });
-  await officeChecks({Client,admin,password,address,data,check});
+  await officeChecks({Client,admin,password,address,data,check,start,stop,ready});
   writeFileSync('artifacts/test-results.json', JSON.stringify({ verifiedAt: new Date().toISOString(), mode: packaged ? 'self-contained Windows executables' : 'development build', passed, skipped: skipNativeInput ? ['actual Windows keyboard injection: another foreground Windows dialog prevents verification-window focus'] : [], testData: data }, null, 2));
   console.log(`${passed.length} checks passed.`);
 } catch(error){writeFileSync(path.join(data,'failure-server.log'),output);throw error;} finally { await stop(); }

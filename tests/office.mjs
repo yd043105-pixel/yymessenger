@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import path from 'node:path';
 import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 
-export async function officeChecks({Client,admin,password,address,data,check}){
+export async function officeChecks({Client,admin,password,address,data,check,start,stop,ready}){
  const id=()=>randomUUID().replaceAll('-',''),personal='Personal-'+randomUUID();
  const request={loginName:'김교사.검증',name:'김교사',department:'수업부',seatIp:'192.168.20.42',temporaryPassword:password};
  const registered=await admin.request('/api/admin/staff','POST',request);assert.equal(registered.activationCode.length,20);
@@ -62,7 +62,13 @@ export async function officeChecks({Client,admin,password,address,data,check}){
  check('simultaneous overlapping requests yield exactly one booking; room shutdown blocks new bookings and audit records are retained');
  await admin.request('/api/admin/staff/'+registered.id+'/seat','POST',{seatIp:'192.168.20.43'});assert.equal((await teacher.request('/api/session')).user.id,registered.id);
  const reset=await admin.request('/api/admin/staff/'+registered.id+'/reset','POST',request);await teacher.request('/api/messages','GET',undefined,401);
- await teacher.login(request.loginName,true);await teacher.request('/api/activate','POST',{code:registered.activationCode,newPassword:personal,agreement},400);
+ await teacher.login(request.loginName,true);
+ await teacher.request('/api/activate','POST',{code:registered.activationCode,newPassword:personal,agreement},429);
+ await teacher.request('/api/activate','POST',{code:reset.activationCode,newPassword:personal,agreement},429);
+ check('administrator reset does not bypass the account credential attempt limit');
+ // Start the separate reactivation scenario with a new in-memory limiter; DB lockout tests above remain persistent.
+ await stop();start();await ready();teacher.csrf=(await teacher.request('/api/session')).csrfToken;
+ await teacher.request('/api/activate','POST',{code:registered.activationCode,newPassword:personal,agreement},400);
  await teacher.request('/api/activate','POST',{code:reset.activationCode,newPassword:personal,agreement});await teacher.login(request.loginName,false,personal);
  const ledger=new DatabaseSync(path.join(data,'school.db'));assert.equal(ledger.prepare('SELECT COUNT(*) AS count FROM StaffActivationAgreements WHERE UserId=?').get(registered.id).count,2);ledger.close();
  check('seat reassignment preserves identity; reset revokes all sessions and old proof; repeated activation preserves separate agreement history');

@@ -3,6 +3,7 @@ import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { RemoteChannel } from './features.mjs';
+import { passwordSecurityChecks } from './password-security.mjs';
 
 export async function securityChecks({ Client, admin, password, address, data, check, start, stop, ready, dotnet }) {
   assert.ok(admin.loginCookieHeaders.some(c => c.includes('httponly') && c.includes('samesite=strict')));
@@ -17,6 +18,7 @@ export async function securityChecks({ Client, admin, password, address, data, c
     assert.equal(hash[0], 1); assert.equal(hash.readUInt32BE(1), 2); assert.ok(hash.readUInt32BE(5) >= 220000);
   } finally { database.close(); }
   check('stored administrator password uses salted PBKDF2-HMAC-SHA512 with at least 220000 iterations');
+  await passwordSecurityChecks({ Client, admin, password, address, data, check });
   for (const route of ['/api/users', '/hub/negotiate?negotiateVersion=1', '/remote/negotiate?negotiateVersion=1', '/hub?id=unknown'])
     await admin.request(route, route.includes('negotiate') ? 'POST' : 'GET', undefined, 403, true, { Origin: 'https://other-school.invalid' });
   await admin.request('/api/users', 'GET', undefined, 200, true, { Origin: address });

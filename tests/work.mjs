@@ -34,7 +34,9 @@ export async function workChecks({Client,admin,password,address,data,check,start
  const suggested=(await send('내일까지 신청서를 작성해주세요.',{recipientIds:[observer.user.id]})).id;
  const ranked=await observer.request('/api/todos');assert.deepEqual(ranked.slice(0,4).map(t=>t.id),ordered.slice(0,4));assert.equal(ranked[4].sourceId,suggested);assert.equal(ranked[5].id,done.id);
  const orderDb=new DatabaseSync(path.join(data,'school.db')),addOrder=orderDb.prepare("INSERT INTO Todos(Id,OwnerId,Evidence,Title,DueDate,Status,CreatedAt,UpdatedAt) VALUES(?,?,'','페이지 정렬 검증',?,'open',?,?)");
- for(let i=0;i<105;i++)addOrder.run(randomUUID().replaceAll('-',''),observer.user.id,later,now+i,now+i);orderDb.close();
+ orderDb.exec('PRAGMA busy_timeout=10000; BEGIN IMMEDIATE');
+ for(let i=0;i<105;i++)addOrder.run(randomUUID().replaceAll('-',''),observer.user.id,later,now+i,now+i);
+ orderDb.exec('COMMIT');orderDb.close();
  const pages=[...(await observer.request('/api/todos?offset=0')),...(await observer.request('/api/todos?offset=100'))];
  assert.equal(pages.length,111);assert.equal(new Set(pages.map(t=>t.id)).size,111);assert.deepEqual(pages.slice(0,3).map(t=>t.id),ordered.slice(0,3));assert.equal(pages[108].id,ordered[3]);assert.equal(pages[109].status,'suggested');assert.equal(pages[110].status,'done');
  check('confirmed work is globally ordered by deadline across pages; undated work, suggestions and completed items follow without duplicates');

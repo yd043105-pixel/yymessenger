@@ -7,7 +7,7 @@ import net from 'node:net';
 import {DatabaseSync} from 'node:sqlite';
 import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 
-const root=process.cwd(),dotnet=path.join(root,'.tools/dotnet/dotnet.exe'),fixture=path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'),'counseling-'+randomUUID());
+const root=process.cwd(),dotnet=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):process.env.DOTNET_ROOT?path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet'):'dotnet',fixture=path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'),'counseling-'+randomUUID());
 const password='Synthetic-'+randomUUID(),key='Bridge-'+randomUUID(),portalData=path.join(fixture,'portal'),officeData=path.join(fixture,'office');mkdirSync(fixture,{recursive:true});
 const delay=ms=>new Promise(r=>setTimeout(r,ms)),id=()=>randomUUID().replaceAll('-',''),passed=[];let portalProcess,officeProcess,ui,logs='';
 function check(name){passed.push(name);console.log('PASS '+name);}

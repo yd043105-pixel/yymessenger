@@ -74,8 +74,6 @@ public static class StaffAccounts
             var id=Actor(context);var user=store.GetUser(id)!;
             if(policy.Validate(request.Agreement) is{} policyError)return Error(policyError,policy.Current.CanRegister?400:503);
             if(request.NewPassword is not{Length:>=12 and <=128}||string.IsNullOrWhiteSpace(request.NewPassword))return Error("개인 비밀번호는 12~128자입니다.");
-            if(hasher.VerifyHashedPassword(user,user.PasswordHash,request.NewPassword)!=PasswordVerificationResult.Failed)return Error("임시 비밀번호와 다른 개인 비밀번호를 설정하세요.");
-            var passwordHash=hasher.HashPassword(user,request.NewPassword);
             using var db=store.Open();using var tx=db.BeginTransaction(deferred:false);
             using var read=Store.Command(db,"SELECT ActivationHash,ExpiresAt,Failures,LockedUntil FROM StaffProfiles WHERE UserId=$id AND NeedsActivation=1",tx,("$id",id));
             string codeHash;long expires,locked;int failures;
@@ -87,11 +85,14 @@ public static class StaffAccounts
                 if(locked>0)failures=0;
                 using var fail=Store.Command(db,"UPDATE StaffProfiles SET Failures=$failures,LockedUntil=$until WHERE UserId=$id",tx,("$failures",failures+1),("$until",failures+1>=5?Maintenance.Now+900_000:0),("$id",id));fail.ExecuteNonQuery();tx.Commit();return Error("개별 전달받은 활성화 번호를 확인하세요.");
             }
+            // Reject invalid/locked codes before spending CPU on PBKDF2 password work.
+            if(hasher.VerifyHashedPassword(user,user.PasswordHash,request.NewPassword)!=PasswordVerificationResult.Failed)return Error("임시 비밀번호와 다른 개인 비밀번호를 설정하세요.");
+            var passwordHash=hasher.HashPassword(user,request.NewPassword);
             using(var update=Store.Command(db,"UPDATE Users SET PasswordHash=$hash,SessionVersion=SessionVersion+1 WHERE Id=$id AND Active=1 AND SessionVersion=$version AND PasswordHash=$old",tx,("$hash",passwordHash),("$id",id),("$version",context.User.FindFirstValue("version")),("$old",user.PasswordHash)))if(update.ExecuteNonQuery()!=1)return Error("계정 상태가 변경되었습니다. 다시 로그인하세요.",409);
             using(var finish=Store.Command(db,"UPDATE StaffProfiles SET NeedsActivation=0,ActivationHash=NULL,Failures=0,LockedUntil=0 WHERE UserId=$id",tx,("$id",id)))finish.ExecuteNonQuery();
             using(var previous=Store.Command(db,"SELECT 1 FROM RegistrationAgreements WHERE SubjectId=$id AND Revision=$revision",tx,("$id",id),("$revision",request.Agreement!.Revision)))if(previous.ExecuteScalar() is null)policy.Record(db,tx,id,request.Agreement!);
             using(var agreement=Store.Command(db,"INSERT INTO StaffActivationAgreements VALUES($activation,$id,$revision,$ids,$now)",tx,("$activation",Guid.NewGuid().ToString("N")),("$id",id),("$revision",request.Agreement!.Revision),("$ids",System.Text.Json.JsonSerializer.Serialize(request.Agreement.AcceptedIds)),("$now",Maintenance.Now)))agreement.ExecuteNonQuery();
             Audit(db,tx,id,"staff.activate",id);tx.Commit();await context.SignOutAsync();return Results.Ok(new{message="초기 설정 완료. 개인 비밀번호로 다시 로그인하세요."});
-        }).RequireAuthorization().RequireRateLimiting("login");
+        }).RequireAuthorization().RequireRateLimiting("credentials");
     }
 }

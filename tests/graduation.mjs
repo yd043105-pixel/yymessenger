@@ -88,7 +88,9 @@ try{
  await until(()=>{const db=publicDb();try{return count(db,'People','Id',b.id)===0;}finally{db.close();}});
  db=publicDb();assert.equal(count(db,'People','Id',multiple.id),0);assert.ok(db.prepare('SELECT COUNT(*) n FROM PrivacyErasure WHERE PublicDone=0').get().n>0);db.close();
  check('last remaining child graduation removes parent; failed backup sanitation stays pending and cannot claim completion');
- unlinkSync(broken);await until(()=>{const db=publicDb();try{return db.prepare('SELECT COUNT(*) n FROM PrivacyErasure').get().n===0;}finally{db.close();}});
+ // Windows can briefly deny unlink while the live erasure worker has this synthetic corrupt file open.
+ await until(()=>{try{unlinkSync(broken);return true;}catch(error){if(error.code==='EBUSY'||error.code==='EPERM')return false;throw error;}});
+ await until(()=>{const db=publicDb();try{return db.prepare('SELECT COUNT(*) n FROM PrivacyErasure').get().n===0;}finally{db.close();}});
  await multiple.client.request('children','GET',undefined,401);await keep.client.request('children');
  check('failed erasure retries and completes after recovery, preserving unrelated active accounts');
 }finally{for(const child of servers.reverse())if(child.exitCode===null&&child.signalCode===null){child.kill();await new Promise(r=>child.once('exit',r));}}

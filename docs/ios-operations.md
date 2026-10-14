@@ -4,13 +4,13 @@ PC·Android와 같은 승인된 모바일 설계, 계정·권한·공지 API를 
 
 ## Mac 빌드
 
-macOS 26.2 이상과 Xcode 26.6, .NET SDK 10.0.401을 준비하고 `dotnet workload install maui-ios --version 10.0.401`로 고정된 워크로드를 설치한다. Mac에서는 iOS 대상을 기본으로 빌드하며 Android 잠금 파일과 별도의 `packages.ios.lock.json`을 사용한다. [Microsoft iOS SDK 릴리즈](https://github.com/dotnet/macios/releases/tag/dotnet-10.0.1xx-xcode26.5-10318)와 [GitHub Mac 실행 환경](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-Readme.md)을 기준으로 버전을 맞춘다.
+macOS 26.2 이상과 Xcode 26.6, .NET SDK 10.0.402를 준비하고 `dotnet workload install maui-ios --version 10.0.401`로 고정된 워크로드를 설치한다. Mac에서는 iOS 대상을 기본으로 빌드하며 Android 잠금 파일과 별도의 `packages.ios.lock.json`을 사용한다. [Microsoft iOS SDK 릴리즈](https://github.com/dotnet/macios/releases/tag/dotnet-10.0.1xx-xcode26.5-10318)와 [GitHub Mac 실행 환경](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-Readme.md)을 기준으로 버전을 맞춘다.
 
 `bash scripts/Build-iOS.sh simulator`는 Mac CPU에 맞는 시뮬레이터 앱과 `artifacts/ios/yymessenger-1.0.0-ios-simulator.zip`을 생성한다. 이 ZIP은 iPhone 설치 파일이 아니며 Mac의 iOS Simulator에서만 사용한다. Windows에서 이 스크립트로 실제 iOS 앱을 빌드했다고 표시하지 않는다.
 
 GitHub Verify의 iOS 작업은 Mac에서 네이티브 앱을 빌드하고 별도 가상 교직원·학급·보호자·공지 서버와 새 iPhone 시뮬레이터를 사용한다. 검사 전용 코드는 `IosVerification=true`인 Debug 빌드에만 포함하며 Release·일반 앱에는 포함하지 않는다. 결과 JSON과 시뮬레이터 화면을 Actions artifact에 저장한다. 비밀번호·세션·가상 서버 DB·연결 키는 artifact에 포함하지 않는다.
 
-최종 Mac 실행 검사 14개와 Release 번들 검사가 통과했다. 실제 기기 시험과의 차이, 사용한 버전과 실행 링크는 [iOS 시운행 기록](ios-verification.md)에 있다.
+2026-10-08 당시 소스의 Mac 실행 검사 14개와 Release 번들 검사가 통과했다. 최신 변경 전체의 실기기 검증 결과는 아니다. 실제 기기 시험과의 차이, 사용한 버전과 실행 링크는 [iOS 시운행 기록](ios-verification.md)에 있다.
 
 ## 로그인·화면 보호
 

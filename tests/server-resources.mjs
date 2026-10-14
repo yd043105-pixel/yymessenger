@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
-import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
+import {existsSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 import {bridgeFetch} from './bridge-client.mjs';
 const root=process.cwd(),fixture=path.resolve(process.env.YY_TEST_DATA_ROOT??'.test-data','server-resources-'+randomUUID());mkdirSync(fixture,{recursive:true});
+const dotnet=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):process.env.DOTNET_ROOT?path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet'):'dotnet';
 const id=()=>randomUUID().replaceAll('-',''),password='Synthetic-'+randomUUID(),passed=[],delay=ms=>new Promise(r=>setTimeout(r,ms));
 const check=text=>{passed.push(text);console.log('PASS '+text);};
 async function address(){const s=net.createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const url='http://127.0.0.1:'+s.address().port;await new Promise(r=>s.close(r));return url;}
@@ -19,7 +20,7 @@ class Client{
 for(const role of ['Server','AnnouncementServer']){
  const portal=role==='AnnouncementServer',prefix=portal?'Portal':'School',data=path.join(fixture,role),base=await address();let child,logs='';
  const env={...process.env,ASPNETCORE_ENVIRONMENT:'Development',[prefix+'__DataDirectory']:data,[prefix+'__AdminPassword']:password,Portal__BridgeKey:'Synthetic-'+randomUUID(),Announcements__Address:'',Operations__ResourceProfile:'balanced'};
- async function start(){logs='';child=spawn(path.join(root,'.tools/dotnet/dotnet.exe'),[path.join(root,'src/SchoolMessenger.'+role+'/bin/Debug/net10.0/SchoolMessenger.'+role+'.dll'),'--urls',base],{env,windowsHide:true});child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);for(let n=0;n<100;n++){if(child.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok)return;}catch{}await delay(100);}throw Error('Startup timeout '+logs);}
+ async function start(){logs='';child=spawn(dotnet,[path.join(root,'src/SchoolMessenger.'+role+'/bin/Debug/net10.0/SchoolMessenger.'+role+'.dll'),'--urls',base],{env,windowsHide:true});child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);for(let n=0;n<100;n++){if(child.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok)return;}catch{}await delay(100);}throw Error('Startup timeout '+logs);}
  async function stop(){if(child?.exitCode===null){child.kill();await new Promise(r=>child.once('exit',r));}}
  try{
   await start();const admin=await new Client(base).login('admin'),guest=new Client(base);await guest.req('admin/server-resources','GET',undefined,401);

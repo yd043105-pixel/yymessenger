@@ -77,6 +77,8 @@ builder.Services.AddRateLimiter(o =>
             new FixedWindowRateLimiterOptions { PermitLimit = 600, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     o.AddPolicy("login", c => RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString() ?? "local", _ =>
         new FixedWindowRateLimiterOptions { PermitLimit = Math.Clamp(builder.Configuration.GetValue("School:LoginLimitPerMinute",120),20,300), Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    o.AddPolicy("credentials", c => RateLimitPartition.GetFixedWindowLimiter(c.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? c.Connection.RemoteIpAddress?.ToString() ?? "local", _ =>
+        new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
     o.AddPolicy("upload", _ => RateLimitPartition.GetConcurrencyLimiter("uploads", _ => new ConcurrencyLimiterOptions { PermitLimit = 4, QueueLimit = 0 }));
     o.AddPolicy("zip", _ => RateLimitPartition.GetConcurrencyLimiter("zip", _ => new ConcurrencyLimiterOptions { PermitLimit = 2, QueueLimit = 0 }));
 });
@@ -251,10 +253,14 @@ app.MapPost("/api/password", async Task<IResult> (PasswordChange request, HttpCo
         return Error("새 비밀번호는 12~128자입니다.");
     if (hasher.VerifyHashedPassword(user, user.PasswordHash, request.CurrentPassword) == PasswordVerificationResult.Failed)
         return Error("현재 비밀번호가 일치하지 않습니다.");
-    store.Execute("UPDATE Users SET PasswordHash=$hash,SessionVersion=SessionVersion+1 WHERE Id=$id", ("$hash", hasher.HashPassword(user, request.NewPassword!)), ("$id", user.Id));
+    // A reset, deactivation or other password change may finish during password verification.
+    // Never let that earlier request overwrite the newer account state.
+    var changed = store.Execute("UPDATE Users SET PasswordHash=$hash,SessionVersion=SessionVersion+1 WHERE Id=$id AND Active=1 AND SessionVersion=$version AND PasswordHash=$old",
+        ("$hash", hasher.HashPassword(user, request.NewPassword!)), ("$id", user.Id), ("$version", c.User.FindFirstValue("version")), ("$old", user.PasswordHash));
+    if (changed != 1) return Error("계정 상태가 변경되었습니다. 다시 로그인하세요.", 409);
     await c.SignOutAsync();
     return Results.Ok();
-}).RequireAuthorization();
+}).RequireAuthorization().RequireRateLimiting("credentials");
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapGet("/users", (Presence presence) => store.Users().Where(u => u.Active).Select(u => new
 { u.Id, u.Name, u.Department,u.Position, online = presence.Online(u.Id) }));

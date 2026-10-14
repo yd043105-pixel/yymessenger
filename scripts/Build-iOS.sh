@@ -7,7 +7,7 @@ if [[ "$(uname -s)" != Darwin ]]; then
 fi
 project=src/SchoolMessenger.Mobile/SchoolMessenger.Mobile.csproj
 mode=${1:-simulator}
-school_app=${YY_SCHOOL_APP:-Combined}
+school_app=${YY_SCHOOL_APP:-Family}
 [[ "$school_app" == Combined || "$school_app" == Teacher || "$school_app" == Family ]] || { echo 'YY_SCHOOL_APP must be Teacher, Family or Combined.' >&2; exit 1; }
 version=$(python3 -c 'import json; print(json.load(open("src/SchoolMessenger.Shared/updates.json"))["version"])')
 common_version=$(python3 -c 'import xml.etree.ElementTree as e; print(e.parse("Directory.Build.props").findtext("./PropertyGroup/Version"))')

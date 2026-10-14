@@ -82,6 +82,7 @@ try {
     Copy-Item -LiteralPath 'docs\server-setup-school-tunnel.md','docs\server-administration.md','docs\server-administration-verification-2026-10-14.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-operations.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\platform-deployment-guide.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\home-letter-images.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\counseling-integration.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\school-day-and-administration.md' -Destination $packageDocs
