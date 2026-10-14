@@ -52,7 +52,7 @@ try{
  assert.equal((await admin.request('admin/graduations')).scheduled.length,0);await admin.request('admin/graduations','POST',due);
  check('graduation schedule can be cancelled before its time');
  let db=publicDb();const originalNames=db.prepare('SELECT Id,Name FROM People WHERE Id IN (?,?)').all(a.id,single.id);const administrator=db.prepare("SELECT Id FROM People WHERE Role='admin'").get().Id;
- const notice=uuid();db.prepare("INSERT INTO Notices VALUES(?,?,?,'synthetic','Synthetic notice','No personal names','both',?,0)").run(notice,administrator,uuid(),Date.now());
+ const notice=uuid();db.prepare("INSERT INTO Notices(Id,SenderId,ClientId,Fingerprint,Title,Body,Audience,PublishedAt,Withdrawn) VALUES(?,?,?,'synthetic','Synthetic notice','No personal names','both',?,0)").run(notice,administrator,uuid(),Date.now());
  for(const [user,child] of [[a.id,a.id],[single.id,a.id],[multiple.id,a.id],[b.id,b.id],[multiple.id,b.id],[keep.id,keep.id]])db.prepare('INSERT INTO Targets VALUES(?,?,?,?,NULL,0)').run(notice,user,child,room);
  const section=uuid();db.prepare("INSERT INTO Sections VALUES(?,'Synthetic section','Synthetic term',1)").run(section);db.prepare('INSERT INTO SectionMembers VALUES(?,?,?)').run(section,a.id,uuid());db.prepare('INSERT INTO NoticeSectionMembers VALUES(?,?,?,?)').run(notice,section,a.id,uuid());
  const portalBackups=backup(db,portalData);db.close();

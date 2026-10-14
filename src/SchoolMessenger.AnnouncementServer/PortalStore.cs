@@ -48,6 +48,7 @@ public sealed class PortalStore : IDisposable
             """);
         if(!Query("PRAGMA table_info(People)",r=>r.GetString(1)).Contains("ScopeVersion"))Execute("ALTER TABLE People ADD COLUMN ScopeVersion INTEGER NOT NULL DEFAULT 1");
         if(!Query("PRAGMA table_info(Families)",r=>r.GetString(1)).Contains("Stamp"))Execute("ALTER TABLE Families ADD COLUMN Stamp TEXT NOT NULL DEFAULT ''");
+        if(!Query("PRAGMA table_info(Notices)",r=>r.GetString(1)).Contains("Kind"))Execute("ALTER TABLE Notices ADD COLUMN Kind TEXT NOT NULL DEFAULT 'notice' CHECK(Kind IN ('notice','home-letter'))");
         Execute("UPDATE Families SET Stamp=lower(hex(randomblob(16))) WHERE Stamp=''");
     }
     public SqliteConnection Open()

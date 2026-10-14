@@ -11,6 +11,7 @@
     <Compile Include="../SchoolMessenger.Contracts/Office.cs" Link="Contracts/Office.cs" />
     <Compile Include="../SchoolMessenger.Contracts/RegistrationPolicies.cs" Link="Contracts/RegistrationPolicies.cs" />
     <Compile Include="../SchoolMessenger.Shared/ReleaseNotice.cs" Link="ReleaseNotice.cs" />
+    <Compile Include="../SchoolMessenger.Shared/FilePolicy.cs" Link="FilePolicy.cs" />
     <EmbeddedResource Include="../SchoolMessenger.Shared/updates.json" LogicalName="SchoolMessenger.UpdateNotes.json" />
   </ItemGroup>
 </Project>

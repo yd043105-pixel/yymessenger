@@ -74,6 +74,7 @@ try {
     Copy-Item -LiteralPath 'docs\server-setup-school-tunnel.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-operations.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\home-letter-images.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\family-registration.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\teacher-office-operations.md','docs\teacher-office-review-2026-10-13.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\registration-policy-operations.md','docs\app-operation-guide.md','docs\committee-readiness.md' -Destination $packageDocs

@@ -9,7 +9,7 @@ public record SectionRequest(string Name,string Term,string[] TeacherIds,string[
 public record PortalDirectory(PortalClass[] Classes, DirectoryPerson[] People,PortalSection[]? Sections=null,PortalHomeroom[]? Homerooms=null);
 public record TeacherProof(string Id, bool Active, bool CanBroadcast);
 public record BridgeHeartbeat(TeacherProof[] Teachers);
-public record AnnouncementRequest(string ClientId, string Title, string Body, string Audience, string[] ClassIds, bool All, string[] AttachmentIds,string[]? SectionIds=null);
+public record AnnouncementRequest(string ClientId, string Title, string Body, string Audience, string[] ClassIds, bool All, string[] AttachmentIds,string[]? SectionIds=null,string Kind="notice");
 public record AnnouncementTarget(string UserId, string StudentId, string ClassId, string Scope="");
 public static class AnnouncementScopes
 {
@@ -38,7 +38,7 @@ public static class AnnouncementAudience
 }
 public record BridgeAnnouncement(string TeacherId, AnnouncementRequest Request, AnnouncementTarget[] Targets);
 public record PortalFile(string Id, string Name, long Size, long? ExpiresAt = null, bool Expired = false);
-public record PortalNotice(string Id, string Title, string Body, string SenderName, long PublishedAt, long? ReadAt, bool Withdrawn, int RecipientCount, int ReadCount);
+public record PortalNotice(string Id, string Title, string Body, string SenderName, long PublishedAt, long? ReadAt, bool Withdrawn, int RecipientCount, int ReadCount,string Kind="notice");
 public record PortalReceipt(string UserId, string Name, string StudentName, long? ReadAt, bool Revoked, string ClassId,string? StudentId=null);
 public record PortalNoticeDetail(PortalNotice Notice, PortalFile[] Attachments, PortalReceipt[]? Receipts);
 public record PortalUser(string Id, string Name, string Role, bool CanBroadcast, string[] Classes, string Membership="regular");

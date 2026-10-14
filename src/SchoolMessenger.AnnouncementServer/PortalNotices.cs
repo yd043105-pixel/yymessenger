@@ -15,7 +15,7 @@ public static class PortalNotices
     }
     public static string? Invalid(AnnouncementRequest r)
     {
-        if(!Guid.TryParseExact(r.ClientId,"N",out _)||string.IsNullOrWhiteSpace(r.Title)||r.Title.Length>200||string.IsNullOrWhiteSpace(r.Body)||r.Body.Length>10000||r.Audience is not("students"or"parents"or"both"))return "제목·내용·수신 대상을 확인하세요.";
+        if(!Guid.TryParseExact(r.ClientId,"N",out _)||string.IsNullOrWhiteSpace(r.Title)||r.Title.Length>200||string.IsNullOrWhiteSpace(r.Body)||r.Body.Length>10000||r.Audience is not("students"or"parents"or"both")||r.Kind is not("notice"or"home-letter"))return "제목·내용·수신 대상·공지 유형을 확인하세요.";
         if(r.ClassIds is null||r.ClassIds.Length>100||r.ClassIds.Any(id=>!Guid.TryParseExact(id,"N",out _))||r.SectionIds?.Length>100||r.SectionIds?.Any(id=>!Guid.TryParseExact(id,"N",out _))==true||!r.All&&r.ClassIds.Length==0&&(r.SectionIds?.Length??0)==0||r.All&&(r.ClassIds.Length>0||(r.SectionIds?.Length??0)>0))return "학급·분반 또는 전체 학교 중 하나를 선택하세요.";
         if(r.AttachmentIds is null||r.AttachmentIds.Length>10||r.AttachmentIds.Any(id=>!Guid.TryParseExact(id,"N",out _))||r.AttachmentIds.Distinct().Count()!=r.AttachmentIds.Length)return "첨부파일은 최대 10개이며 같은 파일을 중복할 수 없습니다.";
         return null;
@@ -64,15 +64,24 @@ public static class PortalNotices
         bridge.MapGet("/announcements/{id}",(string id,string teacherId)=>Detail(store,id,teacherId));
         api.MapPost("/attachments",async Task<IResult>(HttpContext c)=>await Upload(store,Id(c),c,config,environment)).RequireRateLimiting("upload");
         bridge.MapPost("/attachments",(string teacherId,long? expiresAt,HttpContext c)=>Upload(store,teacherId,c,config,environment,expiresAt)).RequireRateLimiting("upload");
-        api.MapGet("/attachments/{id}/download",(string id,HttpContext c)=>
+        IResult FileContent(string id,HttpContext c,bool inline)
         {
             if(!Guid.TryParseExact(id,"N",out _))return Results.NotFound();
-            var file=store.Query("SELECT Name,NoticeId,ExpiresAt,DeletedAt FROM Files WHERE Id=$id",r=>new{name=r.GetString(0),notice=PortalStore.Text(r,1),expires=r.IsDBNull(2)?0:r.GetInt64(2),deleted=!r.IsDBNull(3)},("$id",id)).FirstOrDefault();
+            var file=store.Query("SELECT f.Name,f.NoticeId,f.ExpiresAt,f.DeletedAt,n.Kind FROM Files f LEFT JOIN Notices n ON n.Id=f.NoticeId WHERE f.Id=$id",r=>new{name=r.GetString(0),notice=PortalStore.Text(r,1),expires=r.IsDBNull(2)?0:r.GetInt64(2),deleted=!r.IsDBNull(3),kind=PortalStore.Text(r,4)},("$id",id)).FirstOrDefault();
             if(file?.notice is null||!CanRead(store,file.notice,Id(c),false))return Results.NotFound();
+            if(inline!=(file.kind=="home-letter"))return Results.NotFound();
             using var verified=store.Open();
             if(file.deleted||file.expires<=Now||!StoredFiles.Ready(verified,"portal",id,Path.Combine(store.Files,id)))return Error("공지 첨부의 30일 보관 기간이 만료되었거나 파일이 없습니다.",410);
+            if(inline)
+            {
+                try{FilePolicy.NoticeImage(Path.Combine(store.Files,id),file.name);}catch(FilePolicyException){return Error("가정통신문 이미지를 표시할 수 없습니다.",422);}
+                c.Response.Headers.ContentDisposition="inline";c.Response.Headers.CacheControl="no-store";c.Response.Headers.XContentTypeOptions="nosniff";
+                return Results.File(Path.Combine(store.Files,id),FilePolicy.NoticeImageType(file.name),enableRangeProcessing:false);
+            }
             return Results.File(Path.Combine(store.Files,id),"application/octet-stream",file.name,enableRangeProcessing:false);
-        });
+        }
+        api.MapGet("/attachments/{id}/download",(string id,HttpContext c)=>FileContent(id,c,false));
+        api.MapGet("/attachments/{id}/view",(string id,HttpContext c)=>FileContent(id,c,true));
     }
     public static IResult Publish(PortalStore store,string teacherId,AnnouncementRequest request,AnnouncementTarget[]? captured,IConfiguration config,IHostEnvironment environment)
     {
@@ -86,7 +95,7 @@ public static class PortalNotices
         try{valid=Audience(directory,publisher,request);}catch(FilePolicyException error){return Error(error.Message,error.Status);}
         var targets=(captured??valid).Distinct().OrderBy(t=>t.UserId,StringComparer.Ordinal).ThenBy(t=>t.StudentId,StringComparer.Ordinal).ToArray();
         if(targets.Length==0||targets.Any(t=>!valid.Contains(t)))return Error("발송 대상 또는 보호자 관계가 변경되었습니다. 대상을 확인하고 새 공지로 보내세요.",409);
-        var fingerprint=Hash(JsonSerializer.Serialize(new{title=request.Title.Trim(),request.Body,request.Audience,classes=request.ClassIds.Order(StringComparer.Ordinal).ToArray(),sections=(request.SectionIds??[]).Order(StringComparer.Ordinal).ToArray(),request.All,files=request.AttachmentIds.Order(StringComparer.Ordinal).ToArray(),targets}));
+        var fingerprint=Hash((request.Kind=="home-letter"?"home-letter:":"")+JsonSerializer.Serialize(new{title=request.Title.Trim(),request.Body,request.Audience,classes=request.ClassIds.Order(StringComparer.Ordinal).ToArray(),sections=(request.SectionIds??[]).Order(StringComparer.Ordinal).ToArray(),request.All,files=request.AttachmentIds.Order(StringComparer.Ordinal).ToArray(),targets}));
         using(var previous=PortalStore.Command(db,"SELECT Id,Fingerprint FROM Notices WHERE SenderId=$sender AND ClientId=$client",tx,("$sender",teacherId),("$client",request.ClientId)))
         using(var r=previous.ExecuteReader()){if(r.Read())return r.GetString(1)==fingerprint?Results.Ok(new{id=r.GetString(0),duplicate=true}):Error("같은 요청 번호의 내용을 변경할 수 없습니다.",409);}
         long total=0;
@@ -94,10 +103,15 @@ public static class PortalNotices
         {
             using var file=PortalStore.Command(db,"SELECT Size FROM Files WHERE Id=$id AND OwnerId=$owner AND NoticeId IS NULL AND DeletedAt IS NULL AND UploadedAt>$cutoff",tx,("$id",fileId),("$owner",teacherId),("$cutoff",Now-86_400_000));
             var size=file.ExecuteScalar();if(size is null||!File.Exists(Path.Combine(store.Files,fileId)))return Error("공지 전용 첨부파일을 다시 확인하세요.",409);total+=Convert.ToInt64(size);
+            if(request.Kind=="home-letter")
+            {
+                using var filename=PortalStore.Command(db,"SELECT Name FROM Files WHERE Id=$id",tx,("$id",fileId));var name=(string)filename.ExecuteScalar()!;
+                try{FilePolicy.NoticeImageName(name,Convert.ToInt64(size));FilePolicy.NoticeImage(Path.Combine(store.Files,fileId),name);}catch(FilePolicyException e){return Error(e.Message,e.Status);}
+            }
         }
         if(total>FilePolicy.MaxTotal)return Error("공지 첨부 합계는 200MB까지입니다.",413);
         var id=Guid.NewGuid().ToString("N");var now=Now;
-        using(var add=PortalStore.Command(db,"INSERT INTO Notices VALUES($id,$sender,$client,$hash,$title,$body,$audience,$now,0)",tx,("$id",id),("$sender",teacherId),("$client",request.ClientId),("$hash",fingerprint),("$title",request.Title.Trim()),("$body",request.Body),("$audience",request.Audience),("$now",now)))add.ExecuteNonQuery();
+        using(var add=PortalStore.Command(db,"INSERT INTO Notices(Id,SenderId,ClientId,Fingerprint,Title,Body,Audience,PublishedAt,Withdrawn,Kind) VALUES($id,$sender,$client,$hash,$title,$body,$audience,$now,0,$kind)",tx,("$id",id),("$sender",teacherId),("$client",request.ClientId),("$hash",fingerprint),("$title",request.Title.Trim()),("$body",request.Body),("$audience",request.Audience),("$now",now),("$kind",request.Kind)))add.ExecuteNonQuery();
         foreach(var target in targets){using var add=PortalStore.Command(db,"INSERT INTO Targets(NoticeId,UserId,StudentId,ClassId) VALUES($id,$user,$student,$class)",tx,("$id",id),("$user",target.UserId),("$student",target.StudentId),("$class",target.ClassId));add.ExecuteNonQuery();}
         foreach(var section in (directory.Sections??[]).Where(s=>(request.SectionIds??[]).Contains(s.Id)))foreach(var member in section.Members.Where(m=>targets.Any(t=>t.StudentId==m.StudentId))){using var add=PortalStore.Command(db,"INSERT INTO NoticeSectionMembers VALUES($notice,$section,$student,$stamp)",tx,("$notice",id),("$section",section.Id),("$student",member.StudentId),("$stamp",member.Stamp));add.ExecuteNonQuery();}
         var seconds=environment.IsDevelopment()?Math.Max(1,config.GetValue("Portal:RetentionSeconds",2_592_000)):2_592_000;
@@ -112,12 +126,15 @@ public static class PortalNotices
         if(form.Files.Count!=1||!Guid.TryParseExact(form["clientId"],"N",out _))return Error("파일과 요청 번호를 확인하세요.");
         var file=form.Files[0];if(file.Length is <=0 or >FilePolicy.MaxFile)return Error("파일당 100MB까지입니다.",413);
         string name;try{name=FilePolicy.Name(file.FileName);}catch(FilePolicyException error){return Error(error.Message,error.Status);}
+        var kind=form["kind"].ToString();if(kind is not(""or"notice"or"home-letter"))return Error("공지 유형을 확인하세요.");
+        if(kind=="home-letter")try{name=FilePolicy.NoticeImageName(file.FileName,file.Length);}catch(FilePolicyException e){return Error(e.Message,e.Status);}
         if(new DriveInfo(Path.GetPathRoot(store.Root)!).AvailableFreeSpace<file.Length+FilePolicy.MaxStaged)return Error("서버 저장 공간이 부족합니다.",507);
         var id=Guid.NewGuid().ToString("N");var path=Path.Combine(store.Files,id);var keep=false;
         using(var state=store.Open())StoredFiles.State(state,"portal",id,"uploading");
         try
         {
             await using(var output=new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.None,81920,true))await file.CopyToAsync(output,c.RequestAborted);
+            if(kind=="home-letter")FilePolicy.NoticeImage(path,name);
             using(var state=store.Open())StoredFiles.State(state,"portal",id,"scanning");
             await FilePolicy.Scan(path,name,environment.IsDevelopment(),config["Portal:ScannerPath"],c.RequestAborted);
             var current=store.Person(teacherId);if(current is null||!VerifiedTeacher(store,current))return Error("교사 권한이 변경되었습니다.",403);
@@ -153,7 +170,7 @@ public static class PortalNotices
         if(!CanRead(store,id,user,true))return Results.NotFound();
         var notice=store.Query(Select+" WHERE n.Id=$id",ReadNotice,("$id",id),("$user",user)).Single();
         var owner=store.Query("SELECT 1 FROM Notices WHERE Id=$id AND SenderId=$user",r=>r.GetInt32(0),("$id",id),("$user",user)).Count>0;
-        var files=store.Query("SELECT Id,Name,Size,ExpiresAt,DeletedAt FROM Files WHERE NoticeId=$id",r=>new PortalFile(r.GetString(0),r.GetString(1),r.GetInt64(2),r.GetInt64(3),!r.IsDBNull(4)||r.GetInt64(3)<=Now||!File.Exists(Path.Combine(store.Files,r.GetString(0)))),("$id",id)).ToArray();
+        var files=store.Query("SELECT Id,Name,Size,ExpiresAt,DeletedAt FROM Files WHERE NoticeId=$id ORDER BY UploadedAt,rowid",r=>new PortalFile(r.GetString(0),r.GetString(1),r.GetInt64(2),r.GetInt64(3),!r.IsDBNull(4)||r.GetInt64(3)<=Now||!File.Exists(Path.Combine(store.Files,r.GetString(0)))),("$id",id)).ToArray();
         var teacher=store.Person(user)!;var classes=store.Classes(user);var sectionStudents=store.Query("SELECT DISTINCT ns.StudentId FROM NoticeSectionMembers ns JOIN SectionTeachers st ON st.SectionId=ns.SectionId JOIN SectionMembers sm ON sm.SectionId=ns.SectionId AND sm.StudentId=ns.StudentId AND sm.Stamp=ns.Stamp JOIN People s ON s.Id=ns.StudentId AND s.Active=1 WHERE ns.NoticeId=$notice AND st.TeacherId=$teacher",r=>r.GetString(0),("$notice",id),("$teacher",user)).ToHashSet(StringComparer.Ordinal);
         PortalReceipt[]? receipts=owner?store.Query("SELECT t.UserId,p.Name,s.Name,t.ReadAt,t.Revoked,t.ClassId,t.StudentId FROM Targets t JOIN People p ON p.Id=t.UserId JOIN People s ON s.Id=t.StudentId WHERE t.NoticeId=$id ORDER BY p.Name,s.Name",r=>new PortalReceipt(r.GetString(0),r.GetString(1),r.GetString(2),r.IsDBNull(3)?null:r.GetInt64(3),r.GetBoolean(4),r.GetString(5),r.GetString(6)),("$id",id)).Where(r=>classes.Contains(r.ClassId)||VerifiedTeacher(store,teacher,true)||sectionStudents.Contains(r.StudentId??"")).ToArray():null;
         return Results.Ok(new PortalNoticeDetail(notice,files,receipts));
@@ -167,9 +184,9 @@ public static class PortalNotices
         """;
     const string Select="""
         SELECT n.Id,n.Title,n.Body,p.Name,n.PublishedAt,(SELECT MIN(ReadAt) FROM Targets WHERE NoticeId=n.Id AND UserId=$user),n.Withdrawn,
-          CASE WHEN n.SenderId=$user THEN (SELECT COUNT(DISTINCT UserId) FROM Targets WHERE NoticeId=n.Id) ELSE 0 END,CASE WHEN n.SenderId=$user THEN (SELECT COUNT(DISTINCT UserId) FROM Targets WHERE NoticeId=n.Id AND ReadAt IS NOT NULL) ELSE 0 END
+          CASE WHEN n.SenderId=$user THEN (SELECT COUNT(DISTINCT UserId) FROM Targets WHERE NoticeId=n.Id) ELSE 0 END,CASE WHEN n.SenderId=$user THEN (SELECT COUNT(DISTINCT UserId) FROM Targets WHERE NoticeId=n.Id AND ReadAt IS NOT NULL) ELSE 0 END,n.Kind
         FROM Notices n JOIN People p ON p.Id=n.SenderId
         """;
-    static PortalNotice ReadNotice(SqliteDataReader r)=>new(r.GetString(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetInt64(4),r.IsDBNull(5)?null:r.GetInt64(5),r.GetBoolean(6),r.GetInt32(7),r.GetInt32(8));
+    static PortalNotice ReadNotice(SqliteDataReader r)=>new(r.GetString(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetInt64(4),r.IsDBNull(5)?null:r.GetInt64(5),r.GetBoolean(6),r.GetInt32(7),r.GetInt32(8),r.GetString(9));
 }
 record BridgeWithdrawal(string TeacherId);

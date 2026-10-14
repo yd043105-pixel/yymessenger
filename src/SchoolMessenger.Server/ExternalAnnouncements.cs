@@ -110,12 +110,12 @@ public sealed class ExternalAnnouncements : BackgroundService
         var teacher=Publisher(owner);var user=store.GetUser(owner);
         if(teacher is null||user is not{Active:true})return Error("관리자가 외부 공지 교사 계정을 연결해야 합니다.",403);
         if(request is null||!Guid.TryParseExact(request.ClientId,"N",out _)||string.IsNullOrWhiteSpace(request.Title)||request.Title.Length>200||string.IsNullOrWhiteSpace(request.Body)||request.Body.Length>10000||
-            request.Audience is not("students"or"parents"or"both")||request.ClassIds is null||request.ClassIds.Length>100||request.AttachmentIds is null||request.AttachmentIds.Length>10||request.AttachmentIds.Distinct().Count()!=request.AttachmentIds.Length||
+            request.Audience is not("students"or"parents"or"both")||request.Kind is not("notice"or"home-letter")||request.ClassIds is null||request.ClassIds.Length>100||request.AttachmentIds is null||request.AttachmentIds.Length>10||request.AttachmentIds.Distinct().Count()!=request.AttachmentIds.Length||
             request.SectionIds?.Length>100||request.SectionIds?.Any(id=>!Guid.TryParseExact(id,"N",out _))==true||request.All&&(request.ClassIds.Length!=0||(request.SectionIds?.Length??0)>0)||!request.All&&request.ClassIds.Length==0&&(request.SectionIds?.Length??0)==0)return Error("제목·내용·학급·분반·첨부를 확인하세요.");
         if(request.All&&(!teacher.CanBroadcast||!user.CanBroadcast)||!request.All&&request.ClassIds.Any(id=>!teacher.Classes.Contains(id)))return Error("담당 학급 또는 전체 발송 권한을 확인하세요.",403);
         var payload=JsonSerializer.Serialize(request,Json);
         var existing=store.Query("SELECT Id,Payload FROM ExternalOutbox WHERE OwnerId=$owner AND ClientId=$client",r=>(id:r.GetString(0),payload:r.GetString(1)),("$owner",owner),("$client",request.ClientId)).FirstOrDefault();
-        if(existing.id is not null)return existing.payload==payload?Results.Ok(new{id=existing.id,duplicate=true}):Error("같은 발송 번호의 내용을 변경할 수 없습니다.",409);
+        if(existing.id is not null)return JsonSerializer.Serialize(JsonSerializer.Deserialize<AnnouncementRequest>(existing.payload,Json),Json)==payload?Results.Ok(new{id=existing.id,duplicate=true}):Error("같은 발송 번호의 내용을 변경할 수 없습니다.",409);
         AnnouncementTarget[] targets;try{targets=AnnouncementAudience.Build(directory,teacher with{CanBroadcast=teacher.CanBroadcast&&user.CanBroadcast},request);}catch(InvalidOperationException e){return Error(e.Message,403);}
         if(targets.Length is 0 or >10000)return Error("확정된 학생·보호자 수신 대상이 없습니다.");
         using var db=store.Open();using var tx=db.BeginTransaction();long total=0;
@@ -123,6 +123,11 @@ public sealed class ExternalAnnouncements : BackgroundService
         {
             using var check=Store.Command(db,"SELECT Size FROM ExternalFiles WHERE Id=$id AND OwnerId=$owner AND JobId IS NULL AND DeletedAt IS NULL AND UploadedAt>$cutoff",tx,("$id",file),("$owner",owner),("$cutoff",Now-86400000));
             var size=check.ExecuteScalar();if(size is null||!File.Exists(Path.Combine(Files,file)))return Error("공지 전용 첨부를 다시 올려주세요.",409);total+=Convert.ToInt64(size);
+            if(request.Kind=="home-letter")
+            {
+                using var filename=Store.Command(db,"SELECT Name FROM ExternalFiles WHERE Id=$id",tx,("$id",file));var name=(string)filename.ExecuteScalar()!;
+                try{FilePolicy.NoticeImageName(name,Convert.ToInt64(size));FilePolicy.NoticeImage(Path.Combine(Files,file),name);}catch(FilePolicyException e){return Error(e.Message,e.Status);}
+            }
         }
         if(total>FilePolicy.MaxTotal)return Error("첨부 합계는 200MB까지입니다.",413);
         var id=Guid.NewGuid().ToString("N");
@@ -138,11 +143,14 @@ public sealed class ExternalAnnouncements : BackgroundService
         if(form.Files.Count!=1)return Error("파일 하나를 선택하세요.");var file=form.Files[0];
         if(file.Length is <=0 or >FilePolicy.MaxFile)return Error("파일당 100MB까지입니다.",413);
         string name;try{name=FilePolicy.Name(file.FileName);}catch(FilePolicyException e){return Error(e.Message,e.Status);}
+        var kind=form["kind"].ToString();if(kind is not(""or"notice"or"home-letter"))return Error("공지 유형을 확인하세요.");
+        if(kind=="home-letter")try{name=FilePolicy.NoticeImageName(file.FileName,file.Length);}catch(FilePolicyException e){return Error(e.Message,e.Status);}
         if(new DriveInfo(Path.GetPathRoot(store.Root)!).AvailableFreeSpace<file.Length+FilePolicy.MaxStaged)return Error("저장 공간이 부족합니다.",507);
         var id=Guid.NewGuid().ToString("N");var path=Path.Combine(Files,id);var kept=false;
         try
         {
             await using(var stream=File.Create(path))await file.CopyToAsync(stream,c.RequestAborted);
+            if(kind=="home-letter")FilePolicy.NoticeImage(path,name);
             await FilePolicy.Scan(path,name,environment.IsDevelopment(),config["School:ScannerPath"],c.RequestAborted);
             if(store.GetUser(Owner(c)) is not{Active:true})return Error("교사 계정이 비활성화되었습니다.",403);
             using var db=store.Open();using var tx=db.BeginTransaction();
@@ -227,6 +235,7 @@ public sealed class ExternalAnnouncements : BackgroundService
                     {
                         using var verification=store.Open();if(file.Expires<=Now||!StoredFiles.Ready(verification,"external",file.Id,Path.Combine(Files,file.Id)))throw new BridgeFailure("첨부가 만료되었거나 무결성 확인에 실패했습니다.",409);
                         using var form=new MultipartFormDataContent();form.Add(new StringContent(file.Id),"clientId");form.Add(new StreamContent(File.OpenRead(Path.Combine(Files,file.Id))),"file",file.Name);
+                        form.Add(new StringContent(request.Kind),"kind");
                         using var upload=await http.PostAsync("bridge/attachments?teacherId="+job.Teacher+"&expiresAt="+(file.Expires??file.Uploaded+2_592_000_000L),form,token);await Check(upload);
                         var remote=await upload.Content.ReadFromJsonAsync<PortalFile>(Json,token)??throw new IOException();
                         store.Execute("UPDATE ExternalFiles SET RemoteId=$remote WHERE Id=$id",("$remote",remote.Id),("$id",file.Id));remoteFiles.Add(remote.Id);

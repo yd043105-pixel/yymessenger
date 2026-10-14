@@ -1,4 +1,9 @@
 using System.Diagnostics;
+using System.Buffers.Binary;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace SchoolMessenger.Shared;
 
@@ -8,6 +13,46 @@ public sealed class FilePolicyException(string message, int status = 400) : Exce
 public static class FilePolicy
 {
     public const long MaxFile = 104_857_600, MaxTotal = 209_715_200, MaxStaged = 524_288_000;
+    public const long MaxNoticeImage = 500_000;
+    public static string NoticeImageName(string raw, long size)
+    {
+        if (size is <= 0 or > MaxNoticeImage) throw new FilePolicyException("가정통신문 이미지는 한 장당 500KB(0.5MB)까지입니다.", 413);
+        var name = Name(raw);
+        if (Path.GetExtension(name).ToLowerInvariant() is not (".png" or ".jpg" or ".jpeg"))
+            throw new FilePolicyException("가정통신문은 JPG·PNG 이미지로 올려주세요.");
+        return name;
+    }
+    public static string NoticeImageType(string name) => Path.GetExtension(name).ToLowerInvariant() switch
+    { ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", _ => throw new FilePolicyException("가정통신문은 JPG·PNG 이미지로 올려주세요.") };
+    public static void NoticeImage(string path, string name)
+    {
+        NoticeImageName(name, new FileInfo(path).Length);
+        if (!Signature(path, Path.GetExtension(name).ToLowerInvariant())) throw new FilePolicyException("이미지 내용과 확장자가 일치하지 않습니다.");
+        var data = File.ReadAllBytes(path); int width = 0, height = 0;
+        if (NoticeImageType(name) == "image/png")
+        {
+            if (data.Length >= 45 && BinaryPrimitives.ReadUInt32BigEndian(data.AsSpan(8,4)) == 13 && data.AsSpan(12,4).SequenceEqual("IHDR"u8) && data.AsSpan(data.Length-12,8).SequenceEqual(new byte[]{0,0,0,0,73,69,78,68}))
+            { width = BinaryPrimitives.ReadInt32BigEndian(data.AsSpan(16,4)); height = BinaryPrimitives.ReadInt32BigEndian(data.AsSpan(20,4)); }
+        }
+        else if (data.Length >= 4 && data[^2] == 255 && data[^1] == 217)
+        {
+            for (var offset = 2; offset + 4 <= data.Length;)
+            {
+                if (data[offset++] != 255) break;
+                while (offset < data.Length && data[offset] == 255) offset++;
+                if (offset + 3 > data.Length) break;
+                var marker = data[offset++]; if (marker is 218 or 217) break;
+                var length = BinaryPrimitives.ReadUInt16BigEndian(data.AsSpan(offset,2));
+                if (length < 2 || offset + length > data.Length) break;
+                if (marker is 192 or 193 or 194 && length >= 8)
+                { height = BinaryPrimitives.ReadUInt16BigEndian(data.AsSpan(offset+3,2)); width = BinaryPrimitives.ReadUInt16BigEndian(data.AsSpan(offset+5,2)); break; }
+                offset += length;
+            }
+        }
+        // Limit decoded memory even when a highly compressed upload is smaller than 500 KB.
+        if (width <= 0 || height <= 0 || width > 6000 || height > 6000 || (long)width * height > 16_000_000)
+            throw new FilePolicyException("이미지 구조 또는 해상도를 확인하세요. 최대 6000px, 총 1600만 화소입니다.");
+    }
     public static string Name(string raw)
     {
         var name = Path.GetFileName(raw.Replace('\\', '/'));

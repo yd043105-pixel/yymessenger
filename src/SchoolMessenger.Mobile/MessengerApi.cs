@@ -81,8 +81,35 @@ public sealed class MessengerApi : IDisposable
     {Remember=remember;await Refresh();await Send("api/login",new MobileLogin(username,password,remember));await Refresh();}
     public async Task Logout()
     {var folder=ShareFolder();try{await Send("api/logout");}finally{DeleteShares(folder);SecureStorage.Default.Remove(key);foreach(Cookie c in cookies.GetCookies(Address))c.Expired=true;Session=default;Invalidated?.Invoke();}}
-    public async Task<JsonElement> Upload(FileResult file,bool external)
-    {using var content=new MultipartFormDataContent();if(!Office)content.Add(new StringContent(Guid.NewGuid().ToString("N")),"clientId");content.Add(new StreamContent(await file.OpenReadAsync()),"file",file.FileName);return await Send(external&&Office?"api/external-announcements/attachments":"api/attachments",content:content);}
+    public async Task<JsonElement> Upload(FileResult file,bool external,string kind="notice")
+    {
+        using var content=new MultipartFormDataContent();if(!Office)content.Add(new StringContent(Guid.NewGuid().ToString("N")),"clientId");
+        var stream=await file.OpenReadAsync();
+        try
+        {
+            if(external&&kind=="home-letter")
+            {
+                if(Path.GetExtension(file.FileName).ToLowerInvariant() is not(".png"or".jpg"or".jpeg"))throw new InvalidOperationException("가정통신문은 JPG·PNG 이미지로 올려주세요.");
+                var image=await ReadNoticeImage(stream);await stream.DisposeAsync();stream=new MemoryStream(image,false);
+            }
+            if(external)content.Add(new StringContent(kind),"kind");
+            content.Add(new StreamContent(stream),"file",file.FileName);return await Send(external&&Office?"api/external-announcements/attachments":"api/attachments",content:content);
+        }
+        finally{await stream.DisposeAsync();}
+    }
+    static async Task<byte[]> ReadNoticeImage(Stream stream)
+    {
+        using var output=new MemoryStream();var buffer=new byte[8192];int count;
+        while((count=await stream.ReadAsync(buffer))>0){if(output.Length+count>500_000)throw new InvalidOperationException("가정통신문 이미지는 한 장당 500KB(0.5MB)까지입니다.");output.Write(buffer,0,count);}
+        if(output.Length==0)throw new InvalidOperationException("빈 이미지는 올릴 수 없습니다.");return output.ToArray();
+    }
+    public async Task<byte[]> NoticeImage(string id)
+    {
+        using var request=new HttpRequestMessage(HttpMethod.Get,"api/attachments/"+id+"/view");request.Headers.CacheControl=new(){NoStore=true};
+        using var response=await http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);await Check(response);
+        if(response.Content.Headers.ContentLength>500_000||response.Content.Headers.ContentType?.MediaType is not("image/png"or"image/jpeg"))throw new InvalidOperationException("가정통신문 이미지 형식을 확인하세요.");
+        await using var stream=await response.Content.ReadAsStreamAsync();return await ReadNoticeImage(stream);
+    }
     public async Task ShareFile(string id,string name)
     {
         using var response=await http.GetAsync("api/attachments/"+id+"/download",HttpCompletionOption.ResponseHeadersRead);await Check(response);

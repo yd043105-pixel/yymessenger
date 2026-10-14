@@ -89,6 +89,31 @@ try{
  const download=await fetch(address+'/api/attachments/'+file.id+'/download',{headers:{Cookie:[...parent.cookies].map(([k,v])=>k+'='+v).join('; ')}});assert.equal(download.status,200);assert.equal(await download.text(),'공지 첨부 검증');
  await student2.request('/api/attachments/'+file.id+'/download','GET',undefined,404);await teacher.request('/api/announcements','POST',post(c1,'재사용',{attachmentIds:[file.id]}),409);
  check('announcement-only file ownership, signature validation, duplicate upload and recipient download authorization');
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK1cAAAAASUVORK5CYII=','base64');
+ async function imageUpload(name,bytes,expected=200,kind='home-letter'){
+  const form=new FormData();form.append('clientId',randomUUID().replaceAll('-',''));form.append('kind',kind);form.append('file',new Blob([bytes]),name);return teacher.request('/api/attachments','POST',form,expected);
+ }
+ await imageUpload('letter.pdf','%PDF-1.7',400);await imageUpload('letter.svg','<svg/>',400);await imageUpload('letter.png','not an image',400);await imageUpload('letter.png',Buffer.alloc(500001),413);
+ const huge=Buffer.from(png);huge.writeUInt32BE(6001,16);await imageUpload('oversized-pixels.png',huge,400);
+ const padding=Buffer.alloc(500000-png.length-12,65),chunk=Buffer.alloc(padding.length+12);chunk.writeUInt32BE(padding.length);chunk.write('tEXt',4);padding.copy(chunk,8);chunk.write('Padding',8);chunk[15]=0;
+ let crc=0xffffffff;for(const byte of chunk.subarray(4,-4)){crc^=byte;for(let bit=0;bit<8;bit++)crc=(crc>>>1)^((crc&1)?0xedb88320:0);}chunk.writeUInt32BE((crc^0xffffffff)>>>0,chunk.length-4);
+ const boundary=Buffer.concat([png.subarray(0,-12),chunk,png.subarray(-12)]);assert.equal(boundary.length,500000);await imageUpload('exact-500KB.png',boundary);
+ const letter=await imageUpload('letter.PNG',png);const homePacket=post(c1,'이미지 가정통신문',{kind:'home-letter',attachmentIds:[letter.id]});
+ const home=await teacher.request('/api/announcements','POST',homePacket);assert.equal((await teacher.request('/api/announcements','POST',homePacket)).id,home.id);
+ assert.equal((await parent.request('/api/announcements/'+home.id)).notice.kind,'home-letter');
+ await teacher.request('/api/announcements','POST',{...homePacket,kind:'notice'},409);
+ const cookie={Cookie:[...parent.cookies].map(([k,v])=>k+'='+v).join('; ')};
+ const viewed=await fetch(address+'/api/attachments/'+letter.id+'/view',{headers:cookie});assert.equal(viewed.status,200);assert.equal(viewed.headers.get('content-type'),'image/png');assert.equal(viewed.headers.get('content-disposition'),'inline');assert.equal(viewed.headers.get('cache-control'),'no-store');assert.equal(viewed.headers.get('x-content-type-options'),'nosniff');assert.deepEqual(Buffer.from(await viewed.arrayBuffer()),png);
+ await parent.request('/api/attachments/'+letter.id+'/download','GET',undefined,404);await student2.request('/api/attachments/'+letter.id+'/view','GET',undefined,404);await guest.request('/api/attachments/'+letter.id+'/view','GET',undefined,401);
+ const ordinary=await teacher.upload('ordinary.txt','normal notice still works');await teacher.request('/api/announcements','POST',post(c1,'우회 차단',{kind:'home-letter',attachmentIds:[ordinary.id]}),400);
+ const largePng=Buffer.concat([png.subarray(0,33),Buffer.alloc(500001-png.length),png.subarray(33)]);
+ const bypass=await imageUpload('large.png',largePng,200,'notice');await teacher.request('/api/announcements','POST',post(c1,'일반 업로드 우회 차단',{kind:'home-letter',attachmentIds:[bypass.id]}),413);
+ check('home-letter images reject non-images, disguised files, oversized bytes/pixels and generic-upload bypass; scoped inline view has no download route');
+ await teacher.request('/api/announcements/'+home.id+'/retract','POST');await parent.request('/api/attachments/'+letter.id+'/view','GET',undefined,404);
+ const retained=await imageUpload('expires.png',png);const retainedNotice=await teacher.request('/api/announcements','POST',post(c1,'보관 기한 검증',{kind:'home-letter',attachmentIds:[retained.id]}));
+ const expiryDb=new DatabaseSync(path.join(data,'announcements.db'));expiryDb.prepare('UPDATE Files SET ExpiresAt=0 WHERE Id=?').run(retained.id);expiryDb.close();await parent.request('/api/attachments/'+retained.id+'/view','GET',undefined,410);
+ assert.equal((await parent.request('/api/announcements/'+retainedNotice.id)).attachments[0].expired,true);
+ check('retracted and expired home-letter images cannot be viewed; notice text remains available after image expiry');
  await admin.request('/api/admin/families/'+parentId+'/'+student1Id,'DELETE');await parent.request('/api/children','GET',undefined,401);await parent.login('parent');assert.equal((await parent.request('/api/children')).length,1);
  await parent.request('/api/announcements/'+sent.id,'GET',undefined,404);await parent.request('/api/attachments/'+file.id+'/download','GET',undefined,404);
  await admin.request('/api/admin/families','POST',{parentId,studentId:student1Id});await parent.request('/api/announcements/'+sent.id,'GET',undefined,404);

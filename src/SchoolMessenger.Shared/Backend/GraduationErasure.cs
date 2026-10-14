@@ -85,7 +85,8 @@ public static class GraduationErasure
                 continue;
             }
             if((File.GetAttributes(directory)&FileAttributes.ReparsePoint)!=0)throw new IOException("별도로 연결된 백업은 학교의 파기 확인이 필요합니다.");
-            var filter=directory==Path.GetFullPath(configuredDirectory??Path.Combine(root,"backups"))?(portal?"announcements-*.db":"school-*.db"):"*.db";
+            var builtIn=new[]{"backups","migration-backups","recovery-backups"}.Any(folder=>string.Equals(directory,Path.Combine(root,folder),OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal));
+            var filter=builtIn?"*.db":portal?"announcements-*.db":"school-*.db";
             foreach(var file in Directory.EnumerateFiles(directory,filter,SearchOption.TopDirectoryOnly))
             {
                 if((File.GetAttributes(file)&FileAttributes.ReparsePoint)!=0)throw new IOException("백업 링크는 학교의 파기 확인이 필요합니다.");
