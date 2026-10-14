@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     readonly WindowsStartup startup;
     readonly SavedLogin savedLogin;
     bool startupReady, loginOptionsReady, signingIn;
+    ServerManagementWindow? administratorWindow;
     public MainWindow()
     {
         InitializeComponent();
@@ -35,7 +36,7 @@ public partial class MainWindow : Window
         Height = Math.Min(820, SystemParameters.WorkArea.Height - 30);
         Directory.CreateDirectory(LocalDirectory);
         savedLogin = new SavedLogin(LocalDirectory);
-        startup = new WindowsStartup(Environment.GetCommandLineArgs().Contains("--verify-ui")
+        startup = new WindowsStartup(Environment.GetCommandLineArgs().Any(a=>a is "--verify-ui" or "--verify-admin")
             ? @"Software\YeoyangSchoolMessenger\StartupTests\" + Path.GetFileName(LocalDirectory.TrimEnd(Path.DirectorySeparatorChar)) + Guid.NewGuid().ToString("N")
             : @"Software\Microsoft\Windows\CurrentVersion\Run");
         AutoStartCheck.IsChecked = AutoStartMenu.IsChecked = startup.Enabled;
@@ -64,6 +65,7 @@ public partial class MainWindow : Window
         });
         Loaded += async (_, _) =>
         {
+            if(Environment.GetCommandLineArgs().Contains("--verify-admin")){await VerifyAdministratorUi();return;}
             if (Environment.GetCommandLineArgs().Contains("--verify-ui")) { await VerifyUi(); return; }
             if (startup.Enabled) { try { startup.SetEnabled(true); } catch (Exception error) { LoginError.Text = "자동 실행 설정을 갱신하지 못했습니다: " + error.Message; } }
             if (RememberLogin.IsChecked == true) { await TryAutomaticLogin(); if (savedLogin.Exists) timer.Start(); }
@@ -134,6 +136,7 @@ public partial class MainWindow : Window
         remote = new RemoteClient(this);
         try { await remote.Connect(); } catch { StatusLabel.Text = "원격 지원 연결 대기 중"; }
         ShowUpdates();
+        if(user.IsAdmin)OpenAdministrator();
     }
     async Task TryAutomaticLogin()
     {
@@ -316,7 +319,13 @@ public partial class MainWindow : Window
     { var window = new MailboxWindow(this, box, person); window.Show(); return window; }
     void OpenSettings(object sender, RoutedEventArgs e) { var button = (System.Windows.Controls.Button)sender; button.ContextMenu.PlacementTarget = button; button.ContextMenu.IsOpen = true; }
     void PasswordKeyDown(object sender, System.Windows.Input.KeyEventArgs e) { if (e.Key == Key.Enter) LoginClick(sender, e); }
-    void OpenAdmin(object sender, RoutedEventArgs e) { if (Api is not null) new OfficeWindow(this,true).Show(); }
+    void OpenAdmin(object sender, RoutedEventArgs e)=>OpenAdministrator();
+    void OpenAdministrator()
+    {
+        if(Api?.Session?.User?.IsAdmin!=true)return;
+        if(administratorWindow is{IsVisible:true}){administratorWindow.Activate();return;}
+        administratorWindow=new ServerManagementWindow(this,Api);administratorWindow.Closed+=(_,_)=>administratorWindow=null;administratorWindow.Show();
+    }
     void OpenOfficeClick(object sender,RoutedEventArgs e){if(Api is not null)new OfficeWindow(this).Show();}
     async void OpenPolicies(object sender,RoutedEventArgs e)
     {

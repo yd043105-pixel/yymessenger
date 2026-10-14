@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "resourceProfile": "low-memory",
   "service": "announcements",
   "executable": "C:\\SchoolMessenger\\announcement-server\\SchoolMessenger.AnnouncementServer.exe",
   "dataDirectory": "C:\\SchoolMessengerData\\announcements",

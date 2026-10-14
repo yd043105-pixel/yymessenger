@@ -105,10 +105,16 @@ public sealed class MessengerApi : IDisposable
     }
     public async Task<byte[]> NoticeImage(string id)
     {
+        for(var attempt=0;;attempt++)
+        {
         using var request=new HttpRequestMessage(HttpMethod.Get,"api/attachments/"+id+"/view");request.Headers.CacheControl=new(){NoStore=true};
-        using var response=await http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);await Check(response);
+        using var response=await http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);
+        if(response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable&&attempt<5)
+        {response.Dispose();await Task.Delay(TimeSpan.FromSeconds(Math.Min(30,2<<attempt))+TimeSpan.FromMilliseconds(Random.Shared.Next(200,1200)));continue;}
+        await Check(response);
         if(response.Content.Headers.ContentLength>200_000||response.Content.Headers.ContentType?.MediaType is not("image/png"or"image/jpeg"))throw new InvalidOperationException("학교 공지 이미지 형식을 확인하세요.");
         await using var stream=await response.Content.ReadAsStreamAsync();return await ReadNoticeImage(stream);
+        }
     }
     public async Task ShareFile(string id,string name)
     {

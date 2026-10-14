@@ -3,11 +3,16 @@ $ErrorActionPreference='Stop'
 $os=Get-CimInstance Win32_OperatingSystem
 $computer=Get-CimInstance Win32_ComputerSystem
 $processor=Get-CimInstance Win32_Processor | Select-Object -First 1
+$modules=@(Get-CimInstance Win32_PhysicalMemory)
+$slots=(Get-CimInstance Win32_PhysicalMemoryArray | Measure-Object MemoryDevices -Sum).Sum
 $report=[pscustomobject]@{
     windows=$os.Caption
     windowsBuild=$os.BuildNumber
     cpu=$processor.Name
     physicalCores=$processor.NumberOfCores
+    memorySlotsUsed=$modules.Count
+    memorySlotsTotal=$slots
+    memoryModules=@($modules | ForEach-Object {[pscustomobject]@{capacityGB=[Math]::Round($_.Capacity/1GB,1);type=switch([int]$_.SMBIOSMemoryType){24{'DDR3'}26{'DDR4'}34{'DDR5'}default{'확인 필요'}};speedMTs=$_.ConfiguredClockSpeed;partNumber=([string]$_.PartNumber).Trim()}})
     memoryGB=[Math]::Round($computer.TotalPhysicalMemory/1GB,1)
     virtualizationFirmwareEnabled=$processor.VirtualizationFirmwareEnabled
     secondLevelAddressTranslation=$processor.SecondLevelAddressTranslationExtensions

@@ -6,6 +6,7 @@ $ErrorActionPreference='Stop'
 
 function Read-OperationsConfig([string]$Path,[bool]$ExternalOnly=$false,[bool]$MailOnly=$false) {
     $config=Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    if($config.PSObject.Properties['resourceProfile'] -and $config.resourceProfile -notin @('low-memory','balanced')){throw '부하 설정은 low-memory 또는 balanced입니다.'}
     if($config.schema -ne 1 -or $config.service -notin @('office','announcements')){throw '운영 설정의 형식과 서버 종류를 확인하세요.'}
     foreach($name in @('tunnelOnly','attachmentBackup','networkIsolationVerified','upsInstalledAndTested','backupDeviceAndEncryptionVerified')){if($config.$name -isnot [bool]){throw '운영 확인 항목은 true/false로 입력하세요.'}}
     if($config.alerts.enabled -isnot [bool]){throw '메일 활성화 항목은 true/false로 입력하세요.'}
@@ -57,6 +58,10 @@ function Test-OperationsReadiness($Config){
 function Set-OperationsEnvironment($Config,$Secrets){
     $prefix=if($Config.service -eq 'office'){'School'}else{'Portal'}
     $values=@{ASPNETCORE_ENVIRONMENT='Production';Operations__MonitorKey=(Unprotect-OperationsValue $Secrets.monitorKey);ASPNETCORE_FORWARDEDHEADERS_ENABLED='false';DOTNET_FORWARDEDHEADERS_ENABLED='false'}
+    if($Config.PSObject.Properties['resourceProfile']){
+        $values['Operations__ResourceProfile']=$Config.resourceProfile
+        if($Config.resourceProfile -eq 'low-memory'){$values['DOTNET_GCHeapHardLimit']='20000000'}
+    }
     $values[$prefix+'__DataDirectory']=$Config.dataDirectory
     $values[$prefix+'__BackupDirectory']=$Config.backupDirectory
     $values[$prefix+'__AttachmentBackup']=[string][bool]$Config.attachmentBackup

@@ -18,7 +18,7 @@ public sealed partial class OfficeWindow:Window
     public OfficeWindow(MainWindow main,bool administration=false)
     {
         api=main.Api!;this.administration=administration;Owner=main;Resources=main.Resources;Title=administration?"교직원 · 학교 운영 관리":"학사일정 · 특별실 예약";Width=700;Height=760;MinHeight=500;MinWidth=500;
-        WindowStartupLocation=WindowStartupLocation.CenterOwner;var dock=new DockPanel();DockPanel.SetDock(error,Dock.Bottom);dock.Children.Add(error);dock.Children.Add(new ScrollViewer{Content=body});Content=dock;Loaded+=async(_,_)=>await Run(()=>Load(false));
+        WindowStartupLocation=WindowStartupLocation.CenterOwner;var dock=new DockPanel();DockPanel.SetDock(error,Dock.Bottom);dock.Children.Add(error);dock.Children.Add(new ScrollViewer{Content=body});Content=dock;Loaded+=async(_,_)=>await Run(administration?Administration:()=>Load(false));
     }
     static TextBlock Text(string text,int size=14)=>new(){Text=text,FontSize=size,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,6)};
     void Button(string label,Func<Task> action){var b=new Button{Content=label,Margin=new Thickness(0,4,0,8),HorizontalAlignment=HorizontalAlignment.Left};b.Click+=async(_,_)=>await Run(action);body.Children.Add(b);}

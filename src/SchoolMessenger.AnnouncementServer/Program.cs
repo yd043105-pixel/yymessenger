@@ -25,6 +25,7 @@ if (builder.Configuration["Portal:CertificateThumbprint"] is {Length:>0} thumbpr
 }
 if (builder.Configuration["Portal:BridgeKey"]?.Length is not >= 32 && !builder.Configuration.GetSection("Portal:BridgeKeys").GetChildren().Any(k=>k.Value?.Length>=32)) throw new InvalidOperationException("Portal__BridgeKey 또는 Portal__BridgeKeys에 별도 32자 이상 서비스 키를 설정하세요.");
 using var store = new PortalStore(builder.Configuration);
+var resources=new ServerResources(store.Root,"Portal",store.Open,builder.Configuration,builder.Environment.IsDevelopment());
 PortalGraduation.Initialize(store);
 var registrationPolicy=new RegistrationPolicy(builder.Configuration["Registration:PolicyFile"],builder.Environment.IsDevelopment(),builder.Environment.ContentRootPath);
 using(var policyDatabase=store.Open())RegistrationPolicy.EnsureSchema(policyDatabase);
@@ -63,14 +64,19 @@ if(store.Query("SELECT Id FROM People WHERE Role='admin'",r=>r.GetString(0)).Cou
 File.WriteAllText(Path.Combine(store.Root,".initialized"),"initialized");
 var hosts=(builder.Configuration["Portal:AllowedHosts"]??"localhost,127.0.0.1").Split(',',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries);
 if(!app.Environment.IsDevelopment() && hosts.All(h=>h is "localhost" or "127.0.0.1")) app.Logger.LogWarning("외부 공개 전 Portal__AllowedHosts에 학교 도메인을 설정하세요.");
-app.UseExceptionHandler(error=>error.Run(async c=>{c.Response.StatusCode=500;await c.Response.WriteAsJsonAsync(new{error="서버 처리 실패. 같은 요청 번호로 다시 시도하거나 관리자에게 문의하세요."});}));
+app.UseExceptionHandler(error=>error.Run(async c=>{var failure=c.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;c.Response.StatusCode=failure is BadHttpRequestException{StatusCode:413}?413:500;await c.Response.WriteAsJsonAsync(new{error=c.Response.StatusCode==413?"공지 업로드 요청이 너무 큽니다. 이미지는 한 장당 200KB까지입니다.":"서버 처리 실패. 같은 요청 번호로 다시 시도하거나 관리자에게 문의하세요."});}));
 app.Use(async(c,next)=>
 {
     if(!hosts.Contains(c.Request.Host.Host,StringComparer.OrdinalIgnoreCase)){c.Response.StatusCode=400;return;}
     if(!c.Request.IsHttps && c.Connection.RemoteIpAddress is {} ip && !System.Net.IPAddress.IsLoopback(ip)){c.Response.StatusCode=400;return;}
     if(c.Request.Headers.TryGetValue("Origin",out var origins) && (origins.Count!=1 || origins[0]!=$"{c.Request.Scheme}://{c.Request.Host}")){c.Response.StatusCode=403;return;}
     if(c.Request.Path.StartsWithSegments("/api")||c.Request.Path.StartsWithSegments("/bridge"))
-    {c.Response.Headers.CacheControl="no-store"; if(!c.Request.Path.Value!.EndsWith("/attachments",StringComparison.Ordinal)){var limit=c.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();if(limit is{IsReadOnly:false})limit.MaxRequestBodySize=c.Request.Path=="/bridge/timetable"?8_388_608:2_097_152;}}
+    {
+        c.Response.Headers.CacheControl="no-store";var limit=c.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+        var upload=c.Request.Path.Value!.EndsWith("/attachments",StringComparison.Ordinal);
+        if(limit is{IsReadOnly:false})limit.MaxRequestBodySize=upload?240000:c.Request.Path=="/bridge/timetable"?8_388_608:2_097_152;
+        if(upload&&c.Request.ContentLength>240000){await Error("공지 업로드 요청이 너무 큽니다. 이미지는 한 장당 200KB까지입니다.",413).ExecuteAsync(c);return;}
+    }
     c.Response.Headers["X-Content-Type-Options"]="nosniff";c.Response.Headers["X-Frame-Options"]="DENY";c.Response.Headers["Referrer-Policy"]="no-referrer";
     c.Response.Headers["Content-Security-Policy"]="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
     c.Response.Headers["Permissions-Policy"]="camera=(), microphone=(), geolocation=()";
@@ -86,6 +92,7 @@ app.UseRouting();
 BackendOperations.UseAudit(app,store.Open,"AnnouncementServer");app.UseAuthentication();app.UseRateLimiter();app.UseAuthorization();
 app.Use(async(c,next)=>{try{PortalGraduation.ProcessDue(store);}catch(Exception error){app.Logger.LogError("Graduation erasure retry required ({ErrorCode})",error.GetType().Name);}await next();});
 RecoveryGuard.Use(app,store.Open);
+resources.Use(app);resources.Map(app);
 app.Use(async(c,next)=>
 {
     if(c.Request.Path.StartsWithSegments("/bridge")&&!await BridgeAuthentication.Verify(c,app.Configuration,(service,nonce,expires)=>

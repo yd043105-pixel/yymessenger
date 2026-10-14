@@ -83,6 +83,7 @@ builder.Services.AddRateLimiter(o =>
 
 var app = builder.Build();
 var store = app.Services.GetRequiredService<Store>();
+var resources=new ServerResources(store.Root,"School",store.Open,builder.Configuration,app.Environment.IsDevelopment());
 var scheduled=app.Services.GetRequiredService<ScheduledMessages>();scheduled.Initialize();
 scheduled.Deliver=async(request,sender)=>
 {
@@ -179,6 +180,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
+resources.Use(app);resources.Map(app);
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 OperationalHealth.Map(app, store.Open, store.Root, "School");
 app.MapGet("/api/session", (HttpContext c, IAntiforgery antiforgery) => Results.Ok(new

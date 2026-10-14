@@ -24,6 +24,12 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "$project 빌드 실패" }
     }
     if (-not $SkipTests) {
+        node tests\server-resources.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Server resource control verification failed' }
+        if (-not $HeadlessTests) {
+            node tests\administrator-ui.mjs
+            if ($LASTEXITCODE -ne 0) { throw 'Native administrator interface verification failed' }
+        }
         node tests\server-operations.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Server operations verification failed' }
         node tests\update-notice.mjs
@@ -71,7 +77,7 @@ try {
     New-Item -ItemType Directory -Force -Path $packageDocs | Out-Null
     Copy-Item -Path 'docs\security-audit-*.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\web-tasks-design.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\server-setup-school-tunnel.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\server-setup-school-tunnel.md','docs\server-administration.md','docs\server-administration-verification-2026-10-14.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-operations.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\home-letter-images.md' -Destination $packageDocs

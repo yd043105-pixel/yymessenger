@@ -36,9 +36,13 @@ $secrets|Export-Clixml -LiteralPath (Join-Path $FixtureRoot 'server-operations.s
 $decoded=Read-OperationsSecrets $configPath
 Assert ((Unprotect-OperationsValue $decoded.monitorKey) -eq (Unprotect-OperationsValue $key)) 'DPAPI round trip failed'
 Assert (-not(Get-Content -LiteralPath (Join-Path $FixtureRoot 'server-operations.secrets.xml') -Raw).Contains((Unprotect-OperationsValue $key))) 'Plaintext key exported'
-$before=[Environment]::GetEnvironmentVariable('Operations__MonitorKey','Process');$previous=Set-OperationsEnvironment $config $secrets
+$before=[Environment]::GetEnvironmentVariable('Operations__MonitorKey','Process');$heapBefore=[Environment]::GetEnvironmentVariable('DOTNET_GCHeapHardLimit','Process');$previous=Set-OperationsEnvironment $config $secrets
 Assert ([Environment]::GetEnvironmentVariable('ASPNETCORE_ENVIRONMENT','Process') -eq 'Production') 'Development environment inherited'
+Assert ([Environment]::GetEnvironmentVariable('Operations__ResourceProfile','Process') -eq 'low-memory') 'Resource profile not applied'
+Assert ([Environment]::GetEnvironmentVariable('DOTNET_GCHeapHardLimit','Process') -eq '20000000') 'Heap budget must be 512MiB in hexadecimal'
 Restore-OperationsEnvironment $previous
+Assert ([string][Environment]::GetEnvironmentVariable('DOTNET_GCHeapHardLimit','Process') -eq [string]$heapBefore) 'Heap environment left behind'
+Check 'Low-memory profile and 512MiB managed heap budget apply only to the launched process and restore afterward'
 Assert ([string][Environment]::GetEnvironmentVariable('Operations__MonitorKey','Process') -eq [string]$before) 'Secret environment left behind'
 Check 'DPAPI key storage and temporary secret environment restored'
 Add-Type -TypeDefinition @'
