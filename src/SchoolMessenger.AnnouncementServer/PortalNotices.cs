@@ -17,7 +17,7 @@ public static class PortalNotices
     {
         if(!Guid.TryParseExact(r.ClientId,"N",out _)||string.IsNullOrWhiteSpace(r.Title)||r.Title.Length>200||string.IsNullOrWhiteSpace(r.Body)||r.Body.Length>10000||r.Audience is not("students"or"parents"or"both")||r.Kind is not("notice"or"home-letter"))return "제목·내용·수신 대상·공지 유형을 확인하세요.";
         if(r.ClassIds is null||r.ClassIds.Length>100||r.ClassIds.Any(id=>!Guid.TryParseExact(id,"N",out _))||r.SectionIds?.Length>100||r.SectionIds?.Any(id=>!Guid.TryParseExact(id,"N",out _))==true||!r.All&&r.ClassIds.Length==0&&(r.SectionIds?.Length??0)==0||r.All&&(r.ClassIds.Length>0||(r.SectionIds?.Length??0)>0))return "학급·분반 또는 전체 학교 중 하나를 선택하세요.";
-        if(r.AttachmentIds is null||r.AttachmentIds.Length>10||r.AttachmentIds.Any(id=>!Guid.TryParseExact(id,"N",out _))||r.AttachmentIds.Distinct().Count()!=r.AttachmentIds.Length)return "첨부파일은 최대 10개이며 같은 파일을 중복할 수 없습니다.";
+        if(r.AttachmentIds is null||r.AttachmentIds.Length>5||r.AttachmentIds.Any(id=>!Guid.TryParseExact(id,"N",out _))||r.AttachmentIds.Distinct().Count()!=r.AttachmentIds.Length)return "공지 이미지는 최대 5장이며 같은 파일을 중복할 수 없습니다.";
         return null;
     }
     public static void Map(RouteGroupBuilder api,RouteGroupBuilder bridge,PortalStore store,IConfiguration config,IHostEnvironment environment)

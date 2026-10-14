@@ -13,10 +13,10 @@ public sealed class FilePolicyException(string message, int status = 400) : Exce
 public static class FilePolicy
 {
     public const long MaxFile = 104_857_600, MaxTotal = 209_715_200, MaxStaged = 524_288_000;
-    public const long MaxNoticeImage = 500_000;
+    public const long MaxNoticeImage = 200_000;
     public static string NoticeImageName(string raw, long size)
     {
-        if (size is <= 0 or > MaxNoticeImage) throw new FilePolicyException("학교 공지 이미지는 한 장당 500KB(0.5MB)까지입니다.", 413);
+        if (size is <= 0 or > MaxNoticeImage) throw new FilePolicyException("학교 공지 이미지는 한 장당 200KB(0.2MB)까지입니다.", 413);
         var name = Name(raw);
         if (Path.GetExtension(name).ToLowerInvariant() is not (".png" or ".jpg" or ".jpeg"))
             throw new FilePolicyException("학교 공지는 JPG·PNG 이미지로 올려주세요.");

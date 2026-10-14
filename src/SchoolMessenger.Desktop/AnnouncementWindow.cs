@@ -36,8 +36,8 @@ public sealed class AnnouncementWindow:Window
         {body.Children.Add(Text("공지 관리자에게 외부 서버 설정과 교사 계정 연결을 요청하세요."));body.Children.Add(Text("교내 계정 번호: "+setup.GetProperty("internalUserId").GetString()));Action("새로고침",Load);return;}
         if(!setup.GetProperty("connected").GetBoolean())body.Children.Add(Text("외부 서버 연결을 기다리고 있습니다. 대기 중인 발송·회수는 연결이 복구되면 이어집니다."));
         Action("새로고침 · 발송 현황 확인",Load);
-        var kind=new ComboBox{ItemsSource=new[]{"가정통신문 · JPG/PNG 한 장당 500KB","일반 공지 · JPG/PNG 한 장당 500KB"},SelectedIndex=0,Margin=new Thickness(0,0,0,12)};body.Children.Add(kind);
-        body.Children.Add(Text("모든 공지 첨부는 JPG·PNG로 바로 표시됩니다. 한 장당 500KB · 최대 10장 · 30일 보관"));
+        var kind=new ComboBox{ItemsSource=new[]{"가정통신문 · JPG/PNG 한 장당 200KB","일반 공지 · JPG/PNG 한 장당 200KB"},SelectedIndex=0,Margin=new Thickness(0,0,0,12)};body.Children.Add(kind);
+        body.Children.Add(Text("모든 공지 첨부는 JPG·PNG로 바로 표시됩니다. 한 장당 200KB · 최대 5장 · 30일 보관"));
         body.Children.Add(Text("새 공지 제목"));var title=new TextBox{MaxLength=200,Margin=new Thickness(0,0,0,12)};body.Children.Add(title);
         body.Children.Add(Text("공지 내용"));var message=new TextBox{AcceptsReturn=true,TextWrapping=TextWrapping.Wrap,Height=150,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,MaxLength=10000,Margin=new Thickness(0,0,0,12)};body.Children.Add(message);
         var audience=new ComboBox{ItemsSource=new[]{"학생과 보호자","보호자","학생"},SelectedIndex=0,Margin=new Thickness(0,0,0,12)};body.Children.Add(audience);
@@ -45,11 +45,11 @@ public sealed class AnnouncementWindow:Window
         var sections=new Dictionary<string,CheckBox>();var sectionPanel=new WrapPanel();body.Children.Add(Text("선택과목 분반 · 학급 선택과 함께 사용하지 않습니다."));foreach(var section in setup.GetProperty("sections").EnumerateArray()){var check=new CheckBox{Content=section.GetProperty("name").GetString()+" · "+section.GetProperty("memberCount")+"명",IsEnabled=section.GetProperty("memberCount").GetInt32()>0,Margin=new Thickness(0,0,18,12)};sections[section.GetProperty("id").GetString()!]=check;sectionPanel.Children.Add(check);}body.Children.Add(sectionPanel);
         var whole=new CheckBox{Content="학교 전체 발송",Margin=new Thickness(0,0,0,12)};if(setup.GetProperty("canBroadcast").GetBoolean())body.Children.Add(whole);
         var attachments=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,12)};body.Children.Add(attachments);files.Clear();pending=null;
-        var addFile=new Button{Content="공지 이미지 추가 · 한 장당 500KB",Margin=new Thickness(0,0,8,10),HorizontalAlignment=HorizontalAlignment.Left};body.Children.Add(addFile);
+        var addFile=new Button{Content="공지 이미지 추가 · 한 장당 200KB",Margin=new Thickness(0,0,8,10),HorizontalAlignment=HorizontalAlignment.Left};body.Children.Add(addFile);
 
         addFile.Click+=async(_,_)=>await Run(async()=>
         {
-            if(pending is not null)throw new InvalidOperationException("전송 결과 확인 후 새 공지를 작성하세요.");if(files.Count>=10)throw new InvalidOperationException("첨부는 최대 10개입니다.");
+            if(pending is not null)throw new InvalidOperationException("전송 결과 확인 후 새 공지를 작성하세요.");if(files.Count>=5)throw new InvalidOperationException("공지 이미지는 최대 5장입니다.");
             var dialog=new Microsoft.Win32.OpenFileDialog{Filter="JPG·PNG 이미지|*.jpg;*.jpeg;*.png"};if(dialog.ShowDialog(this)!=true)return;
             FilePolicy.NoticeImage(dialog.FileName,Path.GetFileName(dialog.FileName));
             using var content=new MultipartFormDataContent();content.Add(new StreamContent(File.OpenRead(dialog.FileName)),"file",Path.GetFileName(dialog.FileName));

@@ -100,14 +100,14 @@ public sealed class MessengerApi : IDisposable
     static async Task<byte[]> ReadNoticeImage(Stream stream)
     {
         using var output=new MemoryStream();var buffer=new byte[8192];int count;
-        while((count=await stream.ReadAsync(buffer))>0){if(output.Length+count>500_000)throw new InvalidOperationException("학교 공지 이미지는 한 장당 500KB(0.5MB)까지입니다.");output.Write(buffer,0,count);}
+        while((count=await stream.ReadAsync(buffer))>0){if(output.Length+count>200_000)throw new InvalidOperationException("학교 공지 이미지는 한 장당 200KB(0.2MB)까지입니다.");output.Write(buffer,0,count);}
         if(output.Length==0)throw new InvalidOperationException("빈 이미지는 올릴 수 없습니다.");return output.ToArray();
     }
     public async Task<byte[]> NoticeImage(string id)
     {
         using var request=new HttpRequestMessage(HttpMethod.Get,"api/attachments/"+id+"/view");request.Headers.CacheControl=new(){NoStore=true};
         using var response=await http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead);await Check(response);
-        if(response.Content.Headers.ContentLength>500_000||response.Content.Headers.ContentType?.MediaType is not("image/png"or"image/jpeg"))throw new InvalidOperationException("학교 공지 이미지 형식을 확인하세요.");
+        if(response.Content.Headers.ContentLength>200_000||response.Content.Headers.ContentType?.MediaType is not("image/png"or"image/jpeg"))throw new InvalidOperationException("학교 공지 이미지 형식을 확인하세요.");
         await using var stream=await response.Content.ReadAsStreamAsync();return await ReadNoticeImage(stream);
     }
     public async Task ShareFile(string id,string name)

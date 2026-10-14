@@ -110,7 +110,7 @@ public sealed class ExternalAnnouncements : BackgroundService
         var teacher=Publisher(owner);var user=store.GetUser(owner);
         if(teacher is null||user is not{Active:true})return Error("관리자가 외부 공지 교사 계정을 연결해야 합니다.",403);
         if(request is null||!Guid.TryParseExact(request.ClientId,"N",out _)||string.IsNullOrWhiteSpace(request.Title)||request.Title.Length>200||string.IsNullOrWhiteSpace(request.Body)||request.Body.Length>10000||
-            request.Audience is not("students"or"parents"or"both")||request.Kind is not("notice"or"home-letter")||request.ClassIds is null||request.ClassIds.Length>100||request.AttachmentIds is null||request.AttachmentIds.Length>10||request.AttachmentIds.Distinct().Count()!=request.AttachmentIds.Length||
+            request.Audience is not("students"or"parents"or"both")||request.Kind is not("notice"or"home-letter")||request.ClassIds is null||request.ClassIds.Length>100||request.AttachmentIds is null||request.AttachmentIds.Length>5||request.AttachmentIds.Distinct().Count()!=request.AttachmentIds.Length||
             request.SectionIds?.Length>100||request.SectionIds?.Any(id=>!Guid.TryParseExact(id,"N",out _))==true||request.All&&(request.ClassIds.Length!=0||(request.SectionIds?.Length??0)>0)||!request.All&&request.ClassIds.Length==0&&(request.SectionIds?.Length??0)==0)return Error("제목·내용·학급·분반·첨부를 확인하세요.");
         if(request.All&&(!teacher.CanBroadcast||!user.CanBroadcast)||!request.All&&request.ClassIds.Any(id=>!teacher.Classes.Contains(id)))return Error("담당 학급 또는 전체 발송 권한을 확인하세요.",403);
         var payload=JsonSerializer.Serialize(request,Json);

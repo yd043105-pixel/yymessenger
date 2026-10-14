@@ -39,9 +39,12 @@ try{
  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK1cAAAAASUVORK5CYII=','base64');
  const form=new FormData();form.append('file',new Blob([png]),'notice.png');const file=await teacher.req('external-announcements/attachments','POST',form);
  const originalExpiry=Date.now()+86400000;const expiresDb=new DatabaseSync(path.join(officeData,'school.db'));expiresDb.exec('PRAGMA busy_timeout=30000');expiresDb.prepare('UPDATE ExternalFiles SET ExpiresAt=? WHERE Id=?').run(originalExpiry,file.id);expiresDb.close();
- const request=packet(room,{attachmentIds:[file.id]});const queued=await teacher.req('external-announcements','POST',request);assert.equal((await teacher.req('external-announcements','POST',request)).id,queued.id);await teacher.req('external-announcements','POST',{...request,body:'변경'},409);
+ const fiveImages=[file.id];for(let i=1;i<5;i++){const extra=new FormData();extra.append('file',new Blob([png]),'page-'+i+'.png');fiveImages.push((await teacher.req('external-announcements/attachments','POST',extra)).id);}
+ for(const kind of ['notice','home-letter'])await teacher.req('external-announcements','POST',packet(room,{kind,attachmentIds:[...fiveImages,id()]}),400);
+ const request=packet(room,{attachmentIds:fiveImages});const queued=await teacher.req('external-announcements','POST',request);assert.equal((await teacher.req('external-announcements','POST',request)).id,queued.id);await teacher.req('external-announcements','POST',{...request,body:'변경'},409);
  const delivered=await waitFor(async()=>{const row=(await teacher.req('external-announcements')).find(x=>x.id===queued.id);return row?.state==='published'?row:null;});
  assert.equal(delivered.detail.attachments[0].expiresAt,originalExpiry);check('signed bridge preserves original attachment expiry instead of extending it after delayed copying');
+ assert.equal(delivered.detail.attachments.length,5);check('office rejects six images for either notice kind and publishes exactly five through the signed bridge');
  const publicView=await fetch(portal+'/api/attachments/'+delivered.detail.attachments[0].id+'/view',{headers:{Cookie:[...parent.cookies].map(([k,v])=>k+'='+v).join('; ')}});assert.equal(publicView.status,200);assert.deepEqual(Buffer.from(await publicView.arrayBuffer()),png);await parent.req('attachments/'+delivered.detail.attachments[0].id+'/download','GET',undefined,404);
  const notices=await parent.req('announcements');assert.equal(notices.length,1);assert.equal(notices[0].id,delivered.remoteId);await parent.req('announcements/'+delivered.remoteId+'/read','POST');
  await waitFor(async()=>{const row=(await teacher.req('external-announcements')).find(x=>x.id===queued.id);return row.detail?.notice.readCount===1;});
@@ -49,11 +52,11 @@ try{
  check('only explicit announcement payload/files cross bridge; private messages and attachments stay internal; receipts return to sender');
 
  async function image(bytes,name='letter.png',kind='home-letter',expected=200){const form=new FormData();form.append('kind',kind);form.append('file',new Blob([bytes]),name);return teacher.req('external-announcements/attachments','POST',form,expected);}
- await image(Buffer.alloc(500001),'large.png','home-letter',413);await image('document','fake.png','home-letter',400);await image('document','document.txt','home-letter',400);
- await image('ordinary attachment','ordinary.txt','notice',400);await image(Buffer.alloc(500001),'large.png','notice',413);await image('document','fake.png','notice',400);
+ await image(Buffer.alloc(200001),'large.png','home-letter',413);await image('document','fake.png','home-letter',400);await image('document','document.txt','home-letter',400);
+ await image('ordinary attachment','ordinary.txt','notice',400);await image(Buffer.alloc(200001),'large.png','notice',413);await image('document','fake.png','notice',400);
  const legacy=await image(png,'legacy.png','notice');const legacyDb=new DatabaseSync(path.join(officeData,'school.db'));legacyDb.prepare('UPDATE ExternalFiles SET Name=? WHERE Id=?').run('legacy.pdf',legacy.id);legacyDb.close();
  await teacher.req('external-announcements','POST',packet(room,{attachmentIds:[legacy.id]}),400);
- check('all public announcement uploads and legacy staged files obey image-only 500KB policy, including generic notices');
+ check('all public announcement uploads and legacy staged files obey image-only 200KB policy, including generic notices');
  const homeFile=await image(png);const homeRequest=packet(room,{title:'이미지 가정통신문',kind:'home-letter',attachmentIds:[homeFile.id]});const homeJob=await teacher.req('external-announcements','POST',homeRequest);
  const home=await waitFor(async()=>{const row=(await teacher.req('external-announcements')).find(x=>x.id===homeJob.id);return row?.state==='published'?row:null;});
  const homeDetail=await parent.req('announcements/'+home.remoteId);assert.equal(homeDetail.notice.kind,'home-letter');
