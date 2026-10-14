@@ -16,14 +16,14 @@ public static class FilePolicy
     public const long MaxNoticeImage = 500_000;
     public static string NoticeImageName(string raw, long size)
     {
-        if (size is <= 0 or > MaxNoticeImage) throw new FilePolicyException("가정통신문 이미지는 한 장당 500KB(0.5MB)까지입니다.", 413);
+        if (size is <= 0 or > MaxNoticeImage) throw new FilePolicyException("학교 공지 이미지는 한 장당 500KB(0.5MB)까지입니다.", 413);
         var name = Name(raw);
         if (Path.GetExtension(name).ToLowerInvariant() is not (".png" or ".jpg" or ".jpeg"))
-            throw new FilePolicyException("가정통신문은 JPG·PNG 이미지로 올려주세요.");
+            throw new FilePolicyException("학교 공지는 JPG·PNG 이미지로 올려주세요.");
         return name;
     }
     public static string NoticeImageType(string name) => Path.GetExtension(name).ToLowerInvariant() switch
-    { ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", _ => throw new FilePolicyException("가정통신문은 JPG·PNG 이미지로 올려주세요.") };
+    { ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg", _ => throw new FilePolicyException("학교 공지는 JPG·PNG 이미지로 올려주세요.") };
     public static void NoticeImage(string path, string name)
     {
         NoticeImageName(name, new FileInfo(path).Length);

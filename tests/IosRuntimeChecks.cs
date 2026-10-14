@@ -120,7 +120,7 @@ internal static class IosRuntimeChecks
                 Check(CurrentPage.Content.IsVisible, "resume validates session before restoring native content");
                 using var teacher = new MessengerApi(portal, false); await teacher.Login(fixture.GetProperty("teacher").GetString()!, password, false);
                 var scopes = await teacher.Get("api/classes");
-                var file = Path.Combine(FileSystem.CacheDirectory, "ios-synthetic-attachment.txt"); await File.WriteAllTextAsync(file, "Synthetic iOS announcement attachment");
+                var file = Path.Combine(FileSystem.CacheDirectory, "ios-synthetic-attachment.png"); await File.WriteAllBytesAsync(file, Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK1cAAAAASUVORK5CYII="));
                 var upload = await teacher.Upload(new FileResult(file), true);
                 var request = new AnnouncementRequest(Guid.NewGuid().ToString("N"), "iOS 공지 검증", "가상 iOS 공지입니다.", "both", [scopes.EnumerateArray().First().GetProperty("id").GetString()!], false, [upload.GetProperty("id").GetString()!]);
                 var created = await teacher.Send("api/announcements", request);

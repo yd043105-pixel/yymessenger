@@ -123,7 +123,6 @@ public sealed class ExternalAnnouncements : BackgroundService
         {
             using var check=Store.Command(db,"SELECT Size FROM ExternalFiles WHERE Id=$id AND OwnerId=$owner AND JobId IS NULL AND DeletedAt IS NULL AND UploadedAt>$cutoff",tx,("$id",file),("$owner",owner),("$cutoff",Now-86400000));
             var size=check.ExecuteScalar();if(size is null||!File.Exists(Path.Combine(Files,file)))return Error("공지 전용 첨부를 다시 올려주세요.",409);total+=Convert.ToInt64(size);
-            if(request.Kind=="home-letter")
             {
                 using var filename=Store.Command(db,"SELECT Name FROM ExternalFiles WHERE Id=$id",tx,("$id",file));var name=(string)filename.ExecuteScalar()!;
                 try{FilePolicy.NoticeImageName(name,Convert.ToInt64(size));FilePolicy.NoticeImage(Path.Combine(Files,file),name);}catch(FilePolicyException e){return Error(e.Message,e.Status);}
@@ -141,16 +140,15 @@ public sealed class ExternalAnnouncements : BackgroundService
         if(Publisher(Owner(c)) is null)return Error("외부 공지 교사 연결이 필요합니다.",403);
         if(!c.Request.HasFormContentType)return Error("파일을 선택하세요.");var form=await c.Request.ReadFormAsync(c.RequestAborted);
         if(form.Files.Count!=1)return Error("파일 하나를 선택하세요.");var file=form.Files[0];
-        if(file.Length is <=0 or >FilePolicy.MaxFile)return Error("파일당 100MB까지입니다.",413);
-        string name;try{name=FilePolicy.Name(file.FileName);}catch(FilePolicyException e){return Error(e.Message,e.Status);}
+        string name;
         var kind=form["kind"].ToString();if(kind is not(""or"notice"or"home-letter"))return Error("공지 유형을 확인하세요.");
-        if(kind=="home-letter")try{name=FilePolicy.NoticeImageName(file.FileName,file.Length);}catch(FilePolicyException e){return Error(e.Message,e.Status);}
+        try{name=FilePolicy.NoticeImageName(file.FileName,file.Length);}catch(FilePolicyException e){return Error(e.Message,e.Status);}
         if(new DriveInfo(Path.GetPathRoot(store.Root)!).AvailableFreeSpace<file.Length+FilePolicy.MaxStaged)return Error("저장 공간이 부족합니다.",507);
         var id=Guid.NewGuid().ToString("N");var path=Path.Combine(Files,id);var kept=false;
         try
         {
             await using(var stream=File.Create(path))await file.CopyToAsync(stream,c.RequestAborted);
-            if(kind=="home-letter")FilePolicy.NoticeImage(path,name);
+            FilePolicy.NoticeImage(path,name);
             await FilePolicy.Scan(path,name,environment.IsDevelopment(),config["School:ScannerPath"],c.RequestAborted);
             if(store.GetUser(Owner(c)) is not{Active:true})return Error("교사 계정이 비활성화되었습니다.",403);
             using var db=store.Open();using var tx=db.BeginTransaction();

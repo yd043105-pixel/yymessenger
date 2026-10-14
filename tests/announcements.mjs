@@ -83,13 +83,21 @@ try{
  const lateParentId=await person(admin,'새 보호자','parent');await admin.request('/api/admin/families','POST',{parentId:lateParentId,studentId:student1Id});
  const lateParent=await register(admin,lateParentId,'lateparent');await lateParent.request('/api/announcements/'+sent.id,'GET',undefined,404);
  check('new guardian relationship cannot expose previous private announcements');
- const uploadClient=randomUUID().replaceAll('-','');const file=await teacher.upload('가정통신문.txt','공지 첨부 검증',uploadClient);assert.equal((await teacher.upload('가정통신문.txt','공지 첨부 검증',uploadClient)).id,file.id);
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK1cAAAAASUVORK5CYII=','base64');
+ const uploadClient=randomUUID().replaceAll('-','');const file=await teacher.upload('공지.png',png,uploadClient);assert.equal((await teacher.upload('공지.png',png,uploadClient)).id,file.id);
  const badFile=new FormData();badFile.append('clientId',randomUUID().replaceAll('-',''));badFile.append('file',new Blob(['not PDF']),'fake.pdf');await teacher.request('/api/attachments','POST',badFile,400);
  const fileNotice=await teacher.request('/api/announcements','POST',post(c1,'첨부 공지',{attachmentIds:[file.id]}));
- const download=await fetch(address+'/api/attachments/'+file.id+'/download',{headers:{Cookie:[...parent.cookies].map(([k,v])=>k+'='+v).join('; ')}});assert.equal(download.status,200);assert.equal(await download.text(),'공지 첨부 검증');
+ const download=await fetch(address+'/api/attachments/'+file.id+'/view',{headers:{Cookie:[...parent.cookies].map(([k,v])=>k+'='+v).join('; ')}});assert.equal(download.status,200);assert.deepEqual(Buffer.from(await download.arrayBuffer()),png);await parent.request('/api/attachments/'+file.id+'/download','GET',undefined,404);
  await student2.request('/api/attachments/'+file.id+'/download','GET',undefined,404);await teacher.request('/api/announcements','POST',post(c1,'재사용',{attachmentIds:[file.id]}),409);
- check('announcement-only file ownership, signature validation, duplicate upload and recipient download authorization');
- const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK1cAAAAASUVORK5CYII=','base64');
+ check('announcement-only file ownership, signature validation, duplicate upload and recipient inline authorization');
+ const legacy=await teacher.upload('legacy.png',png);const legacyDb=new DatabaseSync(path.join(data,'announcements.db'));
+ legacyDb.prepare('UPDATE Files SET Name=? WHERE Id=?').run('legacy.pdf',legacy.id);
+ await teacher.request('/api/announcements','POST',post(c1,'이전 문서 게시 차단',{attachmentIds:[legacy.id]}),400);
+ legacyDb.prepare('UPDATE Files SET Name=? WHERE Id=?').run('legacy.pdf',file.id);
+ await parent.request('/api/attachments/'+file.id+'/view','GET',undefined,422);
+ legacyDb.prepare('UPDATE Files SET Name=? WHERE Id=?').run('공지.png',file.id);legacyDb.close();
+ check('legacy document attachments cannot bypass generic publication or inline viewing; stored notice body is retained');
+
  async function imageUpload(name,bytes,expected=200,kind='home-letter'){
   const form=new FormData();form.append('clientId',randomUUID().replaceAll('-',''));form.append('kind',kind);form.append('file',new Blob([bytes]),name);return teacher.request('/api/attachments','POST',form,expected);
  }
@@ -105,10 +113,10 @@ try{
  const cookie={Cookie:[...parent.cookies].map(([k,v])=>k+'='+v).join('; ')};
  const viewed=await fetch(address+'/api/attachments/'+letter.id+'/view',{headers:cookie});assert.equal(viewed.status,200);assert.equal(viewed.headers.get('content-type'),'image/png');assert.equal(viewed.headers.get('content-disposition'),'inline');assert.equal(viewed.headers.get('cache-control'),'no-store');assert.equal(viewed.headers.get('x-content-type-options'),'nosniff');assert.deepEqual(Buffer.from(await viewed.arrayBuffer()),png);
  await parent.request('/api/attachments/'+letter.id+'/download','GET',undefined,404);await student2.request('/api/attachments/'+letter.id+'/view','GET',undefined,404);await guest.request('/api/attachments/'+letter.id+'/view','GET',undefined,401);
- const ordinary=await teacher.upload('ordinary.txt','normal notice still works');await teacher.request('/api/announcements','POST',post(c1,'우회 차단',{kind:'home-letter',attachmentIds:[ordinary.id]}),400);
+ await imageUpload('ordinary.txt','document',400,'notice');await imageUpload('fake.png','document',400,'notice');
  const largePng=Buffer.concat([png.subarray(0,33),Buffer.alloc(500001-png.length),png.subarray(33)]);
- const bypass=await imageUpload('large.png',largePng,200,'notice');await teacher.request('/api/announcements','POST',post(c1,'일반 업로드 우회 차단',{kind:'home-letter',attachmentIds:[bypass.id]}),413);
- check('home-letter images reject non-images, disguised files, oversized bytes/pixels and generic-upload bypass; scoped inline view has no download route');
+ await imageUpload('large.png',largePng,413,'notice');await imageUpload('exact-500KB-notice.png',boundary,200,'notice');
+ check('all announcement images reject non-images, disguised files, oversized bytes/pixels and generic-upload bypass; scoped inline view has no download route');
  await teacher.request('/api/announcements/'+home.id+'/retract','POST');await parent.request('/api/attachments/'+letter.id+'/view','GET',undefined,404);
  const retained=await imageUpload('expires.png',png);const retainedNotice=await teacher.request('/api/announcements','POST',post(c1,'보관 기한 검증',{kind:'home-letter',attachmentIds:[retained.id]}));
  const expiryDb=new DatabaseSync(path.join(data,'announcements.db'));expiryDb.prepare('UPDATE Files SET ExpiresAt=0 WHERE Id=?').run(retained.id);expiryDb.close();await parent.request('/api/attachments/'+retained.id+'/view','GET',undefined,410);
@@ -122,7 +130,7 @@ try{
  check('student transfer revokes existing student and guardian targets');
  await teacher.request('/api/announcements/'+sent.id+'/retract','POST');assert.equal((await teacher.request('/api/announcements/'+sent.id)).notice.withdrawn,true);await lateParent.login('lateparent');await lateParent.request('/api/announcements/'+sent.id,'GET',undefined,404);
  check('sender-only withdrawal blocks recipient access');
- await delay(16000);assert.equal(existsSync(path.join(data,'files',file.id)),false);await teacher.request('/api/attachments/'+file.id+'/download','GET',undefined,410);
+ await delay(16000);assert.equal(existsSync(path.join(data,'files',file.id)),false);await teacher.request('/api/attachments/'+file.id+'/view','GET',undefined,410);
  check('thirty-day policy shortened only in development; expired external file physically removed');
  await admin.request('/api/admin/people/'+teacherId,'PATCH',{name:'담당교사',active:true,classId:null,classIds:[c2],canBroadcast:false});await teacher.request('/api/announcements','GET',undefined,401);await teacher.login('teacher');assert.equal((await teacher.request('/api/announcements/'+sent.id)).receipts.length,0);
  await admin.request('/api/admin/people/'+teacherId,'PATCH',{name:'담당교사',active:true,classId:null,classIds:[c1],canBroadcast:false});await teacher.login('teacher');
@@ -140,7 +148,7 @@ try{
  check('independent announcement database, accounts, relations and metadata backups survive restart');
  await sectionChecks({admin,Client,person,register,service,data,check});
  await stop();start({ASPNETCORE_ENVIRONMENT:'Production',Portal__ScannerPath:path.join(data,'missing-scanner.exe')});await ready();await service('/heartbeat','POST',{teachers:[{id:teacherId,active:true,canBroadcast:false}]});await teacher.login('teacher');
- const unavailable=new FormData();unavailable.append('clientId',randomUUID().replaceAll('-',''));unavailable.append('file',new Blob(['safe']),'test.txt');await teacher.request('/api/attachments','POST',unavailable,503);
+ const unavailable=new FormData();unavailable.append('clientId',randomUUID().replaceAll('-',''));unavailable.append('file',new Blob([png]),'test.png');await teacher.request('/api/attachments','POST',unavailable,503);
  assert.equal(readdirSync(path.join(data,'files')).length,0);check('production public uploads fail closed when antivirus is unavailable');
  writeFileSync('artifacts/announcement-test-results.json',JSON.stringify({verifiedAt:new Date().toISOString(),passed},null,2));console.log(passed.length+' announcement checks passed.');
 }finally{await stop();}

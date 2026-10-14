@@ -64,24 +64,19 @@ public static class PortalNotices
         bridge.MapGet("/announcements/{id}",(string id,string teacherId)=>Detail(store,id,teacherId));
         api.MapPost("/attachments",async Task<IResult>(HttpContext c)=>await Upload(store,Id(c),c,config,environment)).RequireRateLimiting("upload");
         bridge.MapPost("/attachments",(string teacherId,long? expiresAt,HttpContext c)=>Upload(store,teacherId,c,config,environment,expiresAt)).RequireRateLimiting("upload");
-        IResult FileContent(string id,HttpContext c,bool inline)
+        IResult FileContent(string id,HttpContext c)
         {
             if(!Guid.TryParseExact(id,"N",out _))return Results.NotFound();
             var file=store.Query("SELECT f.Name,f.NoticeId,f.ExpiresAt,f.DeletedAt,n.Kind FROM Files f LEFT JOIN Notices n ON n.Id=f.NoticeId WHERE f.Id=$id",r=>new{name=r.GetString(0),notice=PortalStore.Text(r,1),expires=r.IsDBNull(2)?0:r.GetInt64(2),deleted=!r.IsDBNull(3),kind=PortalStore.Text(r,4)},("$id",id)).FirstOrDefault();
             if(file?.notice is null||!CanRead(store,file.notice,Id(c),false))return Results.NotFound();
-            if(inline!=(file.kind=="home-letter"))return Results.NotFound();
             using var verified=store.Open();
             if(file.deleted||file.expires<=Now||!StoredFiles.Ready(verified,"portal",id,Path.Combine(store.Files,id)))return Error("공지 첨부의 30일 보관 기간이 만료되었거나 파일이 없습니다.",410);
-            if(inline)
-            {
-                try{FilePolicy.NoticeImage(Path.Combine(store.Files,id),file.name);}catch(FilePolicyException){return Error("가정통신문 이미지를 표시할 수 없습니다.",422);}
-                c.Response.Headers.ContentDisposition="inline";c.Response.Headers.CacheControl="no-store";c.Response.Headers.XContentTypeOptions="nosniff";
-                return Results.File(Path.Combine(store.Files,id),FilePolicy.NoticeImageType(file.name),enableRangeProcessing:false);
-            }
-            return Results.File(Path.Combine(store.Files,id),"application/octet-stream",file.name,enableRangeProcessing:false);
+            try{FilePolicy.NoticeImage(Path.Combine(store.Files,id),file.name);}catch(FilePolicyException){return Error("공지 이미지를 표시할 수 없습니다. 이전 문서 첨부는 JPG·PNG로 다시 게시해 주세요.",422);}
+            c.Response.Headers.ContentDisposition="inline";c.Response.Headers.CacheControl="no-store";c.Response.Headers.XContentTypeOptions="nosniff";
+            return Results.File(Path.Combine(store.Files,id),FilePolicy.NoticeImageType(file.name),enableRangeProcessing:false);
         }
-        api.MapGet("/attachments/{id}/download",(string id,HttpContext c)=>FileContent(id,c,false));
-        api.MapGet("/attachments/{id}/view",(string id,HttpContext c)=>FileContent(id,c,true));
+        api.MapGet("/attachments/{id}/download",()=>Results.NotFound());
+        api.MapGet("/attachments/{id}/view",(string id,HttpContext c)=>FileContent(id,c));
     }
     public static IResult Publish(PortalStore store,string teacherId,AnnouncementRequest request,AnnouncementTarget[]? captured,IConfiguration config,IHostEnvironment environment)
     {
@@ -103,7 +98,6 @@ public static class PortalNotices
         {
             using var file=PortalStore.Command(db,"SELECT Size FROM Files WHERE Id=$id AND OwnerId=$owner AND NoticeId IS NULL AND DeletedAt IS NULL AND UploadedAt>$cutoff",tx,("$id",fileId),("$owner",teacherId),("$cutoff",Now-86_400_000));
             var size=file.ExecuteScalar();if(size is null||!File.Exists(Path.Combine(store.Files,fileId)))return Error("공지 전용 첨부파일을 다시 확인하세요.",409);total+=Convert.ToInt64(size);
-            if(request.Kind=="home-letter")
             {
                 using var filename=PortalStore.Command(db,"SELECT Name FROM Files WHERE Id=$id",tx,("$id",fileId));var name=(string)filename.ExecuteScalar()!;
                 try{FilePolicy.NoticeImageName(name,Convert.ToInt64(size));FilePolicy.NoticeImage(Path.Combine(store.Files,fileId),name);}catch(FilePolicyException e){return Error(e.Message,e.Status);}
@@ -124,17 +118,17 @@ public static class PortalNotices
         var teacher=store.Person(teacherId);if(teacher is null||!VerifiedTeacher(store,teacher))return Error("승인된 교사만 공지 파일을 올릴 수 있습니다.",403);
         if(!c.Request.HasFormContentType)return Error("파일을 선택하세요.");var form=await c.Request.ReadFormAsync(c.RequestAborted);
         if(form.Files.Count!=1||!Guid.TryParseExact(form["clientId"],"N",out _))return Error("파일과 요청 번호를 확인하세요.");
-        var file=form.Files[0];if(file.Length is <=0 or >FilePolicy.MaxFile)return Error("파일당 100MB까지입니다.",413);
-        string name;try{name=FilePolicy.Name(file.FileName);}catch(FilePolicyException error){return Error(error.Message,error.Status);}
+        var file=form.Files[0];
+        string name;
         var kind=form["kind"].ToString();if(kind is not(""or"notice"or"home-letter"))return Error("공지 유형을 확인하세요.");
-        if(kind=="home-letter")try{name=FilePolicy.NoticeImageName(file.FileName,file.Length);}catch(FilePolicyException e){return Error(e.Message,e.Status);}
+        try{name=FilePolicy.NoticeImageName(file.FileName,file.Length);}catch(FilePolicyException e){return Error(e.Message,e.Status);}
         if(new DriveInfo(Path.GetPathRoot(store.Root)!).AvailableFreeSpace<file.Length+FilePolicy.MaxStaged)return Error("서버 저장 공간이 부족합니다.",507);
         var id=Guid.NewGuid().ToString("N");var path=Path.Combine(store.Files,id);var keep=false;
         using(var state=store.Open())StoredFiles.State(state,"portal",id,"uploading");
         try
         {
             await using(var output=new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.None,81920,true))await file.CopyToAsync(output,c.RequestAborted);
-            if(kind=="home-letter")FilePolicy.NoticeImage(path,name);
+            FilePolicy.NoticeImage(path,name);
             using(var state=store.Open())StoredFiles.State(state,"portal",id,"scanning");
             await FilePolicy.Scan(path,name,environment.IsDevelopment(),config["Portal:ScannerPath"],c.RequestAborted);
             var current=store.Person(teacherId);if(current is null||!VerifiedTeacher(store,current))return Error("교사 권한이 변경되었습니다.",403);
