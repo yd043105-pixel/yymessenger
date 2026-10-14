@@ -104,12 +104,13 @@ public static class PortalCounseling
 
     static IResult Open(PortalStore store,Account teacher,CounselingOpen request)
     {
-        if(!Key(request.ClientId)||!Key(request.ClassId)||!CounselingTimes.Day(request.Date,out var day)||request.PeriodIds is null||request.PeriodIds.Length is <1 or >12||request.PeriodIds.Distinct().Count()!=request.PeriodIds.Length)return Error("학급·날짜·시간을 확인하세요.");
+        if(!Key(request.ClientId)||!Key(request.ClassId)||!CounselingTimes.Day(request.Date,out var day)||request.PeriodIds is null||request.PeriodIds.Length is <1 or >10||request.PeriodIds.Distinct().Count()!=request.PeriodIds.Length)return Error("학급·날짜·시간을 확인하세요.");
         var today=DateOnly.Parse(CounselingTimes.Today);if(day<today||day>today.AddMonths(6))return Error("오늘부터 6개월 이내의 날짜를 선택하세요.");
-        var periods=request.PeriodIds.Select(id=>CounselingTimes.Periods.FirstOrDefault(p=>p.Id==id)).ToArray();if(periods.Any(p=>p is null))return Error("상담 시간대를 확인하세요.");
         var fingerprint=Hash(JsonSerializer.Serialize(request));
         using var db=store.Open();using var tx=db.BeginTransaction(deferred:false);
-        if(!TeacherClasses(store,teacher).Any(c=>c.Id==request.ClassId))return Error("담당 학급의 상담 시간만 열 수 있습니다.",403);
+        var room=TeacherClasses(store,teacher).FirstOrDefault(c=>c.Id==request.ClassId);if(room is null)return Error("담당 학급의 상담 시간만 열 수 있습니다.",403);
+        if(room.Grade is <1 or >3)return Error("관리자에게 학급의 학년 정보를 확인하세요.");
+        var periods=request.PeriodIds.Select(id=>CounselingTimes.Periods(room.Grade).FirstOrDefault(p=>p.Id==id)).ToArray();if(periods.Any(p=>p is null))return Error("상담은 해당 학년의 1~8교시·야간1·야간2 중 선택하세요.");
         using(var q=PortalStore.Command(db,"SELECT Result,RequestHash FROM CounselingOpenRequests WHERE TeacherId=$teacher AND ClientId=$client",tx,("$teacher",teacher.Id),("$client",request.ClientId)))using(var reader=q.ExecuteReader())if(reader.Read())return reader.GetString(1)==fingerprint?Results.Ok(new{ids=JsonSerializer.Deserialize<string[]>(reader.GetString(0))}):Error("같은 요청 번호의 내용이 다릅니다.",409);
         var ids=new List<string>();foreach(var period in periods.OrderBy(p=>p!.Id))
         {

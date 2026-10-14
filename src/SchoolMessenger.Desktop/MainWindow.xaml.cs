@@ -128,7 +128,7 @@ public partial class MainWindow : Window
     async Task EnterWorkspace()
     {
         if(Api?.Session?.User?.ActivationRequired==true){savedLogin.Clear();new StaffActivationWindow(Api){Owner=this}.ShowDialog();throw new InvalidOperationException("개인 비밀번호로 다시 로그인하세요.");}
-        var user = Api!.Session!.User!; IdentityLabel.Text = user.Name + " 선생님"; IdentityDepartment.Text = user.Department; archive=null;
+        var user = Api!.Session!.User!; IdentityLabel.Text = user.Name + " 선생님"; IdentityDepartment.Text = string.Join(" · ",new[]{user.Department,user.Position}.Where(s=>s.Length>0)); archive=null;
         AdminButton.Visibility = user.IsAdmin ? Visibility.Visible : Visibility.Collapsed;
         Workspace.Visibility = Visibility.Visible; LoginPanel.Visibility = Visibility.Collapsed;
         knownTimetables.Clear();
@@ -286,7 +286,7 @@ public partial class MainWindow : Window
         }
         menu.Items.Add(new Separator());
         Add("메시지 관리함(_H)", (_, _) => OpenMailbox("conversation", person));
-        Add("사용자 정보보기(_I)", (_, _) => System.Windows.MessageBox.Show(this, $"이름: {person.Name}\n부서: {person.Department}\n상태: {person.Presence}", "사용자 정보", MessageBoxButton.OK, MessageBoxImage.Information));
+        Add("사용자 정보보기(_I)", (_, _) => System.Windows.MessageBox.Show(this, $"이름: {person.Name}\n부서: {person.Department}\n직책: {person.Position}\n상태: {person.Presence}", "사용자 정보", MessageBoxButton.OK, MessageBoxImage.Information));
         menu.Items.Add(new Separator());
         Add(Favorites.Contains(person.Id) ? "즐겨찾기 해제" : "즐겨찾기 추가", (_, _) => { if (!Favorites.Add(person.Id)) Favorites.Remove(person.Id); SavePreferences(); RenderTree(); });
         return menu;

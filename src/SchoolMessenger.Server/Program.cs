@@ -257,7 +257,7 @@ app.MapPost("/api/password", async Task<IResult> (PasswordChange request, HttpCo
 }).RequireAuthorization();
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapGet("/users", (Presence presence) => store.Users().Where(u => u.Active).Select(u => new
-{ u.Id, u.Name, u.Department, online = presence.Online(u.Id) }));
+{ u.Id, u.Name, u.Department,u.Position, online = presence.Online(u.Id) }));
 
 api.MapPost("/attachments", async Task<IResult> (HttpContext c) =>
 {
@@ -537,10 +537,10 @@ adminApi.MapPatch("/users/{id}", IResult (string id, UpdateUser request, HttpCon
     if(store.Query("SELECT 1 FROM BackendRoot WHERE UserId=$id",r=>r.GetInt32(0),("$id",id)).Count==1&&(!request.Active||!request.IsAdmin))return Error("최고관리자 계정을 비활성화하거나 권한을 해제할 수 없습니다.",403);
     if(!string.IsNullOrEmpty(request.Password)&&StaffAccounts.Get(store,id) is not null)return Error("사전 등록된 교사는 계정 초기화에서 임시 비밀번호와 새 활성화 번호를 발급하세요.");
     if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 50 || string.IsNullOrWhiteSpace(request.Department) || request.Department.Length > 50 ||
-        (!string.IsNullOrEmpty(request.Password) && !ValidPassword(request.Password))) return Error("이름·부서·비밀번호 형식을 확인하세요.");
+        (request.Position is not null&&!StaffAccounts.Position(request.Position))||(!string.IsNullOrEmpty(request.Password) && !ValidPassword(request.Password))) return Error("이름·부서·직책·비밀번호 형식을 확인하세요.");
     if (id == UserId(c) && (!request.Active || !request.IsAdmin)) return Error("자신의 관리자 권한을 해제하거나 계정을 비활성화할 수 없습니다.");
-    store.Execute("UPDATE Users SET Name=$name,Department=$department,Active=$active,IsAdmin=$admin,CanBroadcast=$broadcast,PasswordHash=$hash,SessionVersion=SessionVersion+1,FailedAttempts=0,LockedUntil=0 WHERE Id=$id",
-        ("$name", request.Name.Trim()), ("$department", request.Department.Trim()), ("$active", request.Active), ("$admin", request.IsAdmin), ("$broadcast", request.CanBroadcast),
+    store.Execute("UPDATE Users SET Name=$name,Department=$department,Position=$position,Active=$active,IsAdmin=$admin,CanBroadcast=$broadcast,PasswordHash=$hash,SessionVersion=SessionVersion+1,FailedAttempts=0,LockedUntil=0 WHERE Id=$id",
+        ("$name", request.Name.Trim()), ("$department", request.Department.Trim()),("$position",(request.Position??user.Position).Trim()), ("$active", request.Active), ("$admin", request.IsAdmin), ("$broadcast", request.CanBroadcast),
         ("$hash", string.IsNullOrEmpty(request.Password) ? user.PasswordHash : hasher.HashPassword(user, request.Password)), ("$id", id));
     return Results.Ok();
 });
@@ -564,7 +564,7 @@ DeviceSessions.Map(app,store.Open);
 app.Run();
 
 static string UserId(HttpContext c) => c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-object PublicUser(User u) => new { u.Id, u.Username, u.Name, u.Department, u.IsAdmin, u.CanBroadcast, u.Active, activationRequired=StaffAccounts.Pending(store,u.Id), seatIp=StaffAccounts.Get(store,u.Id)?.SeatIp };
+object PublicUser(User u) => new { u.Id, u.Username, u.Name, u.Department,u.Position, u.IsAdmin, u.CanBroadcast, u.Active, activationRequired=StaffAccounts.Pending(store,u.Id), seatIp=StaffAccounts.Get(store,u.Id)?.SeatIp };
 static IResult Error(string message, int status = 400) => Results.Json(new { error = message }, statusCode: status);
 static bool ValidPassword(string? password) => password is { Length: >= 12 and <= 128 } && !string.IsNullOrWhiteSpace(password);
 static bool ValidProfile(string? username, string? name, string? department) => username is not null && Regex.IsMatch(username, "^[A-Za-z0-9._-]{3,32}$") &&
@@ -588,4 +588,4 @@ record RegistrationRequest(string? Username, string? Name, string? Department, s
 record PasswordChange(string? CurrentPassword, string? NewPassword);
 record SendMessage(string? ClientId, string? Title, string? Body, string[]? RecipientIds, string[]? AttachmentIds, bool All, string? Department, long? SubmissionDeadline = null,long? ScheduledAt=null);
 record CreateUser(string? Username, string? Name, string? Department, string? Password, bool IsAdmin, bool CanBroadcast);
-record UpdateUser(string? Name, string? Department, string? Password, bool IsAdmin, bool CanBroadcast, bool Active);
+record UpdateUser(string? Name, string? Department, string? Password, bool IsAdmin, bool CanBroadcast, bool Active,string? Position=null);

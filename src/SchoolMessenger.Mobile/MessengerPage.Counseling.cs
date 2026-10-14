@@ -18,6 +18,19 @@ public sealed partial class MessengerPage
         var room=new Picker{Title="담당 학급"};var childPicker=new Picker{Title="상담할 학생"};var choices=new Dictionary<int,CheckBox>();
         var scheduled=new Switch();var opensDay=new DatePicker{Date=today,MinimumDate=today,MaximumDate=today.AddMonths(6),Format="yyyy.MM.dd"};var opensTime=new TimePicker{Time=TimeSpan.FromHours(9),Format="HH:mm"};
         CounselingView? data=null;CounselingOpen? pending=null;bool loading=false;
+        var periodGrid=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Star)},ColumnSpacing=8,RowSpacing=4};
+        void PeriodChoices()
+        {
+            var selected=choices.Where(c=>c.Value.IsChecked).Select(c=>c.Key).ToArray();choices.Clear();periodGrid.Clear();periodGrid.RowDefinitions.Clear();
+            if(data is not{CanManage:true}||room.SelectedIndex<0||room.SelectedIndex>=data.Classes.Length||data.Classes[room.SelectedIndex].Grade is <1 or >3)return;
+            var available=CounselingTimes.Periods(data.Classes[room.SelectedIndex].Grade);
+            for(var index=0;index<available.Length;index++)
+            {
+                var period=available[index];if(index%2==0)periodGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                var check=new CheckBox{IsChecked=selected.Contains(period.Id)};choices[period.Id]=check;var caption=Text(period.Name+"\n"+period.Start+"–"+period.End,13);var row=new HorizontalStackLayout{Spacing=4,MinimumHeightRequest=54};row.Add(check);row.Add(caption);
+                var tap=new TapGestureRecognizer();tap.Tapped+=(_,_)=>check.IsChecked=!check.IsChecked;caption.GestureRecognizers.Add(tap);periodGrid.Add(row,index%2,index/2);
+            }
+        }
         bool Live()=>Current(source,version)&&Navigation.NavigationStack.Contains(page);
         async Task Do(Func<Task> action)
         {
@@ -76,18 +89,10 @@ public sealed partial class MessengerPage
             data=value.Deserialize(MobileJson.Default.CounselingView)!;
             room.ItemsSource=data.Classes.Select(c=>c.Name).ToArray();room.SelectedIndex=Math.Max(0,Array.FindIndex(data.Classes,c=>c.Id==previousRoom));
             childPicker.ItemsSource=data.Students.Select(s=>s.Name+" · "+s.ClassName).ToArray();childPicker.SelectedIndex=Math.Max(0,Array.FindIndex(data.Students,s=>s.Id==previousChild));
-            childPicker.IsVisible=!data.CanManage;form.IsVisible=data.CanManage;Render();
+            childPicker.IsVisible=!data.CanManage;form.IsVisible=data.CanManage;PeriodChoices();Render();
         }
         stack.Add(Act("날짜 조회 · 새로고침",async()=>{await Load();pending=null;form.IsEnabled=true;}));stack.Add(Card(childPicker,8));
         form.Add(Text("예약 시간 열기",18,true));form.Add(Card(room,8));
-        var periodGrid=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Star)},ColumnSpacing=8,RowSpacing=4};
-        for(var index=0;index<CounselingTimes.Periods.Length;index++)
-        {
-            var period=CounselingTimes.Periods[index];if(index%2==0)periodGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            var check=new CheckBox();choices[period.Id]=check;var caption=Text(period.Label,13);var row=new HorizontalStackLayout{Spacing=4,MinimumHeightRequest=48};row.Add(check);row.Add(caption);
-            var tap=new TapGestureRecognizer();tap.Tapped+=(_,_)=>check.IsChecked=!check.IsChecked;caption.GestureRecognizers.Add(tap);
-            periodGrid.Add(row,index%2,index/2);
-        }
         form.Add(periodGrid);
         var schedule=new HorizontalStackLayout{Spacing=10};schedule.Add(scheduled);schedule.Add(Text("신청 오픈 시각 지정",14));form.Add(schedule);form.Add(opensDay);form.Add(opensTime);stack.Add(Card(form));
         var open=Act("선택한 시간 열기 · 같은 요청 재시도",async()=>
@@ -102,6 +107,7 @@ public sealed partial class MessengerPage
             await source.Send("api/counseling/slots",pending);pending=null;form.IsEnabled=true;await Load();
         },true);stack.Add(open);stack.Add(list);
         childPicker.SelectedIndexChanged+=(_,_)=>Render();
+        room.SelectedIndexChanged+=(_,_)=>PeriodChoices();
         await Navigation.PushAsync(page);await Do(Load);open.IsVisible=data?.CanManage==true;
     }
 }

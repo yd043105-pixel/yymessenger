@@ -80,6 +80,7 @@
 		<!-- Share the DTO source without inheriting the Windows service runtime graph. -->
     <Compile Include="../SchoolMessenger.Contracts/Announcements.cs" Link="Contracts/Announcements.cs" />
     <Compile Include="../SchoolMessenger.Contracts/Counseling.cs" Link="Contracts/Counseling.cs" />
+    <Compile Include="../SchoolMessenger.Contracts/SchoolDay.cs" Link="Contracts/SchoolDay.cs" />
     <Compile Include="../SchoolMessenger.Contracts/Office.cs" Link="Contracts/Office.cs" />
     <Compile Include="../SchoolMessenger.Contracts/RegistrationPolicies.cs" Link="Contracts/RegistrationPolicies.cs" />
         <Compile Include="../SchoolMessenger.Shared/ReleaseNotice.cs" Link="ReleaseNotice.cs" />

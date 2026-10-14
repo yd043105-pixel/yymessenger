@@ -10,10 +10,12 @@ public static class OfficeFeatures
 {
     record Event(string Id,string OwnerId,string OwnerName,string Title,string Description,long Start,long End,bool AllDay,int Revision,bool Cancelled);
     record Room(string Id,string Name,string Location,bool Active,int Revision);
-    record Booking(string Id,string OwnerId,string OwnerName,string ClientId,string RoomId,string RoomName,string Title,long Start,long End,int Revision,bool Cancelled);
+    record Booking(string Id,string OwnerId,string OwnerName,string ClientId,string RoomId,string RoomName,string Title,long Start,long End,int Revision,bool Cancelled,int Grade);
     static string User(HttpContext c)=>c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
     static IResult Error(string text,int status=400)=>Results.Json(new{error=text},statusCode:status);
-    public static void Initialize(Store store)=>store.Execute("""
+    public static void Initialize(Store store)
+    {
+        store.Execute("""
         CREATE TABLE IF NOT EXISTS OfficePermissions(UserId TEXT PRIMARY KEY REFERENCES Users(Id),CalendarManager INTEGER NOT NULL DEFAULT 0,RoomManager INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS OfficeEvents(Id TEXT PRIMARY KEY,OwnerId TEXT NOT NULL REFERENCES Users(Id),ClientId TEXT NOT NULL,
           Title TEXT NOT NULL,Description TEXT NOT NULL,Start INTEGER NOT NULL,End INTEGER NOT NULL,AllDay INTEGER NOT NULL,
@@ -25,6 +27,8 @@ public static class OfficeFeatures
           Revision INTEGER NOT NULL DEFAULT 1,Cancelled INTEGER NOT NULL DEFAULT 0,UNIQUE(OwnerId,ClientId));
         CREATE INDEX IF NOT EXISTS IX_OfficeBookings_Overlap ON OfficeBookings(RoomId,Cancelled,Start,End);
         """);
+        if(!store.Query("PRAGMA table_info(OfficeBookings)",r=>r.GetString(1)).Contains("Grade"))store.Execute("ALTER TABLE OfficeBookings ADD COLUMN Grade INTEGER NOT NULL DEFAULT 1");
+    }
     static bool Granted(SqliteConnection db,SqliteTransaction? tx,string id,string permission)
     {
         // Column names are constants chosen by this module, never request input.
@@ -47,9 +51,9 @@ public static class OfficeFeatures
         start=new DateTimeOffset(a.ToDateTime(TimeOnly.MinValue),TimeSpan.FromHours(9)).ToUnixTimeMilliseconds();end=new DateTimeOffset(b.ToDateTime(TimeOnly.MinValue),TimeSpan.FromHours(9)).ToUnixTimeMilliseconds();return true;
     }
     static Event ReadEvent(SqliteDataReader r)=>new(r.GetString(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetString(4),r.GetInt64(5),r.GetInt64(6),r.GetBoolean(7),r.GetInt32(8),r.GetBoolean(9));
-    static Booking ReadBooking(SqliteDataReader r)=>new(r.GetString(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetString(4),r.GetString(5),r.GetString(6),r.GetInt64(7),r.GetInt64(8),r.GetInt32(9),r.GetBoolean(10));
+    static Booking ReadBooking(SqliteDataReader r)=>new(r.GetString(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetString(4),r.GetString(5),r.GetString(6),r.GetInt64(7),r.GetInt64(8),r.GetInt32(9),r.GetBoolean(10),r.GetInt32(11));
     const string Events="SELECT e.Id,e.OwnerId,u.Name,e.Title,e.Description,e.Start,e.End,e.AllDay,e.Revision,e.Cancelled FROM OfficeEvents e JOIN Users u ON u.Id=e.OwnerId";
-    const string Bookings="SELECT b.Id,b.OwnerId,u.Name,b.ClientId,b.RoomId,r.Name,b.Title,b.Start,b.End,b.Revision,b.Cancelled FROM OfficeBookings b JOIN Users u ON u.Id=b.OwnerId JOIN OfficeRooms r ON r.Id=b.RoomId";
+    const string Bookings="SELECT b.Id,b.OwnerId,u.Name,b.ClientId,b.RoomId,r.Name,b.Title,b.Start,b.End,b.Revision,b.Cancelled,b.Grade FROM OfficeBookings b JOIN Users u ON u.Id=b.OwnerId JOIN OfficeRooms r ON r.Id=b.RoomId";
     public static void Map(RouteGroupBuilder api,RouteGroupBuilder admin,Store store)
     {
         api.MapGet("/office/setup",(HttpContext c)=>
@@ -109,13 +113,13 @@ public static class OfficeFeatures
     }
     static IResult SaveBooking(Store store,HttpContext c,OfficeBookingRequest request,string? id)
     {
-        if(!Guid.TryParseExact(request.ClientId,"N",out _)||!Guid.TryParseExact(request.RoomId,"N",out _)||string.IsNullOrWhiteSpace(request.Title)||request.Title.Length>200||!Time(request.Start,out var start)||!Time(request.End,out var end)||start<Maintenance.Now-300_000||end<=start||end-start>7*86_400_000L)return Error("예약 제목과 미래의 시작/종료 시간을 확인하세요. 예약은 최대 7일입니다.");
+        if(!Guid.TryParseExact(request.ClientId,"N",out _)||!Guid.TryParseExact(request.RoomId,"N",out _)||string.IsNullOrWhiteSpace(request.Title)||request.Title.Length>200||!Time(request.Start,out var start)||!Time(request.End,out var end)||start<Maintenance.Now-300_000||!SchoolDay.RoomRange(request.Grade,start,end))return Error("특별실은 선택한 학년의 같은 날짜 1~7교시만 예약할 수 있습니다. 시작·종료를 교시 시각에 맞추세요.");
         using var db=store.Open();using var tx=db.BeginTransaction(deferred:false);
         if(!Current(db,tx,c))return Error("계정 상태가 변경되었습니다. 다시 로그인하세요.",401);
         if(id is null)
         {
             using var previous=Store.Command(db,Bookings+" WHERE b.OwnerId=$user AND b.ClientId=$client",tx,("$user",User(c)),("$client",request.ClientId));
-            using(var reader=previous.ExecuteReader())if(reader.Read()){var value=ReadBooking(reader);return value.RoomId==request.RoomId&&value.Title==request.Title.Trim()&&value.Start==start&&value.End==end&&!value.Cancelled?Results.Ok(new{id=value.Id,revision=value.Revision,duplicate=true}):Error("같은 예약 요청 번호를 재사용할 수 없습니다.",409);}
+            using(var reader=previous.ExecuteReader())if(reader.Read()){var value=ReadBooking(reader);return value.RoomId==request.RoomId&&value.Title==request.Title.Trim()&&value.Start==start&&value.End==end&&value.Grade==request.Grade&&!value.Cancelled?Results.Ok(new{id=value.Id,revision=value.Revision,duplicate=true}):Error("같은 예약 요청 번호를 재사용할 수 없습니다.",409);}
         }
         else
         {
@@ -124,8 +128,8 @@ public static class OfficeFeatures
         }
         using(var room=Store.Command(db,"SELECT 1 FROM OfficeRooms WHERE Id=$id AND Active=1",tx,("$id",request.RoomId)))if(room.ExecuteScalar() is null)return Error("예약할 수 없는 특별실입니다.",409);
         using(var overlap=Store.Command(db,"SELECT 1 FROM OfficeBookings WHERE RoomId=$room AND Cancelled=0 AND Start<$end AND End>$start AND ($id IS NULL OR Id!=$id) LIMIT 1",tx,("$room",request.RoomId),("$start",start),("$end",end),("$id",id)))if(overlap.ExecuteScalar() is not null)return Error("선택한 시간에 다른 예약이 있습니다.",409);
-        if(id is null){id=Guid.NewGuid().ToString("N");using var add=Store.Command(db,"INSERT INTO OfficeBookings(Id,OwnerId,ClientId,RoomId,Title,Start,End) VALUES($id,$user,$client,$room,$title,$start,$end)",tx,("$id",id),("$user",User(c)),("$client",request.ClientId),("$room",request.RoomId),("$title",request.Title.Trim()),("$start",start),("$end",end));add.ExecuteNonQuery();}
-        else{using var update=Store.Command(db,"UPDATE OfficeBookings SET RoomId=$room,Title=$title,Start=$start,End=$end,Revision=Revision+1 WHERE Id=$id AND Revision=$version AND Cancelled=0",tx,("$room",request.RoomId),("$title",request.Title.Trim()),("$start",start),("$end",end),("$id",id),("$version",request.Revision));if(update.ExecuteNonQuery()!=1)return Error("예약이 변경 또는 취소되었습니다. 다시 조회하세요.",409);}
+        if(id is null){id=Guid.NewGuid().ToString("N");using var add=Store.Command(db,"INSERT INTO OfficeBookings(Id,OwnerId,ClientId,RoomId,Title,Start,End,Grade) VALUES($id,$user,$client,$room,$title,$start,$end,$grade)",tx,("$id",id),("$user",User(c)),("$client",request.ClientId),("$room",request.RoomId),("$title",request.Title.Trim()),("$start",start),("$end",end),("$grade",request.Grade));add.ExecuteNonQuery();}
+        else{using var update=Store.Command(db,"UPDATE OfficeBookings SET RoomId=$room,Title=$title,Start=$start,End=$end,Grade=$grade,Revision=Revision+1 WHERE Id=$id AND Revision=$version AND Cancelled=0",tx,("$room",request.RoomId),("$title",request.Title.Trim()),("$start",start),("$end",end),("$grade",request.Grade),("$id",id),("$version",request.Revision));if(update.ExecuteNonQuery()!=1)return Error("예약이 변경 또는 취소되었습니다. 다시 조회하세요.",409);}
         StaffAccounts.Audit(db,tx,User(c),"booking.save",id);tx.Commit();return Results.Ok(new{id,revision=request.Revision+1});
     }
     static IResult Cancel(Store store,HttpContext c,string id,int revision,bool isEvent)

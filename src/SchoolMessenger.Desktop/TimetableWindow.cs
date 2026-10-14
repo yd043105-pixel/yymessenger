@@ -61,11 +61,18 @@ public sealed class TimetableWindow:Window
             var day=await api.Get<TimetableDay>("api/timetable/day?date="+first.AddDays(i).ToString("yyyy-MM-dd")+(choice.Id=="mine"?"&mine=true":"&classId="+choice.Id));
             if(revision is not null&&revision!=day.Revision)throw new InvalidOperationException("조회 중 시간표가 갱신되었습니다. 다시 조회하세요.");revision=day.Revision;
             view.Children.Add(Text(day.Date+" · "+first.AddDays(i).ToString("dddd"),19));
+            if(choice.Id!="mine")
+            {
+                var room=setup.GetProperty("classes").EnumerateArray().FirstOrDefault(r=>r.GetProperty("id").GetString()==choice.Id);
+                if(room.ValueKind==JsonValueKind.Object&&room.GetProperty("grade").GetInt32() is >=1 and <=3)
+                    view.Children.Add(Text(string.Join("\n",SchoolDay.Schedule(room.GetProperty("grade").GetInt32()).Where(p=>!p.Lesson).Select(p=>p.Label)),12));
+            }
             if(day.MissingClasses.Length>0)view.Children.Add(Text("일부 학급의 적용 가능한 기초시간표가 없습니다."));
-            foreach(var s in day.Slots)
+            foreach(var s in day.Slots.Where(s=>s.Period<=10||s.Subject.Length>0))
             {
                 var label=s.Subject.Length==0?"수업 없음":s.Subject+" · "+s.TeacherName;
-                view.Children.Add(Text($"{s.Period}교시  {s.ClassName}  {label}"+(s.Changed?$"\n변경 전: {(s.BeforeSubject.Length==0?"수업 없음":s.BeforeSubject+" · "+s.BeforeTeacher)}":"")));
+                var room=setup.GetProperty("classes").EnumerateArray().FirstOrDefault(r=>r.GetProperty("id").GetString()==s.ClassId);var grade=room.ValueKind==JsonValueKind.Object?room.GetProperty("grade").GetInt32():0;
+                view.Children.Add(Text($"{SchoolDay.Label(grade,s.Period)}  {s.ClassName}  {label}"+(s.Changed?$"\n변경 전: {(s.BeforeSubject.Length==0?"수업 없음":s.BeforeSubject+" · "+s.BeforeTeacher)}":"")));
             }
             if(day.Slots.Length==0)view.Children.Add(Text("등록된 내 수업이 없습니다."));
             if(day.PublishedAt>0)view.Children.Add(Text("마지막 게시: "+DateTimeOffset.FromUnixTimeMilliseconds(day.PublishedAt).ToOffset(TimeSpan.FromHours(9)).ToString("yyyy.MM.dd HH:mm"),12));

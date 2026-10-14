@@ -24,6 +24,7 @@ public sealed class CounselingWindow : Window
     readonly ComboBox opensMinute=new(){ItemsSource=new[]{"00","10","20","30","40","50"},SelectedIndex=0};
     readonly CheckBox scheduled=new(){Content="예약 신청을 지정 시각에 열기",Margin=new Thickness(0,8,0,8)};
     readonly Dictionary<int,CheckBox> periods=[];
+    readonly WrapPanel choices=new();
     CounselingOpen? pending;
     bool busy;
     internal bool Ready {get;private set;}
@@ -34,7 +35,7 @@ public sealed class CounselingWindow : Window
         Content=new ScrollViewer{Content=body};body.Children.Add(Text("상담 예약",23));body.Children.Add(Text("담당 학급의 상담 시간을 열고 신청 현황을 확인하세요. 모든 시각은 한국 시간입니다."));body.Children.Add(feedback);
         body.Children.Add(Text("상담 날짜",12));body.Children.Add(day);AddAction(body,"선택한 날짜 조회 · 새로고침",async()=>{await Load();pending=null;form.IsEnabled=true;});
         form.Children.Add(Text("예약 시간 열기",17));form.Children.Add(room);
-        var choices=new WrapPanel();foreach(var period in CounselingTimes.Periods){var box=new CheckBox{Content=period.Label,Margin=new Thickness(0,0,16,12)};periods[period.Id]=box;choices.Children.Add(box);}form.Children.Add(choices);
+        room.SelectionChanged+=(_,_)=>PeriodChoices();form.Children.Add(choices);
         form.Children.Add(scheduled);var opening=new StackPanel{Orientation=Orientation.Horizontal};opening.Children.Add(opensDay);opening.Children.Add(opensHour);opening.Children.Add(Text(":"));opening.Children.Add(opensMinute);form.Children.Add(opening);body.Children.Add(form);
         AddAction(body,"선택한 상담 시간 열기 · 실패 시 같은 요청 재시도",async()=>
         {
@@ -50,6 +51,12 @@ public sealed class CounselingWindow : Window
         body.Children.Add(list);Loaded+=async(_,_)=>await Run(Load);
     }
     static TextBlock Text(string text,int size=13)=>new(){Text=text,FontSize=size,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,8,0,10)};
+    void PeriodChoices()
+    {
+        var selected=periods.Where(p=>p.Value.IsChecked==true).Select(p=>p.Key).ToArray();periods.Clear();choices.Children.Clear();
+        if(room.SelectedItem is not PortalClass {Grade:>=1 and <=3} chosen)return;
+        foreach(var period in CounselingTimes.Periods(chosen.Grade)){var box=new CheckBox{Content=period.Label,IsChecked=selected.Contains(period.Id),Margin=new Thickness(0,0,16,12)};periods[period.Id]=box;choices.Children.Add(box);}
+    }
     void AddAction(StackPanel panel,string label,Func<Task> action)
     {var button=new Button{Content=label,HorizontalAlignment=HorizontalAlignment.Left,Margin=new Thickness(0,8,0,10)};button.Click+=async(_,_)=>await Run(action);panel.Children.Add(button);}
     async Task Run(Func<Task> action)

@@ -69,10 +69,12 @@ public sealed partial class MessengerPage
             var location=await page.DisplayPromptAsync("위치","특별실 위치를 입력하세요.");if(location is null)return;
             await source.Send("api/office/rooms",new OfficeRoomRequest(name,location));await Navigation.PopAsync();await OfficeSchedule(true);
         }));
+        if(reservations&&setup.GetProperty("roomManager").GetBoolean())stack.Add(MakeAction("특별실 목록 설정",()=>OfficeRooms(source)));
         stack.Add(list);await Navigation.PushAsync(page);await Load();
     }
     async Task OfficeEditor(MessengerApi source,JsonElement setup,bool booking,JsonElement? existing,Func<Task> refresh)
     {
+        if(booking){await RoomBookingEditor(source,setup,existing,refresh);return;}
         var page=new ContentPage{Title=booking?"특별실 예약":"학교 일정",BackgroundColor=BackgroundColor};var stack=new VerticalStackLayout{Padding=20,Spacing=12};page.Content=new ScrollView{Content=stack};
         var start=existing is{} value?DateTimeOffset.FromUnixTimeMilliseconds(value.GetProperty("start").GetInt64()).ToOffset(TimeSpan.FromHours(9)):DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(9)).AddHours(1);
         var end=existing is{} endValue?DateTimeOffset.FromUnixTimeMilliseconds(endValue.GetProperty("end").GetInt64()).ToOffset(TimeSpan.FromHours(9)):start.AddHours(1);

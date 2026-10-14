@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using SchoolMessenger.Contracts;
 
 namespace SchoolMessenger.Mobile;
 
@@ -36,14 +37,20 @@ public sealed partial class MessengerPage
                 foreach(var value in days)
                 {
                     content.Add(Text(value.GetProperty("date").GetString()!,20,true));
+                    if(!mine)
+                    {
+                        var roomInfo=rooms.FirstOrDefault(r=>r.GetProperty("id").GetString()==room);var grade=roomInfo.ValueKind==JsonValueKind.Object?roomInfo.GetProperty("grade").GetInt32():0;
+                        if(grade is >=1 and <=3)content.Add(Card(Text(string.Join("\n",SchoolDay.Schedule(grade).Where(p=>!p.Lesson).Select(p=>p.Label)),12)));
+                    }
                     var published=value.GetProperty("publishedAt").GetInt64();if(published>0)content.Add(Text("최종 게시 "+DateTimeOffset.FromUnixTimeMilliseconds(published).ToOffset(TimeSpan.FromHours(9)).ToString("MM.dd HH:mm")+" · 버전 "+revision,12));
                     if(value.GetProperty("missingClasses").GetArrayLength()>0)content.Add(Text("아직 시간표가 등록되지 않은 학급이 있습니다.",13));
                     var slots=value.GetProperty("slots").EnumerateArray().ToArray();
                     if(mine&&slots.Length==0)content.Add(Text("이 날짜에 배정된 수업이 없습니다.",14));
-                    foreach(var slot in slots)
+                    foreach(var slot in slots.Where(s=>s.GetProperty("period").GetInt32()<=10||!string.IsNullOrEmpty(s.GetProperty("subject").GetString())))
                     {
                         var subject=slot.GetProperty("subject").GetString();var changed=slot.GetProperty("changed").GetBoolean();
-                        var label=slot.GetProperty("period").GetInt32()+"교시 · "+(mine?slot.GetProperty("className").GetString()+" · ":"")+(string.IsNullOrEmpty(subject)?"수업 없음":subject+" · "+slot.GetProperty("teacherName").GetString());
+                        var roomInfo=rooms.FirstOrDefault(r=>r.GetProperty("id").GetString()==slot.GetProperty("classId").GetString());var grade=roomInfo.ValueKind==JsonValueKind.Object?roomInfo.GetProperty("grade").GetInt32():0;
+                        var label=SchoolDay.Label(grade,slot.GetProperty("period").GetInt32())+" · "+(mine?slot.GetProperty("className").GetString()+" · ":"")+(string.IsNullOrEmpty(subject)?"수업 없음":subject+" · "+slot.GetProperty("teacherName").GetString());
                         if(changed)label+="\n변경 전: "+(slot.GetProperty("beforeSubject").GetString() is{Length:>0} before?before+" · "+slot.GetProperty("beforeTeacher").GetString():"수업 없음");
                         var line=Text(label,15,changed);if(changed)line.TextColor=Blue;content.Add(Card(line,14,changed?Pale:null));
                     }

@@ -53,6 +53,7 @@ public sealed partial class OfficeWindow:Window
     }
     Task Editor(bool booking,JsonElement? existing)
     {
+        if(booking)return BookingEditor(existing);
         body.Children.Clear();Button("목록으로",()=>Load(booking));var title=Field("제목",existing?.GetProperty("title").GetString()??"");var description=booking?null:Field("행사·일정 설명",existing?.GetProperty("description").GetString()??"");
         var start=existing is{} a?DateTimeOffset.FromUnixTimeMilliseconds(a.GetProperty("start").GetInt64()).ToOffset(TimeSpan.FromHours(9)):DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(9)).AddHours(1);
         var end=existing is{} b?DateTimeOffset.FromUnixTimeMilliseconds(b.GetProperty("end").GetInt64()).ToOffset(TimeSpan.FromHours(9)):start.AddHours(1);
@@ -73,19 +74,21 @@ public sealed partial class OfficeWindow:Window
     }
     Task Rooms()
     {
-        body.Children.Clear();Button("예약 목록으로",()=>Load(true));var name=Field("특별실 이름");var location=Field("위치");Button("특별실 추가",async()=>{await api.Send<JsonElement>(HttpMethod.Post,"api/office/rooms",new OfficeRoomRequest(name.Text,location.Text));await Load(true);});
+        body.Children.Clear();Button("예약 목록으로",()=>Load(true));if(administration)Button("관리 목록으로",Administration);var name=Field("특별실 이름");var location=Field("위치");Button("특별실 추가",async()=>{await api.Send<JsonElement>(HttpMethod.Post,"api/office/rooms",new OfficeRoomRequest(name.Text,location.Text));setup=await api.Get<JsonElement>("api/office/setup");await Rooms();});
         foreach(var row in setup.GetProperty("rooms").EnumerateArray())
         {
-            body.Children.Add(Text(row.GetProperty("name").GetString()+" · "+row.GetProperty("location").GetString()));Button(row.GetProperty("active").GetBoolean()?"신규 예약 중지":"신규 예약 허용",async()=>{await api.Send<JsonElement>(HttpMethod.Post,"api/office/rooms/"+row.GetProperty("id").GetString(),new OfficeRoomRequest(row.GetProperty("name").GetString()!,row.GetProperty("location").GetString()!,!row.GetProperty("active").GetBoolean(),row.GetProperty("revision").GetInt32()));await Load(true);});
+            body.Children.Add(Text("특별실 설정",18));var roomName=Field("이름",row.GetProperty("name").GetString()!);roomName.MaxLength=80;var roomLocation=Field("위치",row.GetProperty("location").GetString()!);roomLocation.MaxLength=100;
+            var active=new CheckBox{Content="신규 예약 허용 · 해제해도 기존 예약 기록 유지",IsChecked=row.GetProperty("active").GetBoolean(),Margin=new Thickness(0,8,0,8)};body.Children.Add(active);
+            Button("특별실 설정 저장",async()=>{await api.Send<JsonElement>(HttpMethod.Post,"api/office/rooms/"+row.GetProperty("id").GetString(),new OfficeRoomRequest(roomName.Text,roomLocation.Text,active.IsChecked==true,row.GetProperty("revision").GetInt32()));setup=await api.Get<JsonElement>("api/office/setup");await Rooms();});
         }
         return Task.CompletedTask;
     }
     async Task Administration()
     {
-        body.Children.Clear();Button("학교 운영으로",()=>Load(false));Button("분반 · 수강 명부 관리",Sections);Button("학생·학부모 가입 · 학교 명부 관리",()=>{new PortalAdministrationWindow(this).Show();return Task.CompletedTask;});Button("계정 상태 · 좌석 · 초기화",StaffList);Button("운영 변경 기록",Audit);body.Children.Add(Text("교직원 사전 등록",22));var login=Field("로그인 이름 · 동명이인은 구분");var name=Field("교사 이름");var department=Field("부서");var ip=Field("좌석 IPv4 · 휴대폰 로그인에는 사용하지 않음");body.Children.Add(Text("공통 임시 비밀번호 · 12~128자"));var password=new PasswordBox();body.Children.Add(password);
+        body.Children.Clear();Button("학교 운영으로",()=>Load(false));Button("특별실 목록 설정",async()=>{setup=await api.Get<JsonElement>("api/office/setup");await Rooms();});Button("분반 · 수강 명부 관리",Sections);Button("학생·학부모 가입 · 학교 명부 관리",()=>{new PortalAdministrationWindow(this).Show();return Task.CompletedTask;});Button("계정 상태 · 좌석 · 초기화",StaffList);Button("운영 변경 기록",Audit);body.Children.Add(Text("교직원 사전 등록",22));var login=Field("로그인 이름 · 동명이인은 구분");var name=Field("교사 이름");var department=Field("부서");var position=Field("직책 · 예: 교무부장, 담임");position.MaxLength=50;var ip=Field("좌석 IPv4 · 휴대폰 로그인에는 사용하지 않음");body.Children.Add(Text("공통 임시 비밀번호 · 12~128자"));var password=new PasswordBox();body.Children.Add(password);
         Button("계정 등록 · 활성화 번호 발급",async()=>
         {
-            JsonElement value;try{value=await api.Send<JsonElement>(HttpMethod.Post,"api/admin/staff",new StaffAccountRequest(login.Text,name.Text,department.Text,ip.Text,password.Password));}finally{password.Clear();}
+            JsonElement value;try{value=await api.Send<JsonElement>(HttpMethod.Post,"api/admin/staff",new StaffAccountRequest(login.Text,name.Text,department.Text,ip.Text,password.Password,position.Text));}finally{password.Clear();}
             MessageBox.Show(this,"개별 전달할 활성화 번호:\n"+value.GetProperty("activationCode").GetString()+"\n유효 기간: 7일. 번호는 이 응답에서만 표시됩니다.","교직원 등록");await Administration();
         });
         await RecoveryReview.Add(body,api,this,Administration);

@@ -43,20 +43,21 @@ export async function officeChecks({Client,admin,password,address,data,check}){
  check('calendar write permission, revocation, retries, concurrent revisions and explicit timezone/end validation');
  await teacher.request('/api/office/rooms','POST',{name:'검증 과학실',location:'가상 2층'},403);
  const room=await admin.request('/api/office/rooms','POST',{name:'검증 과학실',location:'가상 2층'});
- const booking={clientId:id(),roomId:room.id,title:'가상 수업',start:iso(3),end:iso(5)};
+ const day=begin.toISOString().slice(0,10),at=t=>day+'T'+t+':00+09:00';
+ const booking={clientId:id(),roomId:room.id,title:'가상 수업',start:at('12:00'),end:at('12:50'),grade:1};
  const reserve=await teacher.request('/api/office/bookings','POST',booking);assert.equal((await teacher.request('/api/office/bookings','POST',booking)).id,reserve.id);
- await peer.request('/api/office/bookings','POST',{...booking,clientId:id(),start:iso(4),end:iso(6)},409);
+ await peer.request('/api/office/bookings','POST',{...booking,clientId:id(),start:at('11:00'),end:at('14:40')},409);
  await peer.request('/api/office/bookings/'+reserve.id,'POST',{...booking,revision:1},403);
  await peer.request('/api/office/bookings/'+reserve.id+'/cancel','POST',{revision:1},403);
- const adjacent=await peer.request('/api/office/bookings','POST',{...booking,clientId:id(),start:iso(5),end:iso(6)});
- await peer.request('/api/office/bookings/'+adjacent.id,'POST',{...booking,clientId:id(),start:iso(4),end:iso(6),revision:1},409);
+ const adjacent=await peer.request('/api/office/bookings','POST',{...booking,clientId:id(),start:at('12:50'),end:at('13:40'),grade:3});
+ await peer.request('/api/office/bookings/'+adjacent.id,'POST',{...booking,clientId:id(),start:at('11:00'),end:at('14:40'),revision:1},409);
  await teacher.request('/api/office/bookings/'+reserve.id+'/cancel','POST',{revision:1});
  await peer.request('/api/office/bookings','POST',{...booking,clientId:id()});
  check('partial overlaps blocked, adjacent bookings accepted, foreign edits/cancellations denied and cancellation frees the slot');
  async function rawBooking(client,packet){const response=await fetch(address+'/api/office/bookings',{method:'POST',headers:{Cookie:[...client.cookies].map(([k,v])=>k+'='+v).join('; '),'X-CSRF-TOKEN':client.csrf,'Content-Type':'application/json'},body:JSON.stringify(packet)});return {status:response.status,body:await response.json()};}
- const simultaneous=await Promise.all([rawBooking(teacher,{...booking,clientId:id(),start:iso(7),end:iso(9)}),rawBooking(peer,{...booking,clientId:id(),start:iso(8),end:iso(10)})]);assert.deepEqual(simultaneous.map(v=>v.status).sort(),[200,409]);
+ const simultaneous=await Promise.all([rawBooking(teacher,{...booking,clientId:id(),start:at('14:50'),end:at('16:40')}),rawBooking(peer,{...booking,clientId:id(),start:at('15:50'),end:at('16:40')})]);assert.deepEqual(simultaneous.map(v=>v.status).sort(),[200,409]);
  await admin.request('/api/office/rooms/'+room.id,'POST',{name:'검증 과학실',location:'가상 2층',active:false,revision:1});
- await teacher.request('/api/office/bookings','POST',{...booking,clientId:id(),start:iso(10),end:iso(11)},409);
+ await teacher.request('/api/office/bookings','POST',{...booking,clientId:id(),start:at('15:50'),end:at('16:40')},409);
  const audit=await admin.request('/api/admin/office/audit');assert.ok(audit.some(a=>a.action==='booking.save'));assert.ok(audit.some(a=>a.action==='staff.activate'));
  check('simultaneous overlapping requests yield exactly one booking; room shutdown blocks new bookings and audit records are retained');
  await admin.request('/api/admin/staff/'+registered.id+'/seat','POST',{seatIp:'192.168.20.43'});assert.equal((await teacher.request('/api/session')).user.id,registered.id);

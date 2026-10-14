@@ -88,9 +88,9 @@ public sealed class Api : IDisposable
 }
 internal sealed class ApiRequestException(HttpStatusCode status,string message):InvalidOperationException(message)
 {public HttpStatusCode StatusCode{get;}=status;}
-public record UserInfo(string Id, string Username, string Name, string Department, bool IsAdmin, bool CanBroadcast, bool Active, bool ActivationRequired=false, string? SeatIp=null);
+public record UserInfo(string Id, string Username, string Name, string Department, bool IsAdmin, bool CanBroadcast, bool Active, bool ActivationRequired=false, string? SeatIp=null,string Position="");
 public record Session(string SchoolName, string CsrfToken, UserInfo? User);
-public record Person(string Id, string Name, string Department, bool Online)
+public record Person(string Id, string Name, string Department, bool Online,string Position="")
 {
     public string Label => $"{Name} · {Department}";
     public bool Selected { get; set; }

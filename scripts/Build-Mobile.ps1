@@ -1,4 +1,4 @@
-param([ValidateSet('Debug','Release')][string]$Configuration='Debug',[string]$AndroidSdkDirectory,[string]$JavaSdkDirectory,[ValidateSet('Combined','Teacher','Family')][string]$SchoolApp='Family')
+﻿param([ValidateSet('Debug','Release')][string]$Configuration='Debug',[string]$AndroidSdkDirectory,[string]$JavaSdkDirectory,[ValidateSet('Combined','Teacher','Family')][string]$SchoolApp='Family',[string]$BuildDirectory,[string]$OutputDirectory)
 $ErrorActionPreference='Stop'
 $projectRoot=Split-Path $PSScriptRoot -Parent
 $dotnetExecutable=Join-Path $projectRoot '.tools\dotnet\dotnet.exe'
@@ -8,7 +8,8 @@ if(-not $JavaSdkDirectory){$JavaSdkDirectory=Join-Path $projectRoot '.tools\java
 if(-not(Test-Path -LiteralPath $AndroidSdkDirectory)){throw 'Android SDK path is required.'}
 if(-not(Test-Path -LiteralPath $JavaSdkDirectory)){throw 'Java SDK path is required.'}
 # AAPT2 cannot build resources in a Unicode project path. Stage only source into a dedicated ASCII directory.
-$stageRoot=Join-Path $env:LOCALAPPDATA ('YyMessengerBuild\'+[guid]::NewGuid().ToString('N'))
+if(-not $BuildDirectory){$BuildDirectory=Join-Path $env:LOCALAPPDATA 'YyMessengerBuild'}
+$stageRoot=Join-Path $BuildDirectory ([guid]::NewGuid().ToString('N'))
 if($stageRoot -match '[^\x00-\x7F]'){throw 'Set LOCALAPPDATA to an ASCII build directory before building Android.'}
 New-Item -ItemType Directory -Path $stageRoot | Out-Null
 Copy-Item -LiteralPath (Join-Path $projectRoot 'global.json'),(Join-Path $projectRoot 'Directory.Build.props') -Destination $stageRoot
@@ -27,7 +28,7 @@ $buildArguments+="-p:SchoolApp=$SchoolApp"
 if($Configuration -eq 'Debug'){$buildArguments+='-p:AndroidManifest=Platforms/Android/AndroidManifest.Debug.xml'}
 & $dotnetExecutable @buildArguments
 if($LASTEXITCODE -ne 0){throw "Android build failed. Source staging directory: $stageRoot"}
-$destination=Join-Path $projectRoot 'artifacts\mobile'
+$destination=if($OutputDirectory){[IO.Path]::GetFullPath($OutputDirectory)}else{Join-Path $projectRoot 'artifacts\mobile'}
 New-Item -ItemType Directory -Force -Path $destination | Out-Null
 $packages=Get-ChildItem -LiteralPath (Join-Path $stageRoot "src\SchoolMessenger.Mobile\bin\$Configuration\net10.0-android") -Filter '*-Signed.apk' -Recurse -File
 if(-not $packages){throw 'No APK produced.'}

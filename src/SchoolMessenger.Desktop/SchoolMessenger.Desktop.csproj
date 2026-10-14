@@ -5,11 +5,12 @@
     <AssemblyName>SchoolMessenger</AssemblyName>
     <PublishSingleFile>true</PublishSingleFile>
   </PropertyGroup>
-  <ItemGroup><PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" /></ItemGroup>
+  <ItemGroup><PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" /></ItemGroup>
   <ItemGroup>
     <Compile Include="../SchoolMessenger.Contracts/Timetables.cs" Link="Contracts/Timetables.cs" />
     <Compile Include="../SchoolMessenger.Contracts/Announcements.cs" Link="Contracts/Announcements.cs" />
     <Compile Include="../SchoolMessenger.Contracts/Counseling.cs" Link="Contracts/Counseling.cs" />
+    <Compile Include="../SchoolMessenger.Contracts/SchoolDay.cs" Link="Contracts/SchoolDay.cs" />
     <Compile Include="../SchoolMessenger.Contracts/Office.cs" Link="Contracts/Office.cs" />
     <Compile Include="../SchoolMessenger.Contracts/RegistrationPolicies.cs" Link="Contracts/RegistrationPolicies.cs" />
     <Compile Include="../SchoolMessenger.Shared/ReleaseNotice.cs" Link="ReleaseNotice.cs" />

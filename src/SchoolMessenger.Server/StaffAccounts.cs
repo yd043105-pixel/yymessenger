@@ -26,6 +26,7 @@ public static class StaffAccounts
     public static bool Pending(Store store, string id) => Get(store,id)?.NeedsActivation == true;
     public static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     public static bool LoginName(string? value) => value is {Length:>=2 and <=50} && Regex.IsMatch(value,"^[\\p{L}\\p{N}._-]+$");
+    public static bool Position(string? value)=>value is not null&&value.Length<=50&&!value.Any(char.IsControl);
     public static void Audit(SqliteConnection db, SqliteTransaction tx, string actor, string action, string id)
     { using var c=Store.Command(db,"INSERT INTO OfficeAudit(ActorId,Action,ResourceId,CreatedAt) VALUES($actor,$action,$id,$now)",tx,("$actor",actor),("$action",action),("$id",id),("$now",Maintenance.Now));c.ExecuteNonQuery(); }
     static string Actor(HttpContext c)=>c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
@@ -33,10 +34,10 @@ public static class StaffAccounts
     static string NewCode()=>RandomNumberGenerator.GetString("ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789",20);
     public static void Map(WebApplication app, RouteGroupBuilder admin, Store store, PasswordHasher<User> hasher, RegistrationPolicy policy)
     {
-        admin.MapGet("/staff",()=>store.Users().Select(u=>new{u.Id,u.Username,u.Name,u.Department,u.Active,profile=Get(store,u.Id)}));
+        admin.MapGet("/staff",()=>store.Users().Select(u=>new{u.Id,u.Username,u.Name,u.Department,u.Position,u.Active,profile=Get(store,u.Id)}));
         admin.MapPost("/staff",IResult(StaffAccountRequest request,HttpContext context)=>
         {
-            if(!LoginName(request.LoginName)||string.IsNullOrWhiteSpace(request.Name)||request.Name.Length>50||string.IsNullOrWhiteSpace(request.Department)||request.Department.Length>50||request.TemporaryPassword is not{Length:>=12 and <=128}||string.IsNullOrWhiteSpace(request.TemporaryPassword))return Error("로그인 이름(2~50자), 이름·부서, 임시 비밀번호(12~128자)를 확인하세요.");
+            if(!LoginName(request.LoginName)||string.IsNullOrWhiteSpace(request.Name)||request.Name.Length>50||string.IsNullOrWhiteSpace(request.Department)||request.Department.Length>50||!Position(request.Position)||request.TemporaryPassword is not{Length:>=12 and <=128}||string.IsNullOrWhiteSpace(request.TemporaryPassword))return Error("로그인 이름(2~50자), 이름·부서·직책(50자), 임시 비밀번호(12~128자)를 확인하세요.");
             string? ip=null;
             if(!string.IsNullOrWhiteSpace(request.SeatIp)){if(!IPAddress.TryParse(request.SeatIp,out var address)||address.AddressFamily!=System.Net.Sockets.AddressFamily.InterNetwork||IPAddress.IsLoopback(address)||address.Equals(IPAddress.Any)||address.Equals(IPAddress.Broadcast))return Error("좌석에는 유효한 IPv4 주소를 입력하세요.");ip=address.ToString();}
             var id=Guid.NewGuid().ToString("N");var code=NewCode();var expires=Maintenance.Now+7*86_400_000L;
@@ -44,7 +45,7 @@ public static class StaffAccounts
             using var db=store.Open();using var tx=db.BeginTransaction(deferred:false);
             try
             {
-                using(var insert=Store.Command(db,"INSERT INTO Users(Id,Username,Name,Department,PasswordHash,IsAdmin,CanBroadcast) VALUES($id,$login,$name,$department,$hash,0,0)",tx,("$id",id),("$login",user.Username),("$name",user.Name),("$department",user.Department),("$hash",hasher.HashPassword(user,request.TemporaryPassword))))insert.ExecuteNonQuery();
+                using(var insert=Store.Command(db,"INSERT INTO Users(Id,Username,Name,Department,Position,PasswordHash,IsAdmin,CanBroadcast) VALUES($id,$login,$name,$department,$position,$hash,0,0)",tx,("$id",id),("$login",user.Username),("$name",user.Name),("$department",user.Department),("$position",request.Position.Trim()),("$hash",hasher.HashPassword(user,request.TemporaryPassword))))insert.ExecuteNonQuery();
                 using(var insert=Store.Command(db,"INSERT INTO StaffProfiles(UserId,SeatIp,NeedsActivation,ActivationHash,ExpiresAt) VALUES($id,$ip,1,$hash,$expiry)",tx,("$id",id),("$ip",ip),("$hash",Hash(code)),("$expiry",expires)))insert.ExecuteNonQuery();
                 Audit(db,tx,Actor(context),"staff.create",id);tx.Commit();return Results.Ok(new{id,activationCode=code,expiresAt=expires});
             }
@@ -62,10 +63,10 @@ public static class StaffAccounts
         });
         admin.MapPost("/staff/{id}/seat",IResult(string id,StaffSeatRequest request,HttpContext context)=>
         {
-            if(Get(store,id) is null)return Results.NotFound();string? ip=null;
+            if(store.GetUser(id) is null)return Results.NotFound();string? ip=null;
             if(!string.IsNullOrWhiteSpace(request.SeatIp)){if(!IPAddress.TryParse(request.SeatIp,out var address)||address.AddressFamily!=System.Net.Sockets.AddressFamily.InterNetwork||IPAddress.IsLoopback(address)||address.Equals(IPAddress.Any)||address.Equals(IPAddress.Broadcast))return Error("좌석 IPv4 주소를 확인하세요.");ip=address.ToString();}
             using var db=store.Open();using var tx=db.BeginTransaction(deferred:false);
-            try{using var update=Store.Command(db,"UPDATE StaffProfiles SET SeatIp=$ip WHERE UserId=$id",tx,("$ip",ip),("$id",id));update.ExecuteNonQuery();Audit(db,tx,Actor(context),"staff.seat",id);tx.Commit();return Results.Ok();}
+            try{using var update=Store.Command(db,"INSERT INTO StaffProfiles(UserId,SeatIp,NeedsActivation,ExpiresAt) VALUES($id,$ip,0,0) ON CONFLICT(UserId) DO UPDATE SET SeatIp=$ip",tx,("$ip",ip),("$id",id));update.ExecuteNonQuery();Audit(db,tx,Actor(context),"staff.seat",id);tx.Commit();return Results.Ok();}
             catch(SqliteException e)when(e.SqliteErrorCode==19){return Error("다른 교사에게 연결된 좌석 IP입니다. 기존 연결을 먼저 해제하세요.",409);}
         });
         app.MapPost("/api/activate",async Task<IResult>(StaffActivation request,HttpContext context)=>

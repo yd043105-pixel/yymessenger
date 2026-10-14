@@ -8,7 +8,7 @@ import {existsSync,mkdirSync,readFileSync,writeFileSync,cpSync} from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
 const root=process.cwd(),sdk=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):process.env.DOTNET_ROOT?path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet'):'dotnet';
-const data=path.join(root,'.test-data','timetable-'+randomUUID()),password='Test-'+randomUUID(),key='Bridge-'+randomUUID(),id=()=>randomUUID().replaceAll('-','');mkdirSync(data,{recursive:true});
+const data=path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'),'timetable-'+randomUUID()),password='Test-'+randomUUID(),key='Bridge-'+randomUUID(),id=()=>randomUUID().replaceAll('-','');mkdirSync(data,{recursive:true});
 const generated=spawnSync(sdk,['run','--project','tests/TimetableChecks','--no-build','--',path.join(data,'files')],{encoding:'utf8',windowsHide:true});assert.equal(generated.status,0,generated.stdout+generated.stderr);process.stdout.write(generated.stdout);
 const pause=ms=>new Promise(r=>setTimeout(r,ms));const passed=[];const check=name=>{passed.push(name);console.log('PASS '+name);};let logs='',p,o;
 async function address(){const server=net.createServer();await new Promise(r=>server.listen(0,'127.0.0.1',r));const result='http://127.0.0.1:'+server.address().port;await new Promise(r=>server.close(r));return result;}

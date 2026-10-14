@@ -20,14 +20,10 @@ public sealed partial class OfficeWindow
     {
         body.Children.Clear();Button("교직원 목록으로",StaffList);var id=user.GetProperty("id").GetString()!;
         var identifier=Field("교내 계정 ID · 외부 교사 연결에 사용",id);identifier.IsReadOnly=true;
-        var name=Field("이름",user.GetProperty("name").GetString()!);var department=Field("부서",user.GetProperty("department").GetString()!);
+        var name=Field("이름",user.GetProperty("name").GetString()!);var department=Field("부서",user.GetProperty("department").GetString()!);var position=Field("직책 · 표시용, 권한과 별도로 관리",user.TryGetProperty("position",out var title)?title.GetString()??"":"");position.MaxLength=50;
         var active=new CheckBox{Content="계정 사용 허용",IsChecked=user.GetProperty("active").GetBoolean()};var admin=new CheckBox{Content="시스템 관리자",IsChecked=user.GetProperty("isAdmin").GetBoolean()};var broadcast=new CheckBox{Content="학교 전체 공지 발송 허용",IsChecked=user.GetProperty("canBroadcast").GetBoolean()};body.Children.Add(active);body.Children.Add(admin);body.Children.Add(broadcast);
-        Button("계정 상태 저장 · 기존 세션 회수",async()=>{await api.Send<JsonElement>(HttpMethod.Patch,"api/admin/users/"+id,new{name=name.Text,department=department.Text,password="",isAdmin=admin.IsChecked==true,canBroadcast=broadcast.IsChecked==true,active=active.IsChecked==true});await api.RefreshSession();await StaffList();});
-        if(!user.TryGetProperty("seatIp",out var seat)||seat.ValueKind==JsonValueKind.Null&&!user.GetProperty("activationRequired").GetBoolean())
-        {
-            Button("좌석 설정 가능 여부 확인",async()=>{var staff=await api.Get<JsonElement>("api/admin/staff");if(!staff.EnumerateArray().Any(s=>s.GetProperty("id").GetString()==id&&s.GetProperty("profile").ValueKind!=JsonValueKind.Null))throw new InvalidOperationException("기존 일반 계정입니다. 사전 등록 계정의 좌석 설정을 사용하세요.");await StaffSeat(user);});
-        }
-        else Button("좌석 · 초기화 관리",()=>StaffSeat(user));
+        Button("계정 상태 저장 · 기존 세션 회수",async()=>{await api.Send<JsonElement>(HttpMethod.Patch,"api/admin/users/"+id,new{name=name.Text,department=department.Text,position=position.Text,password="",isAdmin=admin.IsChecked==true,canBroadcast=broadcast.IsChecked==true,active=active.IsChecked==true});await api.RefreshSession();await StaffList();});
+        Button("좌석 · 초기화 관리",()=>StaffSeat(user));
         return Task.CompletedTask;
     }
     Task StaffSeat(JsonElement user)

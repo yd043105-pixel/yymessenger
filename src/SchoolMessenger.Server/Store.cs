@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 namespace SchoolMessenger.Server;
 
 public sealed record User(string Id, string Username, string Name, string Department, string PasswordHash,
-    bool IsAdmin, bool CanBroadcast, bool Active, int SessionVersion, int FailedAttempts, long LockedUntil);
+    bool IsAdmin, bool CanBroadcast, bool Active, int SessionVersion, int FailedAttempts, long LockedUntil,string Position="");
 public sealed record Registration(string Id, string Username, string Name, string Department, string PasswordHash, string Status, long CreatedAt);
 
 public sealed class Store : IDisposable
@@ -84,6 +84,7 @@ public sealed class Store : IDisposable
             CREATE TABLE IF NOT EXISTS SurveyResponses(SurveyId TEXT NOT NULL REFERENCES Surveys(Id), UserId TEXT NOT NULL REFERENCES Users(Id), Answers TEXT NOT NULL, UpdatedAt INTEGER NOT NULL, PRIMARY KEY(SurveyId,UserId));
             """;
         command.ExecuteNonQuery();
+        if(!Query("PRAGMA table_info(Users)",r=>r.GetString(1)).Contains("Position"))Execute("ALTER TABLE Users ADD COLUMN Position TEXT NOT NULL DEFAULT ''");
     }
     public SqliteConnection Open()
     {
@@ -123,7 +124,7 @@ public sealed class Store : IDisposable
     public List<Registration> PendingRegistrations() => Query("SELECT * FROM Registrations WHERE Status='pending' ORDER BY CreatedAt", ReadRegistration);
     public static Registration ReadRegistration(SqliteDataReader r) => new(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4), r.GetString(5), r.GetInt64(6));
     static User ReadUser(SqliteDataReader r) => new(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3),
-        r.GetString(4), r.GetBoolean(5), r.GetBoolean(6), r.GetBoolean(7), r.GetInt32(8), r.GetInt32(9), r.GetInt64(10));
+        r.GetString(4), r.GetBoolean(5), r.GetBoolean(6), r.GetBoolean(7), r.GetInt32(8), r.GetInt32(9), r.GetInt64(10),r.GetString(r.GetOrdinal("Position")));
     public void Backup()
     {
         lock (AttachmentBackup.Gate)

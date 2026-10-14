@@ -88,4 +88,13 @@ if(args.Length==3)
     Check(realBase.Cells.Count(c=>c.Subject.Length>0)==192&&realDaily.Cells.Count(c=>c.Subject.Length>0)==36&&realDaily.Date=="2026-10-08","provided school files match inspected layout and date");
     var changed=realDaily.Cells.Count(c=>{var before=realBase.Cells.SingleOrDefault(b=>b.ClassKey==c.ClassKey&&b.Day==c.Day&&b.Period==c.Period);return c.Subject!=(before?.Subject??"")||c.Teacher!=(before?.Teacher??"");});Check(changed==3,"provided files resolve exactly three changed lessons without storing school names in tests");
 }
+var expected="아침 조회=08:30-08:50;1교시=09:00-09:50;2교시=10:00-10:50;3교시=11:00-11:50;4교시=12:00-12:50;점심시간=12:50-13:50;5교시=13:50-14:40;6교시=14:50-15:40;7교시=15:50-16:40;청소시간=16:40-17:00;8교시=17:00-17:50;저녁시간=17:50-18:50;야간1=19:00-19:50;야간2=20:00-20:50";
+string Schedule(int grade)=>string.Join(';',SchoolDay.Schedule(grade).Select(p=>$"{p.Name}={p.Start}-{p.End}"));
+Check(Schedule(1)==expected&&Schedule(2)==expected,"grades one and two match all school-provided lesson and break times");
+Check(Schedule(3)==expected.Replace("4교시=12:00-12:50;점심시간=12:50-13:50","점심시간=11:50-12:50;4교시=12:50-13:40"),"grade three lunch and fourth period match school-provided times");
+long At(string time)=>DateTimeOffset.Parse("2026-10-15T"+time+":00+09:00").ToUnixTimeMilliseconds();
+foreach(var grade in new[]{1,2,3})Check(SchoolDay.Lessons(grade,7).Length==7&&SchoolDay.RoomRange(grade,At("09:00"),At("16:40")),"room booking covers only first through seventh periods for grade "+grade);
+Check(!SchoolDay.RoomRange(1,At("17:00"),At("17:50"))&&!SchoolDay.RoomRange(3,At("19:00"),At("19:50"))&&!SchoolDay.RoomRange(1,At("08:30"),At("08:50")),"arrival, eighth and night periods cannot be special-room reservations");
+Check(!SchoolDay.RoomRange(1,At("12:50"),At("13:40"))&&SchoolDay.RoomRange(3,At("12:50"),At("13:40")),"room fourth-period boundary is grade-specific");
+Check(CounselingTimes.Periods(1).Length==10&&CounselingTimes.Periods(3).Single(p=>p.Id==4).Start=="12:50"&&CounselingTimes.Periods(1).Single(p=>p.Id==9).Start=="19:00"&&CounselingTimes.Periods(2).Single(p=>p.Id==10).End=="20:50","counseling uses the class grade and includes both night periods");
 Console.WriteLine($"Timetable parser and resolver: {checks} checks passed.");
