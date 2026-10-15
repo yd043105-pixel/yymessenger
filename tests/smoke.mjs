@@ -1,4 +1,6 @@
+import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync, unlinkSync } from 'node:fs';
@@ -7,6 +9,7 @@ import net from 'node:net';
 import { featureChecks } from './features.mjs';
 import { securityChecks } from './security.mjs';
 import { workChecks } from './work.mjs';
+import { officeChecks } from './office.mjs';
 
 const root = process.cwd();
 const localDotnet = path.join(root, '.tools/dotnet/dotnet.exe');
@@ -14,8 +17,8 @@ const dotnet = existsSync(localDotnet) ? localDotnet : process.env.DOTNET_ROOT ?
 const serverDll = path.join(root, 'src/SchoolMessenger.Server/bin/Debug/net10.0/SchoolMessenger.Server.dll');
 const packaged = process.argv.includes('--package');
 const skipNativeInput = process.argv.includes('--skip-native-input');
-const packageRoot = path.join(root, 'artifacts/여양고-교무메신저');
-const data = path.join(root, '.test-data', randomUUID());
+const packageRoot = process.env.YY_PACKAGE_ROOT ?? path.join(root, 'artifacts/여양고-교무메신저');
+const data = path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'), randomUUID());
 const password = 'Test-' + randomUUID();
 mkdirSync(path.join(root, 'artifacts'), { recursive: true });
 const listener = net.createServer();
@@ -41,6 +44,7 @@ async function stop() { if (server && server.exitCode === null) { const closed =
 class Client {
   cookies = new Map(); csrf = '';
   async request(route, method = 'GET', body, expected = 200, withCsrf = true, extraHeaders = {}) {
+    if(route==='/api/register'&&method==='POST'&&body?.agreement===undefined)body={...body,agreement:await acceptRequiredPoliciesForFixture(address)};
     const headers = { Cookie: [...this.cookies].map(([key, value]) => `${key}=${value}`).join('; '), ...extraHeaders };
     if (method !== 'GET' && withCsrf) headers['X-CSRF-TOKEN'] = this.csrf;
     const options = { method, headers };
@@ -61,6 +65,9 @@ class Client {
 function check(label) { passed.push(label); console.log('PASS ' + label); }
 try {
   start(); await ready();
+  for (const asset of ['updates.json','update-notice.js','update-notice.css']) assert.equal((await fetch(address+'/'+asset)).status,200);
+  assert.equal((await (await fetch(address+'/updates.json')).json()).version,JSON.parse(readFileSync('src/SchoolMessenger.Shared/updates.json','utf8')).version);
+  check('school web serves bundled update notes and popup assets in development and packaged builds');
   const anonymous = new Client(), admin = new Client(), alice = new Client(), bob = new Client(), carol = new Client();
   await anonymous.request('/api/messages', 'GET', undefined, 401); check('unauthenticated mailbox blocked');
   await admin.login('admin');
@@ -164,9 +171,16 @@ try {
     check('rejected registration cannot log in and can be corrected and resubmitted');
     await featureChecks({ Client, admin, bob, carol: alice, password, check, stop, start, ready });
     if (process.argv.includes('--ui')) {
+    const sampleDeadline=Date.now()+7*86400000;
+    const sample=await admin.request('/api/messages','POST',{clientId:randomUUID(),title:'부서별 운영 계획 자료 제출',body:'부서별 운영 계획 자료를 제출해 주세요.',recipientIds:[alice.user.id,bob.user.id],attachmentIds:[],all:false,submissionDeadline:sampleDeadline});
+    const sampleSender=new Client();await sampleSender.login('bob');const sampleFile=await sampleSender.upload('학년부_운영계획.txt','가상 시운행 제출 자료입니다.');
+    await sampleSender.request('/api/submission-requests/'+sample.id+'/submit','POST',{clientId:randomUUID(),attachmentIds:[sampleFile.id]});
+    const sampleDb=new DatabaseSync(path.join(data,'school.db'));sampleDb.prepare('UPDATE Attachments SET ExpiresAt=? WHERE Id=?').run(sampleDeadline,sampleFile.id);sampleDb.close();
+    process.env.YY_SUBMISSION_PREVIEW_ID=sample.id;
     await admin.request('/api/messages', 'POST', { clientId: randomUUID(), title: '교무회의 안내 · 자료 확인', body: '선생님들께 안내드립니다.\n\n내일 오후 3시, 본관 회의실에서 교무회의가 있습니다.\n부서별 전달 사항을 준비해 주세요.\n\n자료는 첨부파일 보관 기한 내에 저장해 주세요.', recipientIds: [admin.user.id], attachmentIds: [], all: false });
     if (existsSync('artifacts/ui-error.txt')) unlinkSync('artifacts/ui-error.txt');
-    const ui = spawn(packaged ? path.join(packageRoot, 'client/SchoolMessenger.exe') : dotnet, packaged ? ['--verify-ui'] : [path.join(root, 'src/SchoolMessenger.Desktop/bin/Debug/net10.0-windows/SchoolMessenger.dll'), '--verify-ui'], {
+    const installedClient=process.env.YY_INSTALLED_CLIENT;
+    const ui = spawn(installedClient ?? (packaged ? path.join(packageRoot, 'client/SchoolMessenger.exe') : dotnet), installedClient || packaged ? ['--verify-ui'] : [path.join(root, 'src/SchoolMessenger.Desktop/bin/Debug/net10.0-windows/SchoolMessenger.dll'), '--verify-ui'], {
       cwd: root, windowsHide: true, env: { ...process.env, SCHOOL_UI_SERVER: address, SCHOOL_UI_USER: 'admin', SCHOOL_UI_PASSWORD: password, SCHOOL_UI_OUTPUT: path.join(root, 'artifacts/client-preview.png'), SCHOOL_UI_LOCALDIR: path.join(data, 'client'), SCHOOL_UI_SKIP_INPUT: skipNativeInput ? '1' : '0' }
     });
     let uiDeadline;
@@ -182,6 +196,9 @@ try {
     assert.equal(existsSync(path.join(data, 'client/login.dat')), false);
     assert.equal(JSON.parse(readFileSync(path.join(data, 'client/preferences.json'), 'utf8')).AutoLogin, false);
     check('native registration, DPAPI automatic login, logout cleanup and startup settings');
+    assert.equal(JSON.parse(readFileSync('artifacts/update-notice-check.json', 'utf8')).checks, 6);
+    assert.ok(existsSync('artifacts/update-notice-preview.png'));
+    check('native update popup confirms once, preserves deferred notice, handles older/newer versions and manual history');
     assert.ok(existsSync('artifacts/tasks-preview.png') && existsSync('artifacts/submissions-preview.png'));
     assert.ok((await admin.request('/api/todos')).some(t => t.title === 'Windows 업무 창에서 등록한 할 일'));
     assert.ok((await admin.request('/api/submission-requests')).some(r => r.title === 'Windows 제출 요청 검증'));
@@ -195,6 +212,7 @@ try {
     }
   }
   await workChecks({ Client, admin, password, address, data, check, start, stop, ready });
-  writeFileSync('artifacts/test-results.json', JSON.stringify({ verifiedAt: new Date().toISOString(), mode: packaged ? 'self-contained Windows executables' : 'development build', passed, skipped: skipNativeInput ? ['actual Windows keyboard injection: pending Windows firewall consent dialog prevents verification-window focus'] : [], testData: data }, null, 2));
+  await officeChecks({Client,admin,password,address,data,check,start,stop,ready});
+  writeFileSync('artifacts/test-results.json', JSON.stringify({ verifiedAt: new Date().toISOString(), mode: packaged ? 'self-contained Windows executables' : 'development build', passed, skipped: skipNativeInput ? ['actual Windows keyboard injection: another foreground Windows dialog prevents verification-window focus'] : [], testData: data }, null, 2));
   console.log(`${passed.length} checks passed.`);
-} finally { await stop(); }
+} catch(error){writeFileSync(path.join(data,'failure-server.log'),output);throw error;} finally { await stop(); }

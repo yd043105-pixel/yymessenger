@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: 10.0.401
+          dotnet-version: 10.0.402
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
@@ -26,6 +26,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
           node tests/smoke.mjs --features --package
           if ($LASTEXITCODE -ne 0) { throw 'Package verification failed' }
+      - name: Build and verify Windows installer
+        shell: pwsh
+        run: |
+          ./scripts/Build-Installer.ps1 -ClientDirectory (Join-Path $PWD 'artifacts/여양고-교무메신저/client')
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+          ./tests/installer.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Installer verification failed' }
       - name: Create release draft
         shell: powershell
         env:
@@ -34,6 +41,7 @@ jobs:
           $releaseVersion = $env:GITHUB_REF_NAME.Substring(1)
           $releaseArguments = @('release', 'create', $env:GITHUB_REF_NAME,
             "artifacts/yymessenger-$releaseVersion-win-x64.zip", 'artifacts/SHA256SUMS.txt',
+            "artifacts/yymessenger-$releaseVersion-setup-win-x64.exe",
             '--repo', $env:GITHUB_REPOSITORY, '--verify-tag', '--draft',
             '--title', "yymessenger $releaseVersion", '--notes-file', 'docs/release-notes.md')
           if ($releaseVersion.Contains('-')) { $releaseArguments += '--prerelease' }
