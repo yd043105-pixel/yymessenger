@@ -27,7 +27,7 @@ jobs:
           node tests/smoke.mjs --features --package
           if ($LASTEXITCODE -ne 0) { throw 'Package verification failed' }
       - name: Build and verify Windows installer
-        shell: powershell
+        shell: pwsh
         run: |
           ./scripts/Build-Installer.ps1 -ClientDirectory (Join-Path $PWD 'artifacts/여양고-교무메신저/client')
           if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }

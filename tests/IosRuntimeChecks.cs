@@ -139,7 +139,7 @@ internal static class IosRuntimeChecks
                 var signup=Controls.OfType<Entry>().ToArray();signup[0].Text="iOS 가상 학부모";signup[1].Text="ios.parent";signup[2].Text=password;
                 await Tap("회원가입 신청");await Wait(()=>Has("필수 약관·개인정보 안내의 전문을 확인하고 체크하세요."));
                 Check(CurrentPage.Title=="학생·학부모 회원가입","native signup refuses unchecked required documents");
-                foreach(var title in new[]{"서비스 이용약관","개인정보 수집·이용 동의 안내"})
+                foreach(var title in new[]{"서비스 이용약관","개인정보 수집 및 이용 동의"})
                 {
                     await Tap("전문 보기 · "+title);await Wait(()=>CurrentPage.Title==title);
                     Check(Has("검토용 초안")&&Has("문서 버전"),"native in-app document shows full text, version and draft status: "+title);
