@@ -62,7 +62,7 @@ public static class PortalNotices
             var row=store.Query("SELECT Id FROM Notices WHERE SenderId=$teacher AND ClientId=$client",r=>r.GetString(0),("$teacher",teacherId),("$client",clientId)).FirstOrDefault();return row is null?Results.NotFound():Detail(store,row,teacherId);
         });
         bridge.MapGet("/announcements/{id}",(string id,string teacherId)=>Detail(store,id,teacherId));
-        api.MapPost("/attachments",async Task<IResult>(HttpContext c)=>await Upload(store,Id(c),c,config,environment)).RequireRateLimiting("upload");
+        api.MapPost("/attachments",async Task<IResult>(HttpContext c)=>await Upload(store,Id(c),c,config,environment)).RequireAuthorization("Teacher").RequireRateLimiting("upload");
         bridge.MapPost("/attachments",(string teacherId,long? expiresAt,HttpContext c)=>Upload(store,teacherId,c,config,environment,expiresAt)).RequireRateLimiting("upload");
         IResult FileContent(string id,HttpContext c)
         {

@@ -91,7 +91,7 @@ public sealed class ServerResources
             var upload=context.Request.Method=="POST"&&path.EndsWith("/attachments",StringComparison.Ordinal)&&(path.StartsWith("/api/",StringComparison.Ordinal)||path.StartsWith("/bridge/",StringComparison.Ordinal));
             var zip=context.Request.Method=="GET"&&path.StartsWith("/api/submission-requests/",StringComparison.Ordinal)&&path.EndsWith("/zip",StringComparison.Ordinal);
             var download=zip||context.Request.Method=="GET"&&path.StartsWith("/api/attachments/",StringComparison.Ordinal)&&(path.EndsWith("/download",StringComparison.Ordinal)||path.EndsWith("/view",StringComparison.Ordinal));
-            if(!upload&&!download){await next();return;}
+            if(context.GetEndpoint() is null||!upload&&!download){await next();return;}
             var admitted=false;var overloaded=false;var rate=0;
             lock(gate)
             {

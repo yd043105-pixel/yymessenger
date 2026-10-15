@@ -11,7 +11,7 @@ import {pathToFileURL} from 'node:url';
 
 const root=process.cwd(),dotnet=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet');
 if(process.argv.includes('--web'))throw Error('Browser signup is retired. Run enrollment API checks without --web; use native iOS/Windows verification for signup UI.');
-const data=path.join(root,'.test-data','enrollment-'+randomUUID()),password='Test-'+randomUUID(),key='Bridge-'+randomUUID();
+const data=path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'),'enrollment-'+randomUUID()),password='Test-'+randomUUID(),key='Bridge-'+randomUUID();
 mkdirSync(data,{recursive:true});mkdirSync('artifacts',{recursive:true});
 const socket=net.createServer();await new Promise(r=>socket.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+socket.address().port;await new Promise(r=>socket.close(r));
 const delay=ms=>new Promise(r=>setTimeout(r,ms)),passed=[];let server,logs='';

@@ -21,8 +21,10 @@ public static class BridgeAuthentication
         var service = Header("X-YY-Service"); var keyId = Header("X-YY-Key");
         var time = Header("X-YY-Time"); var nonce = Header("X-YY-Nonce");
         var signature = Header("X-YY-Signature");
+        var digest = Header("X-YY-Content-SHA256");
         if (service != (config["Portal:BridgeServiceId"] ?? "office") || !Identifier(service) || !Identifier(keyId) ||
             nonce.Length != 64 || !nonce.All(Uri.IsHexDigit) || signature.Length != 64 || !signature.All(Uri.IsHexDigit) ||
+            digest.Length != 64 || !digest.All(Uri.IsHexDigit) ||
             !long.TryParse(time, out var timestamp)) return false;
         var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var skew = Math.Clamp(config.GetValue("Portal:BridgeClockSkewSeconds", 120), 10, 300);
@@ -33,15 +35,17 @@ public static class BridgeAuthentication
         var notBefore=config.GetValue<long?>($"Portal:BridgeKeyValidity:{keyId}:NotBefore");
         var notAfter=config.GetValue<long?>($"Portal:BridgeKeyValidity:{keyId}:NotAfter");
         if(notBefore is {} begins&&now<begins || notAfter is {} ends&&now>=ends)return false;
+        // Authenticate the signed digest before reading/spooling an untrusted upload body.
+        var path = request.PathBase.ToUriComponent() + request.Path.ToUriComponent() + request.QueryString.ToUriComponent();
+        var expected = Sign(key, Canonical(request.Method, path, time, nonce, service, keyId, digest.ToUpperInvariant()));
+        if (!CryptographicOperations.FixedTimeEquals(Convert.FromHexString(expected), Convert.FromHexString(signature))) return false;
         if (request.ContentLength > MaximumBodyBytes) return false;
         request.EnableBuffering(64 * 1024, MaximumBodyBytes);
         byte[] hash;
         try { hash = await SHA256.HashDataAsync(request.Body, context.RequestAborted); }
         catch (IOException) { return false; }
         finally { request.Body.Position = 0; }
-        var path = request.PathBase.ToUriComponent() + request.Path.ToUriComponent() + request.QueryString.ToUriComponent();
-        var expected = Sign(key, Canonical(request.Method, path, time, nonce, service, keyId, Convert.ToHexString(hash)));
-        if (!CryptographicOperations.FixedTimeEquals(Convert.FromHexString(expected), Convert.FromHexString(signature))) return false;
+        if (!CryptographicOperations.FixedTimeEquals(hash, Convert.FromHexString(digest))) return false;
         // Store through a unique constraint before dispatch. Retain beyond the full allowed time window.
         return consume(service, nonce, (now + skew * 2 + 60) * 1000);
     }
@@ -82,6 +86,7 @@ public sealed class BridgeSigningHandler : DelegatingHandler
             request.Headers.Remove("Authorization");
             request.Headers.Add("X-YY-Service", service); request.Headers.Add("X-YY-Key", keyId);
             request.Headers.Add("X-YY-Time", time); request.Headers.Add("X-YY-Nonce", nonce);
+            request.Headers.Add("X-YY-Content-SHA256", Convert.ToHexString(hash));
             request.Headers.Add("X-YY-Signature", BridgeAuthentication.Sign(key,
                 BridgeAuthentication.Canonical(request.Method.Method, request.RequestUri!.PathAndQuery, time, nonce, service, keyId, Convert.ToHexString(hash))));
             return await base.SendAsync(request, cancellationToken);

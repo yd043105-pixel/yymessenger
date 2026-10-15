@@ -172,13 +172,17 @@ app.Use(async (context, next) =>
 });
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/api") && context.Request.Method is "POST" or "PATCH" or "DELETE")
+    if (context.Request.Path.StartsWithSegments("/api")) context.Response.Headers.CacheControl = "no-store";
+    if (context.Request.Path.StartsWithSegments("/api") && context.Request.Method is "POST" or "PUT" or "PATCH" or "DELETE")
     {
+        // Native/JSON APIs use the header. Do not let antiforgery read an untrusted multipart form for a fallback token.
+        var token = context.Request.Headers["X-CSRF-TOKEN"];
+        if (token.Count != 1 || string.IsNullOrWhiteSpace(token.ToString()))
+        { context.Response.StatusCode = 400; await context.Response.WriteAsJsonAsync(new { error = "요청 인증 만료. 다시 로그인하세요." }); return; }
         try { await context.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(context); }
         catch (AntiforgeryValidationException)
         { context.Response.StatusCode = 400; await context.Response.WriteAsJsonAsync(new { error = "요청 인증 만료. 다시 로그인하세요." }); return; }
     }
-    if (context.Request.Path.StartsWithSegments("/api")) context.Response.Headers.CacheControl = "no-store";
     await next();
 });
 

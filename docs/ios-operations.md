@@ -2,6 +2,8 @@
 
 PC·Android와 같은 승인된 모바일 설계, 계정·권한·공지 API를 사용하는 .NET MAUI iOS 앱이다. 버전은 1.0.0이며 담당자의 실제 배포 지시 전까지 올리지 않는다. 이 문서는 빌드와 시험 방법을 설명하며 실제 iPhone 설치·스토어 출시가 완료됐다는 뜻이 아니다.
 
+2026-10-15 추가 확인: 동일 모바일 소스의 `bee9e51`에서 [Mac iOS 작업](https://github.com/yd043105-pixel/yymessenger/actions/runs/38658164382/job/116172780205)이 성공했다. .NET SDK 10.0.402, iPhone 16/iOS 26.5 시뮬레이터에서 네이티브 UI 처리 메소드·API·Keychain 재실행 검사 **38개**와 교직원/학생·학부모 두 앱의 Release ID·HTTPS·버전 검사를 통과했다. 실제 손가락 입력·실제 iPhone 서명 IPA 시험은 아니다. 이후 추가한 서버 본문 선검증은 두 Windows 서버의 별도 회귀 결과를 따른다.
+
 ## Mac 빌드
 
 macOS 26.2 이상과 Xcode 26.6, .NET SDK 10.0.402를 준비하고 `dotnet workload install maui-ios --version 10.0.401`로 고정된 워크로드를 설치한다. Mac에서는 iOS 대상을 기본으로 빌드하며 Android 잠금 파일과 별도의 `packages.ios.lock.json`을 사용한다. [Microsoft iOS SDK 릴리즈](https://github.com/dotnet/macios/releases/tag/dotnet-10.0.1xx-xcode26.5-10318)와 [GitHub Mac 실행 환경](https://github.com/actions/runner-images/blob/main/images/macos/macos-26-Readme.md)을 기준으로 버전을 맞춘다.

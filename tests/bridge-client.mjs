@@ -7,6 +7,7 @@ export function bridgeHeaders(key, url, method='GET', body='', options={}) {
  const hash=createHash('sha256').update(body ?? '').digest('hex').toUpperCase();
  const canonical=['YY-BRIDGE-1',method.toUpperCase(),parsed.pathname+parsed.search,time,nonce,service,keyId,hash].join('\n');
  return {'X-YY-Service':service,'X-YY-Key':keyId,'X-YY-Time':time,'X-YY-Nonce':nonce,
+  'X-YY-Content-SHA256':hash,
   'X-YY-Signature':createHmac('sha256',key).update(canonical).digest('hex').toUpperCase()};
 }
 export function bridgeFetch(key,url,init={},options={}) {

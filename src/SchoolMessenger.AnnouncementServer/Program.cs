@@ -44,7 +44,11 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     o.Events.OnRedirectToAccessDenied=c=>{c.Response.StatusCode=403;return Task.CompletedTask;};
     o.Events.OnValidatePrincipal=async c=>{var person=store.Person(c.Principal!.FindFirstValue(ClaimTypes.NameIdentifier)!);using var sessionDb=store.Open();if(person is not {Active:true} || person.PasswordHash is null || PortalGraduation.Expired(store,person.Id) || person.Version.ToString()!=c.Principal!.FindFirstValue("version") || !DeviceSessions.Valid(sessionDb,person.Id,c.Principal!.FindFirstValue("version"),c.Principal!.FindFirstValue("sid")) || person.Role=="teacher"&&!VerifiedTeacher(store,person)){c.RejectPrincipal();await c.HttpContext.SignOutAsync();}};
 });
-builder.Services.AddAuthorization(o=>o.AddPolicy("Admin",p=>p.RequireRole("admin")));
+builder.Services.AddAuthorization(o=>
+{
+    o.AddPolicy("Admin",p=>p.RequireRole("admin"));
+    o.AddPolicy("Teacher",p=>p.RequireRole("teacher"));
+});
 builder.Services.AddRateLimiter(o=>
 {
     o.RejectionStatusCode=429;
@@ -101,8 +105,12 @@ app.Use(async(c,next)=>
         store.Execute("DELETE FROM BridgeNonces WHERE ExpiresAt<$now",("$now",Now));
         return store.Execute("INSERT OR IGNORE INTO BridgeNonces(Service,Nonce,ExpiresAt) VALUES($service,$nonce,$expires)",( "$service",service),("$nonce",nonce),("$expires",expires))==1;
     })){c.Response.StatusCode=401;return;}
-    if(c.Request.Path.StartsWithSegments("/api")&&c.Request.Method is "POST" or "PATCH" or "DELETE")
+    if(c.Request.Path.StartsWithSegments("/api")&&c.Request.Method is "POST" or "PUT" or "PATCH" or "DELETE")
+    {
+        var token=c.Request.Headers["X-CSRF-TOKEN"];
+        if(token.Count!=1||string.IsNullOrWhiteSpace(token.ToString())){await Error("요청 인증 만료. 다시 로그인하세요.").ExecuteAsync(c);return;}
         try{await c.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(c);}catch(AntiforgeryValidationException){await Error("요청 인증 만료. 다시 로그인하세요.").ExecuteAsync(c);return;}
+    }
     if(c.User.Identity?.IsAuthenticated==true&&c.Request.Path.StartsWithSegments("/api")&&store.Person(Id(c)) is{Role:"parent"} parent&&!store.Regular(parent)
         &&c.Request.Path!="/api/session"&&c.Request.Path!="/api/login"&&c.Request.Path!="/api/register"&&c.Request.Path!="/api/registration/classes"&&c.Request.Path!="/api/registration/policy"&&c.Request.Path!="/api/logout"&&!c.Request.Path.StartsWithSegments("/api/sessions")&&c.Request.Path!="/api/children"&&!c.Request.Path.StartsWithSegments("/api/settings"))
     {await Error("임시회원입니다. 설정에서 자녀 고유번호를 입력하면 학교 소식과 시간표를 볼 수 있습니다.",403).ExecuteAsync(c);return;}

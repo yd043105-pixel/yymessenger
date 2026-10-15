@@ -85,7 +85,7 @@ jobs:
         run: |
           runtime=iossimulator-x64
           [[ "$(uname -m)" != arm64 ]] || runtime=iossimulator-arm64
-          dotnet build src/SchoolMessenger.Mobile -f net10.0-ios -c Release -r "$runtime" --no-restore --nologo
+          dotnet build src/SchoolMessenger.Mobile -f net10.0-ios -c Release -r "$runtime" --no-restore --nologo -p:SchoolApp=Family
           python3 - "$runtime" <<'PY'
           import plistlib, sys
           from pathlib import Path
@@ -100,8 +100,10 @@ jobs:
           assert (bundle / 'PrivacyInfo.xcprivacy').exists()
           print('PASS iOS Release bundle version, permission descriptions, privacy manifest and exclusion of Debug HTTP exception')
           PY
-          for school_app in Teacher Family; do
-            dotnet build src/SchoolMessenger.Mobile -f net10.0-ios -c Release -r "$runtime" --no-restore --nologo "-p:SchoolApp=$school_app"
+          for school_app in Family Teacher; do
+            if [[ "$school_app" != Family ]]; then
+              dotnet build src/SchoolMessenger.Mobile -f net10.0-ios -c Release -r "$runtime" --no-restore --nologo "-p:SchoolApp=$school_app"
+            fi
             python3 - "$runtime" "$school_app" <<'PY'
           import plistlib, sys
           from pathlib import Path

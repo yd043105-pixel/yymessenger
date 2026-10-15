@@ -7,7 +7,7 @@ import path from 'node:path';
 import net from 'node:net';
 import {DatabaseSync} from 'node:sqlite';
 const root=process.cwd(),dotnet=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):path.join(process.env.DOTNET_ROOT,'dotnet.exe');
-const fixture=path.join(root,'.test-data','bridge-'+randomUUID()),password='Test-'+randomUUID(),key='Bridge-'+randomUUID(),portalData=path.join(fixture,'public'),officeData=path.join(fixture,'office');mkdirSync(fixture,{recursive:true});mkdirSync('artifacts',{recursive:true});
+const fixture=path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'),'bridge-'+randomUUID()),password='Test-'+randomUUID(),key='Bridge-'+randomUUID(),portalData=path.join(fixture,'public'),officeData=path.join(fixture,'office');mkdirSync(fixture,{recursive:true});mkdirSync('artifacts',{recursive:true});
 const delay=ms=>new Promise(r=>setTimeout(r,ms)),id=()=>randomUUID().replaceAll('-','');
 async function address(){const s=net.createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const value='http://127.0.0.1:'+s.address().port;await new Promise(r=>s.close(r));return value;}
 const portal=await address(),office=await address();let p,o,logs='';const passed=[];function check(name){passed.push(name);console.log('PASS '+name);}

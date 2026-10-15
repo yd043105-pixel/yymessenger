@@ -12,7 +12,7 @@ const embeddedDraft=JSON.parse(readFileSync('config/registration-policy.draft.js
 const check=name=>{passed.push(name);console.log('PASS '+name);};
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 for(const project of ['AnnouncementServer','Server']){
- const portal=project==='AnnouncementServer',setting=portal?'Portal':'School',dir=path.join(root,'.test-data','policy-'+randomUUID());mkdirSync(dir,{recursive:true});
+ const portal=project==='AnnouncementServer',setting=portal?'Portal':'School',dir=path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'),'policy-'+randomUUID());mkdirSync(dir,{recursive:true});
  const file=path.join(dir,'policy.json'),data=path.join(dir,'data');
  let document=structuredClone(embeddedDraft);
  document.documents.push({id:'optional',title:'가상 선택 항목',version:'test.1',body:'선택 여부 시험용 문구',required:false,action:'consent'});

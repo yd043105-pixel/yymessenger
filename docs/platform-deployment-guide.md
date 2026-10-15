@@ -52,6 +52,8 @@
 
 업데이트는 알림 영역에서 프로그램을 **종료**한 뒤 새 설치 파일을 실행한다. X 버튼은 숨김 동작이다. 설치 위치와 앱 식별자를 유지하고, 서버는 같은 데이터 경로와 비밀키를 보존해 갱신한다. 본문 사본·설정은 설치 폴더가 아닌 사용자별 보호된 저장소에 저장되며, 서버에도 메시지 DB가 존재한다. 설치 제거가 계정 탈퇴나 서버 데이터 삭제를 뜻하지 않는다. [설치·업데이트 상세](windows-installer.md).
 
+이번 서버 보완에는 본문을 읽기 전에 검사하는 필수 서명 헤더가 추가됐다. **교내 업무 서버와 학교 소식 서버를 같은 최신 서버 패키지로 함께 갱신**한다. 한쪽만 구버전이면 서버 간 연결이 거부된다. 통신 키와 데이터 경로를 보존하고 두 서버 연결 상태·합성 공지·시간표·상담을 확인한 뒤 일반 이용을 재개한다.
+
 ## Android: 두 앱을 따로 설치하기
 
 1. 교직원은 `artifacts/mobile/kr.school.yeoyang.teacher-Signed.apk`, 학생·학부모는 `artifacts/mobile/kr.school.yeoyang.family-Signed.apk`를 사용한다. 현재 로컬 APK는 Debug 시운행용이다. Google Play 출시용으로 사용하지 않는다.
@@ -75,7 +77,7 @@ Google Play 출시는 학교 개발자 계정, 두 앱의 확정된 식별자, �
 
 ## iOS: Mac에서 두 앱을 만들고 TestFlight로 시험하기
 
-Windows에서 IPA를 직접 생성할 수 없다. 최신 소스의 실제 iPhone 서명 빌드·설치는 아직 수행하지 않았다. 과거 Mac 시뮬레이터 시험은 [이전 iOS 시운행 기록](ios-verification.md)에 있으며 최신 기능 전체 검증을 대신하지 않는다.
+Windows에서 IPA를 직접 생성할 수 없다. 실제 iPhone 서명 빌드·설치는 아직 수행하지 않았다. 2026-10-15 [Mac 검사](https://github.com/yd043105-pixel/yymessenger/actions/runs/38658164382/job/116172780205)에서는 동일 모바일 소스의 iPhone 시뮬레이터 자동 검사 38개와 두 제품의 Release 빌드 검사가 통과했다. 실제 기기·전체 기능 시험을 대신하지 않는다. [iOS 운영 안내](ios-operations.md)에 범위를 기록했다.
 
 1. 학교 소유 Apple Developer 계정과 App Store Connect에서 두 앱의 Bundle ID를 준비한다. Mac·호환 Xcode·.NET SDK 10.0.402와 고정 iOS 워크로드를 준비한다. 정확한 Xcode/워크로드 조합은 현재 CI 설정과 Microsoft iOS SDK 지원표를 맞춘다.
 2. 먼저 각각 시뮬레이터를 빌드한다. ZIP은 iPhone 설치 파일이 아니다.

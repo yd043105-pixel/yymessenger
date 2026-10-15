@@ -5,12 +5,21 @@ import {existsSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
-import {bridgeFetch} from './bridge-client.mjs';
+import {bridgeFetch,bridgeHeaders} from './bridge-client.mjs';
 const root=process.cwd(),fixture=path.resolve(process.env.YY_TEST_DATA_ROOT??'.test-data','server-resources-'+randomUUID());mkdirSync(fixture,{recursive:true});
 const dotnet=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):process.env.DOTNET_ROOT?path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet'):'dotnet';
 const id=()=>randomUUID().replaceAll('-',''),password='Synthetic-'+randomUUID(),passed=[],delay=ms=>new Promise(r=>setTimeout(r,ms));
 const check=text=>{passed.push(text);console.log('PASS '+text);};
 async function address(){const s=net.createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const url='http://127.0.0.1:'+s.address().port;await new Promise(r=>s.close(r));return url;}
+async function headersOnlyRejection(base,route,headers,status=401,length=230000,expectContinue=false,contentType='application/octet-stream'){
+ const url=new URL(base);await new Promise((resolve,reject)=>{
+  const socket=net.createConnection(Number(url.port),url.hostname);let reply='';
+  const finish=error=>{socket.destroy();error?reject(error):resolve();};
+  socket.setTimeout(2500,()=>finish(Error('Rejected request waited for its body instead of rejecting headers')));
+  socket.once('error',finish);socket.on('data',bytes=>{reply+=bytes;if(reply.includes('\r\n')){try{assert.match(reply,new RegExp('^HTTP/1.1 '+status+' '));finish();}catch(error){finish(error);}}});
+  socket.once('connect',()=>socket.write('POST '+route+' HTTP/1.1\r\nHost: '+url.host+'\r\nContent-Length: '+length+'\r\nContent-Type: '+contentType+'\r\n'+(expectContinue?'Expect: 100-continue\r\n':'')+Object.entries(headers).map(([k,v])=>k+': '+v+'\r\n').join('')+'\r\n'));
+ });
+}
 class Client{
  constructor(base){this.base=base;this.cookies=new Map();}
  headers(){return {Cookie:[...this.cookies].map(([k,v])=>k+'='+v).join('; '),'X-CSRF-TOKEN':this.csrf??''};}
@@ -36,8 +45,24 @@ for(const role of ['Server','AnnouncementServer']){
   await admin.req('admin/server-resources','POST',{profile:'low-memory',dataDirectory:'C:/Windows'});const limits=await admin.req('admin/server-resources');assert.equal(limits.limits.uploads,1);assert.equal(limits.limits.downloads,2);assert.equal(limits.limits.zip,1);assert.equal(limits.sampledAt,original.sampledAt);assert.equal(limits.sample.dataDirectory,data);
   assert.deepEqual(JSON.parse(readFileSync(path.join(data,'server-resource-policy.json'),'utf8')),{Profile:'low-memory'});
   check(role+': CSRF and profile allowlist protect settings; profile switches without moving data or invalidating cached sample');
+  await headersOnlyRejection(base,'/api/unmapped-upload/attachments',{},400,230000,false,'multipart/form-data; boundary=stalled');
+  assert.equal((await admin.req('admin/server-resources')).active.uploads,0);
+  check(role+': missing CSRF header rejects anonymous multipart bodies even on unmapped upload paths');
   if(portal){
-   const huge=await fetch(base+'/bridge/attachments',{method:'POST',body:Buffer.alloc(240001)});assert.equal(huge.status,413);
+   const rejectBeforeBody=(headers,status=401,length=230000,expectContinue=false)=>headersOnlyRejection(base,'/bridge/attachments',headers,status,length,expectContinue);
+   await headersOnlyRejection(base,'/api/attachments',{Cookie:ordinary.headers().Cookie},403,230000,false,'multipart/form-data; boundary=stalled');
+   assert.equal((await admin.req('admin/server-resources')).active.uploads,0);
+   check('AnnouncementServer: non-teacher upload authorization rejects stalled multipart bodies before CSRF or upload admission');
+   const forged=bridgeHeaders(env.Portal__BridgeKey,base+'/bridge/attachments','POST','');forged['X-YY-Signature']='0'.repeat(64);await rejectBeforeBody(forged);
+   const missingDigest=bridgeHeaders(env.Portal__BridgeKey,base+'/bridge/attachments','POST','');delete missingDigest['X-YY-Content-SHA256'];await rejectBeforeBody(missingDigest);
+   assert.equal((await admin.req('admin/server-resources')).active.uploads,0);
+   check('AnnouncementServer: forged or missing signed digest rejects stalled uploads before reading their body and releases capacity');
+   const heartbeat=base+'/bridge/heartbeat',body=JSON.stringify({teachers:[]}),signed=bridgeHeaders(env.Portal__BridgeKey,heartbeat,'POST',body);
+   const tampered=await fetch(heartbeat,{method:'POST',headers:{...signed,'Content-Type':'application/json'},body:body+' '});assert.equal(tampered.status,401);await tampered.arrayBuffer();
+   const intact=await fetch(heartbeat,{method:'POST',headers:{...signed,'Content-Type':'application/json'},body});assert.equal(intact.status,200);await intact.arrayBuffer();
+   check('AnnouncementServer: authenticated body digest must match actual bytes; tampering does not consume the legitimate nonce');
+   // Do not race an intentional early 413 with a fully transmitted body/Windows TCP reset.
+   await rejectBeforeBody({},413,240001,true);
    const room=(await admin.req('admin/classes','POST',{name:'Uploader class',grade:2})).id,teacherId=(await admin.req('admin/people','POST',{name:'Synthetic uploader',role:'teacher',internalUserId:id(),classIds:[room],canBroadcast:false})).id;
    const proof=await bridgeFetch(env.Portal__BridgeKey,base+'/bridge/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({teachers:[{id:teacherId,active:true,canBroadcast:false}]})});assert.equal(proof.status,200);
    const invite=await admin.req('admin/people/'+teacherId+'/invite','POST'),uploader=new Client(base);uploader.csrf=(await uploader.req('session')).csrfToken;

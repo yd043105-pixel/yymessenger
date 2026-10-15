@@ -10,7 +10,7 @@ import net from 'node:net';
 import {DatabaseSync} from 'node:sqlite';
 
 const root=process.cwd(),dotnet=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):path.join(process.env.DOTNET_ROOT,'dotnet.exe');
-const testRoot=path.join(root,'.test-data','announcements-'+randomUUID()),data=path.join(testRoot,'portal'),password='Test-'+randomUUID(),bridgeKey='Bridge-'+randomUUID();
+const testRoot=path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'),'announcements-'+randomUUID()),data=path.join(testRoot,'portal'),password='Test-'+randomUUID(),bridgeKey='Bridge-'+randomUUID();
 mkdirSync(testRoot,{recursive:true});mkdirSync('artifacts',{recursive:true});
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 const listener=net.createServer();await new Promise(r=>listener.listen(0,'127.0.0.1',r));const address='http://127.0.0.1:'+listener.address().port;await new Promise(r=>listener.close(r));

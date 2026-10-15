@@ -7,7 +7,7 @@ import net from 'node:net';
 import path from 'node:path';
 import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 
-const root=process.cwd(),sdk=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet'),work=path.join(root,'.test-data/graduation-'+randomUUID()),portalData=path.join(work,'portal'),officeData=path.join(work,'office');
+const root=process.cwd(),sdk=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet'),work=path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'),'graduation-'+randomUUID()),portalData=path.join(work,'portal'),officeData=path.join(work,'office');
 const password='Synthetic-'+randomUUID(),key='SyntheticBridge-'+randomUUID(),passed=[],servers=[];
 const check=name=>{passed.push(name);console.log('PASS '+name);},uuid=()=>randomUUID().replaceAll('-',''),pause=ms=>new Promise(r=>setTimeout(r,ms));
 async function port(){const s=net.createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const p=s.address().port;await new Promise(r=>s.close(r));return 'http://127.0.0.1:'+p;}

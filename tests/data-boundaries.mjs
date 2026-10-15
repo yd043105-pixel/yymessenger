@@ -4,7 +4,7 @@ import {randomUUID} from 'node:crypto';
 import {existsSync,mkdirSync,writeFileSync,readFileSync} from 'node:fs';
 import path from 'node:path';
 const root=process.cwd(),dotnet=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):path.join(process.env.DOTNET_ROOT,'dotnet.exe');
-const fixture=path.join(root,'.test-data','boundaries-'+randomUUID()),passed=[];
+const fixture=path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'),'boundaries-'+randomUUID()),passed=[];
 for(const [project,setting,foreignDb,ownDb] of [['Server','School','announcements.db','school.db'],['AnnouncementServer','Portal','school.db','announcements.db']]){
  const directory=path.join(fixture,project);mkdirSync(directory,{recursive:true});const sentinel='Unrelated school database must remain untouched';writeFileSync(path.join(directory,foreignDb),sentinel);
  const child=spawn(dotnet,[path.join(root,`src/SchoolMessenger.${project}/bin/Debug/net10.0/SchoolMessenger.${project}.dll`),'--urls','http://127.0.0.1:0'],{cwd:path.join(root,'src','SchoolMessenger.'+project),windowsHide:true,env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',[setting+'__DataDirectory']:directory,[setting+'__AdminPassword']:'Test-'+randomUUID(),Portal__BridgeKey:'Bridge-'+randomUUID()}});
