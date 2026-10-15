@@ -73,7 +73,7 @@ Mac 검증용 Combined 모드는 CI에서만 명시하고 일반 iOS 빌드는 �
 
 원본은 C:에 유지하고, 일부 오래된 시험이 무시하던 `YY_TEST_DATA_ROOT`를 공지·가입·약관·졸업·연결·격리 시험에도 적용했다. 새 큰 시험 복사본을 D:에 둘 수 있게 한 개발 도구 수정이며, 운영 데이터 경로나 보관 정책을 바꾸지 않는다. 기존 C: 시험 캐시는 삭제하지 않았다.
 
-모바일 소스가 동일한 커밋 ee9e51의 Mac iOS 작업에서는 iPhone 16/iOS 26.5 네이티브 UI·API·Keychain 재실행 38개와 두 제품의 Release ID·HTTPS·버전 검사가 통과했다. 해당 실행의 Android Release 작업도 성공했다. 작업 링크와 실제 기기 시험의 차이는 [iOS 운영 안내](ios-operations.md)에 기록했다. 이 실행의 Windows 작업은 위에 적은 조기 413 시험 문제로 실패했으며 전체 실행이 성공했다고 표시하지 않는다.
+모바일 소스가 동일한 커밋 `bee9e51`의 Mac iOS 작업에서는 iPhone 16/iOS 26.5 네이티브 UI·API·Keychain 재실행 38개와 두 제품의 Release ID·HTTPS·버전 검사가 통과했다. 해당 실행의 Android Release 작업도 성공했다. 작업 링크와 실제 기기 시험의 차이는 [iOS 운영 안내](ios-operations.md)에 기록했다. 이 실행의 Windows 작업은 위에 적은 조기 413 시험 문제로 실패했으며 전체 실행이 성공했다고 표시하지 않는다.
 
 ## 권고
 
