@@ -16,6 +16,7 @@ public sealed class MessageHub(Presence presence, Store store) : Hub
         if (!identity.Valid(store)) { Context.Abort(); return; }
         presence.Live[Context.ConnectionId] = identity;
         presence.Connections[Context.ConnectionId] = id;
+        presence.InitializeActivity(Context.ConnectionId);
         await Groups.AddToGroupAsync(Context.ConnectionId, id);
         await Clients.All.SendAsync("PresenceChanged");
         await base.OnConnectedAsync();
@@ -24,15 +25,37 @@ public sealed class MessageHub(Presence presence, Store store) : Hub
     {
         presence.Connections.TryRemove(Context.ConnectionId, out _);
         presence.Live.TryRemove(Context.ConnectionId, out _);
+        presence.RemoveActivity(Context.ConnectionId);
         await Clients.All.SendAsync("PresenceChanged");
         await base.OnDisconnectedAsync(error);
     }
+    public async Task<bool> SetAway(bool away)
+    {
+        if(!presence.Live.TryGetValue(Context.ConnectionId,out var identity)||!identity.Valid(store))
+        {Context.Abort();throw new HubException("로그인 상태를 확인하세요.");}
+        if(presence.ChangeActivity(Context.ConnectionId,away))await Clients.All.SendAsync("PresenceChanged");
+        return presence.ConnectionAway(Context.ConnectionId);
+    }
 }
-public sealed class Presence
+public sealed partial class Presence
 {
+    sealed record Activity(bool Away,long ChangedAt);
+    readonly ConcurrentDictionary<string,Activity> activity=new();
     public ConcurrentDictionary<string, LiveConnection> Live { get; } = new();
     public ConcurrentDictionary<string, string> Connections { get; } = new();
     public bool Online(string userId) => Connections.Values.Contains(userId);
+    public bool Away(string userId)
+    {var ids=Connections.Where(c=>c.Value==userId).Select(c=>c.Key).ToArray();return ids.Length>0&&ids.All(ConnectionAway);}
+    public void InitializeActivity(string connection)=>activity[connection]=new(false,Environment.TickCount64-3000);
+    public void RemoveActivity(string connection)=>activity.TryRemove(connection,out _);
+    public bool ConnectionAway(string connection)=>activity.TryGetValue(connection,out var state)&&state.Away;
+    public bool ChangeActivity(string connection,bool away)
+    {
+        if(!Connections.ContainsKey(connection)||!activity.TryGetValue(connection,out var state)||state.Away==away)return false;
+        var now=Environment.TickCount64;
+        // State transitions are bounded per connection; repeated frames never broadcast.
+        return now-state.ChangedAt>=3000&&activity.TryUpdate(connection,new(away,now),state);
+    }
 }
 public sealed record LiveConnection(HubCallerContext Context, string UserId, string? Version,string? Session)
 {

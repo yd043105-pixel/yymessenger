@@ -24,6 +24,8 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "$project 빌드 실패" }
     }
     if (-not $SkipTests) {
+        & $dotnetExecutable run --project tests\IdleChecks -p:RestoreLockedMode=true
+        if ($LASTEXITCODE -ne 0) { throw 'Windows inactivity deadline verification failed' }
         node tests\counseling.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Counseling integration verification failed' }
         if ($HeadlessTests) { node tests\electives.mjs }
@@ -92,7 +94,7 @@ try {
     Copy-Item -LiteralPath 'docs\web-tasks-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\server-setup-school-tunnel.md','docs\server-administration.md','docs\server-administration-verification-2026-10-14.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\mobile-operations.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\mobile-operations.md','docs\ui-design-presence.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\platform-deployment-guide.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\beginner-setup-guide.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\installation-and-test-order.md' -Destination $packageDocs

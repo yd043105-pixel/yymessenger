@@ -17,10 +17,10 @@ public partial class MainWindow : Window
     public string LocalDirectory { get; } = Environment.GetEnvironmentVariable("SCHOOL_UI_LOCALDIR") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SchoolMessenger");
     public HashSet<string> Favorites { get; set; } = new();
     readonly HashSet<string> selectedPeople = new(), knownIncoming = new();
-    readonly HashSet<string> expandedGroups = new();
+    readonly HashSet<string> collapsedGroups = new();
     readonly HashSet<long> knownTimetables = new();
     Person[] people = [];
-    bool favoritesOnly, onlineOnly, onlineFirst = true, schoolExpanded = true, refreshing, exiting;
+    bool favoritesOnly, onlineOnly, awayOnly, onlineFirst = true, schoolExpanded = true, refreshing, exiting;
     int unreadCount, peopleRefreshVersion;
     HubConnection? hub;
     readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(30) };
@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InitializeActivity();
         MinHeight = Math.Min(580, SystemParameters.WorkArea.Height - 30);
         Height = Math.Min(820, SystemParameters.WorkArea.Height - 30);
         Directory.CreateDirectory(LocalDirectory);
@@ -45,7 +46,7 @@ public partial class MainWindow : Window
         {
             var file = Path.Combine(LocalDirectory, "preferences.json");
             if (File.Exists(file) && JsonSerializer.Deserialize<Preferences>(File.ReadAllText(file)) is { } preferences)
-            { ServerAddress.Text = preferences.ServerAddress; UsernameBox.Text = preferences.Username; Quiet.IsChecked = preferences.Quiet; DoNotDisturb.IsChecked = preferences.DoNotDisturb; RememberLogin.IsChecked = preferences.AutoLogin; Favorites = preferences.Favorites.ToHashSet(); Appearance.Apply(preferences.ThemeId, preferences.Glass); }
+            { ServerAddress.Text = preferences.ServerAddress; UsernameBox.Text = preferences.Username; Quiet.IsChecked = preferences.Quiet; DoNotDisturb.IsChecked = preferences.DoNotDisturb; RememberLogin.IsChecked = preferences.AutoLogin; Favorites = preferences.Favorites.ToHashSet(); Appearance.Apply(preferences.ThemeId, preferences.Glass); SetAutomaticAway(preferences.IdleMinutes); }
         }
         catch (Exception error) when (error is IOException or JsonException) { LoginError.Text = "설정을 읽지 못했습니다. 서버 주소를 확인하세요."; }
         loginOptionsReady = true;
@@ -73,14 +74,17 @@ public partial class MainWindow : Window
             if (RememberLogin.IsChecked == true) { await TryAutomaticLogin(); if (savedLogin.Exists) timer.Start(); }
         };
     }
-    public void SavePreferences() => File.WriteAllText(Path.Combine(LocalDirectory, "preferences.json"), JsonSerializer.Serialize(new Preferences(ServerAddress.Text, UsernameBox.Text, Quiet.IsChecked, Favorites.ToArray(), DoNotDisturb.IsChecked, RememberLogin.IsChecked == true, Appearance.Selected, Appearance.Glass)));
+    public void SavePreferences() => File.WriteAllText(Path.Combine(LocalDirectory, "preferences.json"), JsonSerializer.Serialize(new Preferences(ServerAddress.Text, UsernameBox.Text, Quiet.IsChecked, Favorites.ToArray(), DoNotDisturb.IsChecked, RememberLogin.IsChecked == true, Appearance.Selected, Appearance.Glass,AutomaticAwayMinutes)));
     void OpenAppearance(object sender, RoutedEventArgs e) => new AppearanceWindow(this).ShowDialog();
     public void RefreshAppearance()
     {
-        AllFilter.SetResourceReference(System.Windows.Controls.Button.BackgroundProperty, onlineOnly ? "Soft" : "Pale");
-        AllFilter.SetResourceReference(System.Windows.Controls.Button.ForegroundProperty, onlineOnly ? "Muted" : "Blue");
+        AllFilter.SetResourceReference(System.Windows.Controls.Button.BackgroundProperty, onlineOnly||awayOnly ? "Soft" : "Pale");
+        AllFilter.SetResourceReference(System.Windows.Controls.Button.ForegroundProperty, onlineOnly||awayOnly ? "Muted" : "Blue");
         OnlineFilter.SetResourceReference(System.Windows.Controls.Button.BackgroundProperty, onlineOnly ? "Pale" : "Soft");
         OnlineFilter.SetResourceReference(System.Windows.Controls.Button.ForegroundProperty, onlineOnly ? "Blue" : "Muted");
+        AwayFilter.SetResourceReference(System.Windows.Controls.Button.BackgroundProperty, awayOnly ? "Pale" : "Soft");
+        AwayFilter.SetResourceReference(System.Windows.Controls.Button.ForegroundProperty, awayOnly ? "Blue" : "Muted");
+        RosterTitle.Text=favoritesOnly?"즐겨찾기":"교직원";
         OrganizationButton.SetResourceReference(System.Windows.Controls.Button.BackgroundProperty, favoritesOnly ? "Glass" : "Blue");
         FavoritesButton.SetResourceReference(System.Windows.Controls.Button.BackgroundProperty, favoritesOnly ? "Blue" : "Glass");
         OrganizationButton.SetResourceReference(System.Windows.Controls.Button.ForegroundProperty, favoritesOnly ? "Muted" : "OnAccent");
@@ -134,7 +138,7 @@ public partial class MainWindow : Window
         Workspace.Visibility = Visibility.Visible; LoginPanel.Visibility = Visibility.Collapsed;
         knownTimetables.Clear();
         knownIncoming.Clear(); foreach (var message in await Api.Get<MessageItem[]>("api/messages?box=received")) knownIncoming.Add(message.Id);
-        await Refresh(); await ConnectNotifications(); await RefreshPeople(); timer.Start();
+        await Refresh(); await ConnectNotifications(); await RefreshPeople(); timer.Start(); activityTimer.Start();
         remote = new RemoteClient(this);
         try { await remote.Connect(); } catch { StatusLabel.Text = "원격 지원 연결 대기 중"; }
         ShowUpdates();
@@ -173,9 +177,9 @@ public partial class MainWindow : Window
         hub.On<string>("SurveyChanged", id => Dispatcher.InvokeAsync(() => { SurveyChanged?.Invoke(id); NotifyFeature("설문 변경 사항을 확인하세요.", "survey"); }).Task);
         hub.On<string,long>("TimetableChanged",(date,revision)=>Dispatcher.InvokeAsync(()=>{if(knownTimetables.Add(revision))NotifyFeature("시간표 변경 · "+date,"timetable");}).Task);
         hub.Reconnecting += _ => { Dispatcher.Invoke(() => ConnectionLabel.Text = "재연결 중 · 수신 확인 계속"); return Task.CompletedTask; };
-        hub.Reconnected += _ => Dispatcher.InvokeAsync(() => Run(Refresh)).Task.Unwrap();
+        hub.Reconnected += _ => Dispatcher.InvokeAsync(() => Run(async()=>{sentAway=null;await SynchronizeActivity();await Refresh();})).Task.Unwrap();
         hub.Closed += _ => { Dispatcher.Invoke(() => ConnectionLabel.Text = "알림 연결 끊김 · 재시도 중"); return Task.CompletedTask; };
-        try { await hub.StartAsync(); ConnectionLabel.Text = "학교 서버 연결됨"; }
+        try { await hub.StartAsync(); sentAway=null;await SynchronizeActivity();ConnectionLabel.Text = "학교 서버 연결됨"; }
         catch { ConnectionLabel.Text = "실시간 알림 연결 실패 · 수신 확인 30초"; }
     }
     async Task Refresh()
@@ -209,6 +213,7 @@ public partial class MainWindow : Window
         if (Api is null) return;
         var unread = await Api.Get<MessageItem[]>("api/messages?box=unread");
         unreadCount = unread.Length; UpdateRosterHint();
+        UnreadShortcut.Content=$"미확인 {unreadCount}{(unreadCount==100?"+":"")}";
     }
     async Task RefreshPeople()
     {
@@ -221,38 +226,37 @@ public partial class MainWindow : Window
     }
     void UpdateRosterHint()
     {
-        RosterHint.Text = $"접속 {people.Count(p => p.Online)} / {people.Length}명 · 미확인 {unreadCount}{(unreadCount == 100 ? "+" : "")}개";
-        AllFilter.Content = $"전체 {people.Length}"; OnlineFilter.Content = $"접속 중 {people.Count(p => p.Online)}";
+        RosterHint.Text = $"온라인 {people.Count(p=>p.Online&&!p.Away)} · 휴대폰 {people.Count(p=>!p.Online&&p.Mobile)} · 자리비움 {people.Count(p=>p.Online&&p.Away)} · 오프라인 {people.Count(p=>!p.Online&&!p.Mobile)}";
+        AllFilter.Content = $"전체 {people.Length}"; OnlineFilter.Content = $"접속 중 {people.Count(p => p.Available)}"; AwayFilter.Content=$"자리비움 {people.Count(p=>p.Online&&p.Away)}";
+        OnlineFilter.ToolTip="PC 온라인 또는 교사용 휴대폰 앱 접속 중";AwayFilter.ToolTip="PC에서 입력이 없거나 화면이 잠긴 교직원";
     }
     void UpdateSelectionHint() => SelectionHint.Text = $"선택 {selectedPeople.Count}명";
     void RenderTree()
     {
         if (OrganizationTree is null || PeopleSearch is null) return;
         var selected = (OrganizationTree.SelectedItem as TreeViewItem)?.Tag as Person;
-        void Remember(ItemsControl parent) { foreach (var row in parent.Items.OfType<TreeViewItem>()) { if (row.Tag is string key) { if (key == "school") schoolExpanded = row.IsExpanded; else if (row.IsExpanded) expandedGroups.Add(key); else expandedGroups.Remove(key); } Remember(row); } }
-        Remember(OrganizationTree); bool first = OrganizationTree.Items.Count == 0;
+        void Remember(ItemsControl parent) { foreach (var row in parent.Items.OfType<TreeViewItem>()) { if (row.Tag is string key) { if (key == "school") schoolExpanded = row.IsExpanded; else if (row.IsExpanded) collapsedGroups.Remove(key); else collapsedGroups.Add(key); } Remember(row); } }
+        Remember(OrganizationTree);
         OrganizationTree.Items.Clear();
-        var filtered = people.Where(p => p.Label.Contains(PeopleSearch.Text.Trim(), StringComparison.OrdinalIgnoreCase) && (!favoritesOnly || Favorites.Contains(p.Id)) && (!onlineOnly || p.Online)).ToArray();
+        var filtered = people.Where(p => p.Label.Contains(PeopleSearch.Text.Trim(), StringComparison.OrdinalIgnoreCase) && (!favoritesOnly || Favorites.Contains(p.Id)) && (!onlineOnly || p.Available)&&(!awayOnly||p.Online&&p.Away)).ToArray();
         var school = GroupRow("여양고등학교", "school", filtered.Select(p => p.Id).ToArray(), schoolExpanded || PeopleSearch.Text.Length > 0); OrganizationTree.Items.Add(school);
         if (filtered.Length == 0) school.Items.Add(new TreeViewItem { Header = favoritesOnly ? "즐겨찾기를 추가하세요." : "검색 결과가 없습니다.", IsEnabled = false });
         foreach (var group in filtered.GroupBy(p => p.Department).OrderBy(g => g.Key))
         {
-            var row = GroupRow(group.Key, group.Key, group.Select(p => p.Id).ToArray(), first || expandedGroups.Contains(group.Key) || PeopleSearch.Text.Length > 0);
+            var row = GroupRow(group.Key, group.Key, group.Select(p => p.Id).ToArray(), !collapsedGroups.Contains(group.Key) || PeopleSearch.Text.Length > 0);
             school.Items.Add(row);
-            foreach (var person in group.OrderByDescending(p => onlineFirst && p.Online).ThenBy(p => p.Name))
+            foreach (var person in group.OrderBy(p => onlineFirst?(p.Online?(p.Away?2:0):p.Mobile?1:3):0).ThenBy(p => p.Name))
             {
                 var check = new System.Windows.Controls.CheckBox { IsChecked = selectedPeople.Contains(person.Id), Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center };
                 check.Checked += (_, _) => { selectedPeople.Add(person.Id); UpdateSelectionHint(); }; check.Unchecked += (_, _) => { selectedPeople.Remove(person.Id); UpdateSelectionHint(); };
-                var panel = new Grid { MinHeight = 34 };
+                var panel = new Grid { MinHeight = 36,ToolTip=person.Presence };
+                ToolTipService.SetInitialShowDelay(panel,500);
                 panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto }); panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 panel.ColumnDefinitions.Add(new ColumnDefinition()); panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 panel.Children.Add(check);
-                var status = new System.Windows.Shapes.Ellipse { Width = 11, Height = 11, Margin = new Thickness(7,0,10,0), VerticalAlignment = VerticalAlignment.Center,
-                    Fill = new SolidColorBrush(person.Online ? Color.FromRgb(33,180,137) : Color.FromRgb(220,72,72)), ToolTip = person.Online ? "온라인" : "오프라인" };
-                ToolTipService.SetInitialShowDelay(status,500);
-                System.Windows.Automation.AutomationProperties.SetName(status,person.Online ? "온라인" : "오프라인");
+                var status = PresenceMark(person.Online,person.Away,person.Mobile);status.Margin=new Thickness(7,0,10,0);
                 Grid.SetColumn(status,1);panel.Children.Add(status);
-                var name = new TextBlock { Text = person.Name + (Favorites.Contains(person.Id) ? " ★" : ""), FontSize = 12, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("Ink"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+                var name = new TextBlock { Text = person.Name + (Favorites.Contains(person.Id) ? " ★" : ""), FontSize = 13, FontWeight = FontWeights.Medium, Foreground = (Brush)FindResource("Ink"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
                 name.SetResourceReference(TextBlock.ForegroundProperty, "Ink");
                 Grid.SetColumn(name, 2); panel.Children.Add(name);
                 var contact = new TreeViewItem { Header = panel, Tag = person, ContextMenu = PersonMenu(person) };
@@ -273,7 +277,7 @@ public partial class MainWindow : Window
     internal ContextMenu PersonMenu(Person person)
     {
         var menu = new ContextMenu();
-        menu.Items.Add(new MenuItem { Header = person.Online ? "접속 중" : "로그아웃 상태", IsEnabled = false });
+        menu.Items.Add(new MenuItem { Header = person.Presence, IsEnabled = false });
         menu.Items.Add(new Separator());
         void Add(string text, RoutedEventHandler action) { var key = text.StartsWith("메시지 보내기") ? "MailIcon" : text.StartsWith("파일") ? "FileIcon" : text.StartsWith("메시지 관리") ? "HistoryIcon" : text.StartsWith("사용자") ? "UserIcon" : "StarIcon"; var icon = new System.Windows.Shapes.Path { Data = (Geometry)FindResource(key), StrokeThickness = 1.5, Stretch = Stretch.Uniform, Width = 15, Height = 15 }; icon.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "Blue"); var item = new MenuItem { Header = text, Icon = icon }; item.Click += action; menu.Items.Add(item); }
         Add("메시지 보내기(_M)", async (_, _) => await WriteMessage(person.Id));
@@ -295,8 +299,9 @@ public partial class MainWindow : Window
     async Task Run(Func<Task> action) { try { await action(); } catch (Exception error) { StatusLabel.Text = error.Message; } }
     void SearchPeople(object sender, TextChangedEventArgs e) => RenderTree();
     void ToggleSort(object sender, RoutedEventArgs e) { onlineFirst = !onlineFirst; SortButton.Content = onlineFirst ? "이름순 ↕" : "접속순 ↕"; SortButton.ToolTip = onlineFirst ? "현재 접속자 우선 · 클릭하면 이름순" : "현재 이름순 · 클릭하면 접속자 우선"; RenderTree(); }
-    void FilterAll(object sender, RoutedEventArgs e) { onlineOnly = false; UpdateFilters(); }
-    void FilterOnline(object sender, RoutedEventArgs e) { onlineOnly = true; UpdateFilters(); }
+    void FilterAll(object sender, RoutedEventArgs e) { onlineOnly = awayOnly = false; UpdateFilters(); }
+    void FilterOnline(object sender, RoutedEventArgs e) { onlineOnly = true;awayOnly=false; UpdateFilters(); }
+    void FilterAway(object sender,RoutedEventArgs e){awayOnly=true;onlineOnly=false;UpdateFilters();}
     void UpdateFilters() => RefreshAppearance();
     void UpdateNavigation() => RefreshAppearance();
     void ShowOrganization(object sender, RoutedEventArgs e) { favoritesOnly = false; PeopleSearch.Clear(); UpdateNavigation(); }
@@ -361,7 +366,7 @@ public partial class MainWindow : Window
     {
         savedLogin.Clear();
         if (remote is not null) { await remote.DisposeAsync(); remote = null; }
-        timer.Stop(); foreach (var window in OwnedWindows.Cast<Window>().ToArray()) window.Close();
+        timer.Stop(); activityTimer.Stop();sentAway=null; foreach (var window in OwnedWindows.Cast<Window>().ToArray()) window.Close();
         if (hub is not null) { await hub.DisposeAsync(); hub = null; } Api?.Dispose(); Api = null;
         OrganizationTree.Items.Clear(); people = []; selectedPeople.Clear(); Workspace.Visibility = Visibility.Collapsed; LoginPanel.Visibility = Visibility.Visible;
     }
@@ -394,6 +399,7 @@ public partial class MainWindow : Window
             finally { startup.SetEnabled(false); }
             if (startup.Enabled) throw new InvalidOperationException("자동 실행 해제 실패");
             ServerAddress.Text = Environment.GetEnvironmentVariable("SCHOOL_UI_SERVER") ?? ServerAddress.Text;
+            if(!Uri.TryCreate(ServerAddress.Text,UriKind.Absolute,out var verificationAddress)||!verificationAddress.IsLoopback||verificationAddress.Scheme!="http")throw new InvalidOperationException("화면 검사는 로컬 HTTP 가상 서버만 사용합니다.");
             UsernameBox.Text = Environment.GetEnvironmentVariable("SCHOOL_UI_USER") ?? "admin";
             RememberLogin.IsChecked = true;
             PasswordBox.Password = Environment.GetEnvironmentVariable("SCHOOL_UI_PASSWORD") ?? ""; await SignIn();
@@ -402,6 +408,8 @@ public partial class MainWindow : Window
             var originalUser = Api!.Session!.User!.Id;
             await Disconnect(); File.WriteAllBytes(savedLogin.FilePath, saved); await TryAutomaticLogin();
             if (Api?.Session?.User?.Id != originalUser || Workspace.Visibility != Visibility.Visible || PasswordBox.Password.Length != 0) throw new InvalidOperationException("암호화 정보로 자동 로그인 복원 실패");
+            var presenceDirectory=Path.GetDirectoryName(Path.GetFullPath(Environment.GetEnvironmentVariable("SCHOOL_UI_OUTPUT")??"artifacts/client-preview.png"))!;
+            Directory.CreateDirectory(presenceDirectory);await VerifyPresenceUi(presenceDirectory);
             if (Width > 460 || people.Length == 0) throw new InvalidOperationException("조직도 크기 또는 교직원 목록 오류");
             Person[] VisibleContacts()
             {
@@ -414,14 +422,16 @@ public partial class MainWindow : Window
             PeopleSearch.Text = me.Name;
             if (!VisibleContacts().Any(p => p.Id == me.Id) || VisibleContacts().Any(p => !p.Label.Contains(me.Name, StringComparison.OrdinalIgnoreCase))) throw new InvalidOperationException("조직도 검색 실패");
             PeopleSearch.Clear(); OnlineFilter.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
-            if (!VisibleContacts().Any() || VisibleContacts().Any(p => !p.Online)) throw new InvalidOperationException("접속 중 필터 실패");
+            if (!VisibleContacts().Any() || VisibleContacts().Any(p => !p.Available)) throw new InvalidOperationException("접속 중 필터 실패");
             AllFilter.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             if (VisibleContacts().Length != people.Length) throw new InvalidOperationException("전체 교직원 필터 실패");
             foreach(var contact in OrganizationTree.Items.OfType<TreeViewItem>().SelectMany(r=>r.Items.OfType<TreeViewItem>()).SelectMany(r=>r.Items.OfType<TreeViewItem>()))
             {
                 if(contact.Tag is not Person person||contact.Header is not Grid panel)continue;
-                var dot=panel.Children.OfType<System.Windows.Shapes.Ellipse>().Single();
-                if(dot.Width!=11||dot.ToolTip?.ToString()!=(person.Online?"온라인":"오프라인")||ToolTipService.GetInitialShowDelay(dot)!=500||panel.Children.OfType<Border>().Any())throw new InvalidOperationException("작은 접속 원·마우스 안내 표시 실패");
+                var mark=panel.Children.OfType<Grid>().Single();
+                if(mark.ToolTip?.ToString()!=person.Presence||ToolTipService.GetInitialShowDelay(mark)!=500)throw new InvalidOperationException("접속 상태 마우스 안내 표시 실패");
+                if(!person.Online&&person.Mobile){if(mark.Children.OfType<System.Windows.Shapes.Ellipse>().Any())throw new InvalidOperationException("휴대폰 모양 표시 실패");}
+                else{var dot=mark.Children.OfType<System.Windows.Shapes.Ellipse>().Single();if(dot.Width!=10||(!person.Online&&dot.Fill!=Brushes.Transparent))throw new InvalidOperationException("작은 접속 원 표시 실패");}
             }
             if (OrganizationTree.Items.OfType<TreeViewItem>().SelectMany(r => r.Items.OfType<TreeViewItem>()).Any(r => !r.IsExpanded)) throw new InvalidOperationException("필터 변경 시 부서 펼침 상태 유지 실패");
             if (System.Windows.Shell.WindowChrome.GetWindowChrome(this)?.CaptionHeight != 44) throw new InvalidOperationException("제목줄 적용 실패");
@@ -430,8 +440,11 @@ public partial class MainWindow : Window
             var originalTheme = Appearance.Selected; var originalGlass = Appearance.Glass;
             var themedInbox = OpenMailbox("received"); await themedInbox.Reload();
             var themeDialog = new AppearanceWindow(this); themeDialog.Show();
-            var choices = ((StackPanel)themeDialog.Content).Children.OfType<ComboBox>().Single();
-            var glass = ((StackPanel)themeDialog.Content).Children.OfType<System.Windows.Controls.CheckBox>().Single();
+            var appearancePanel=(StackPanel)((ScrollViewer)themeDialog.Content).Content;
+            var choices = appearancePanel.Children.OfType<ComboBox>().Single(c=>System.Windows.Automation.AutomationProperties.GetName(c)=="메신저 색상 테마");
+            var awayChoice=appearancePanel.Children.OfType<ComboBox>().Single(c=>System.Windows.Automation.AutomationProperties.GetName(c)=="자동 자리비움 시간");awayChoice.SelectedIndex=2;
+            if(JsonSerializer.Deserialize<Preferences>(File.ReadAllText(Path.Combine(LocalDirectory,"preferences.json")))!.IdleMinutes!=10)throw new InvalidOperationException("자리비움 시간 저장 실패");awayChoice.SelectedIndex=1;
+            var glass = appearancePanel.Children.OfType<System.Windows.Controls.CheckBox>().Single();
             foreach (var palette in Appearance.Palettes)
             {
                 choices.SelectedIndex = Array.IndexOf(Appearance.Palettes, palette);
@@ -449,9 +462,9 @@ public partial class MainWindow : Window
             Appearance.Apply(originalTheme, originalGlass); RefreshAppearance(); SavePreferences();
             foreach (var state in new[] { false, true })
             {
-                var menu = PersonMenu(people[0] with { Online = state });
+                var menu = PersonMenu(people[0] with { Online = state,Away=false,Mobile=false });
                 var headers = menu.Items.OfType<MenuItem>().Select(m => m.Header?.ToString()).ToArray();
-                if (headers[0] != (state ? "접속 중" : "로그아웃 상태") || headers.Any(h => h?.Contains("일정") == true || h?.Contains("알림톡") == true)) throw new InvalidOperationException("접속 상태별 메뉴 검증 실패");
+                if (headers[0] != (state ? "온라인" : "오프라인") || headers.Any(h => h?.Contains("일정") == true || h?.Contains("알림톡") == true)) throw new InvalidOperationException("접속 상태별 메뉴 검증 실패");
                 menu.PlacementTarget = OrganizationTree; menu.IsOpen = true;
                 await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
                 var border = menu.Items.Count > 0 ? (Visual)menu : menu;
@@ -494,4 +507,4 @@ public partial class MainWindow : Window
         catch (Exception error) { Directory.CreateDirectory("artifacts"); File.WriteAllText("artifacts/ui-error.txt", error.ToString()); exiting = true; System.Windows.Application.Current.Shutdown(1); }
     }
 }
-record Preferences(string ServerAddress, string Username, bool Quiet, string[] Favorites, bool DoNotDisturb = false, bool AutoLogin = false, string ThemeId = "blue", bool Glass = true);
+record Preferences(string ServerAddress, string Username, bool Quiet, string[] Favorites, bool DoNotDisturb = false, bool AutoLogin = false, string ThemeId = "blue", bool Glass = true,int IdleMinutes=5);

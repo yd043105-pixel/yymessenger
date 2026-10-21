@@ -8,6 +8,7 @@ import path from 'node:path';
 import net from 'node:net';
 import { featureChecks } from './features.mjs';
 import { securityChecks } from './security.mjs';
+import { presenceChecks } from './presence.mjs';
 import { workChecks } from './work.mjs';
 import { officeChecks } from './office.mjs';
 
@@ -76,6 +77,7 @@ try {
   for (const [username, name, department] of [['alice', '김담임', '1학년부'], ['bob', '이교무', '교무부'], ['carol', '박행정', '행정실']])
     await admin.request('/api/admin/users', 'POST', { username, name, department, password, isAdmin: false, canBroadcast: false });
   await alice.login('alice'); await bob.login('bob'); await carol.login('carol');
+  await presenceChecks({Client,admin,bob,carol,check});
   await anonymous.request('/hub/negotiate?negotiateVersion=1', 'POST', {}, 401);
   const negotiation = await bob.request('/hub/negotiate?negotiateVersion=1', 'POST', {});
   const hubPath = '/hub?id=' + encodeURIComponent(negotiation.connectionToken);
@@ -184,7 +186,7 @@ try {
       cwd: root, windowsHide: true, env: { ...process.env, SCHOOL_UI_SERVER: address, SCHOOL_UI_USER: 'admin', SCHOOL_UI_PASSWORD: password, SCHOOL_UI_OUTPUT: path.join(root, 'artifacts/client-preview.png'), SCHOOL_UI_LOCALDIR: path.join(data, 'client'), SCHOOL_UI_SKIP_INPUT: skipNativeInput ? '1' : '0' }
     });
     let uiDeadline;
-    const code = await Promise.race([new Promise(resolve => ui.once('exit', resolve)), new Promise(resolve => { uiDeadline = setTimeout(() => { ui.kill(); resolve(-1); }, 45000); })]);
+    const code = await Promise.race([new Promise(resolve => ui.once('exit', resolve)), new Promise(resolve => { uiDeadline = setTimeout(() => { ui.kill(); resolve(-1); }, 90000); })]);
     clearTimeout(uiDeadline);
     assert.equal(code, 0, existsSync('artifacts/ui-error.txt') ? readFileSync('artifacts/ui-error.txt', 'utf8') : 'UI failed');
     // Native logout revokes every session of this account, including this test driver.

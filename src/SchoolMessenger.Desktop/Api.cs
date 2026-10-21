@@ -92,12 +92,13 @@ internal sealed class ApiRequestException(HttpStatusCode status,string message):
 {public HttpStatusCode StatusCode{get;}=status;}
 public record UserInfo(string Id, string Username, string Name, string Department, bool IsAdmin, bool CanBroadcast, bool Active, bool ActivationRequired=false, string? SeatIp=null,string Position="");
 public record Session(string SchoolName, string CsrfToken, UserInfo? User);
-public record Person(string Id, string Name, string Department, bool Online,string Position="")
+public record Person(string Id, string Name, string Department, bool Online,string Position="",bool Away=false,bool Mobile=false)
 {
     public string Label => $"{Name} · {Department}";
     public bool Selected { get; set; }
     public bool Favorite { get; set; }
-    public string Presence => Online ? "온라인" : "오프라인";
+    public bool Available=>Online?!Away:Mobile;
+    public string Presence => Online ? (Away ? "자리비움" : "온라인") : Mobile ? "휴대폰 접속" : "오프라인";
 }
 public record MessageItem(string Id, string Title, string Preview, long CreatedAt, string SenderName,
     long? ReadAt, int RecipientCount, int ReadCount, int AttachmentCount, string SenderId = "")

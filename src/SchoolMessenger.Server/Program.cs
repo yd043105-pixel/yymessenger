@@ -269,7 +269,8 @@ app.MapPost("/api/password", async Task<IResult> (PasswordChange request, HttpCo
 }).RequireAuthorization().RequireRateLimiting("credentials");
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapGet("/users", (Presence presence) => store.Users().Where(u => u.Active).Select(u => new
-{ u.Id, u.Name, u.Department,u.Position, online = presence.Online(u.Id) }));
+{ u.Id, u.Name, u.Department,u.Position, online = presence.Online(u.Id), away = presence.Away(u.Id),mobile=presence.Mobile(u.Id,store) }));
+Presence.MapMobile(api,store);
 
 api.MapPost("/attachments", async Task<IResult> (HttpContext c) =>
 {

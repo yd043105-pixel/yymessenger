@@ -6,8 +6,8 @@ namespace SchoolMessenger.Mobile;
 public sealed partial class MessengerPage : ContentPage
 {
     public static MessengerPage? Active{get;private set;}
-    static readonly Color Navy=Color.FromArgb("#203048"),Blue=Color.FromArgb("#245bc6"),Muted=Color.FromArgb("#5a6b81"),Line=Color.FromArgb("#dce3ed"),Pale=Color.FromArgb("#e7effb");
-    readonly VerticalStackLayout body=new(){Spacing=12,Padding=new Thickness(20,16)};
+    static readonly Color Navy=Color.FromArgb("#1D2B3A"),Blue=Color.FromArgb("#245BC6"),Muted=Color.FromArgb("#5F7186"),Line=Color.FromArgb("#DFE6EF"),Pale=Color.FromArgb("#EEF3FB");
+    readonly VerticalStackLayout body=new(){Spacing=10,Padding=new Thickness(16,12)};
     readonly Grid tabs=new(){ColumnDefinitions={new(GridLength.Star),new(GridLength.Star),new(GridLength.Star)},Padding=new Thickness(6,4),ColumnSpacing=4,IsVisible=false};
     readonly Label feedback=new(){TextColor=Color.FromArgb("#a53a38"),FontSize=13,IsVisible=false};
     string homeTab="home";
@@ -21,10 +21,10 @@ public sealed partial class MessengerPage : ContentPage
     public MessengerPage()
     {
         MessengerApi.CleanupShares();Active=this;Title="여양고 · 학교 소식";BackgroundColor=Color.FromArgb("#f3f6fb");
-        Background=new LinearGradientBrush{StartPoint=new Point(0,0),EndPoint=new Point(1,1),GradientStops={new GradientStop(Pale,0),new GradientStop(Color.FromArgb("#f6f8fc"),.42f),new GradientStop(Color.FromArgb("#edf2f8"),1)}};
+        BackgroundColor=Color.FromArgb("#F5F7FA");
         NavigationPage.SetHasNavigationBar(this,false);
         var layout=new Grid{RowDefinitions={new(GridLength.Star),new(GridLength.Auto)}};
-        layout.Add(new ScrollView{Content=body});var navigation=Card(tabs,0);navigation.Margin=new Thickness(16,0,16,10);navigation.SetBinding(IsVisibleProperty,new Binding(nameof(IsVisible),source:tabs));layout.Add(navigation,0,1);Content=layout;
+        layout.Add(new ScrollView{Content=body});var navigation=Card(tabs,0);navigation.Margin=new Thickness(12,0,12,8);navigation.SetBinding(IsVisibleProperty,new Binding(nameof(IsVisible),source:tabs));layout.Add(navigation,0,1);Content=layout;
         feedback.PropertyChanged+=(_,e)=>{if(e.PropertyName==nameof(Label.Text))feedback.IsVisible=!string.IsNullOrEmpty(feedback.Text);};Login();
     }
     protected override async void OnAppearing()
@@ -49,7 +49,7 @@ public sealed partial class MessengerPage : ContentPage
     void Header(string caption,string title,bool signedIn=false)
     {
         body.Clear();body.Add(Brand(signedIn?(api?.Office==true?"교사용 학교 앱":"학생·학부모용 학교 앱"):"학교와 일상을 잇다"));
-        var heading=new VerticalStackLayout{Spacing=3};heading.Add(Text(title,signedIn?20:25,true));
+        var heading=new VerticalStackLayout{Spacing=3};heading.Add(Text(title,signedIn?20:24,true));
         var note=Text(caption,12);note.TextColor=Muted;heading.Add(note);body.Add(heading);body.Add(feedback);feedback.Text="";
     }
     Entry Input(string title,bool password=false,string? value=null){var field=new VerticalStackLayout{Spacing=4};field.Add(Text(title,12,true));var input=new Entry{ClassId="school-field",Placeholder=title,IsPassword=password,Text=value,TextColor=Navy,BackgroundColor=Colors.Transparent};var border=Card(input);border.Padding=new Thickness(12,0);input.Focused+=(_,_)=>border.Stroke=Blue;input.Unfocused+=(_,_)=>border.Stroke=Line;field.Add(border);body.Add(field);return input;}
@@ -58,8 +58,8 @@ public sealed partial class MessengerPage : ContentPage
     async Task Run(Func<Task> action){if(busy||resuming)return;busy=true;body.IsEnabled=false;EnableActions(false);feedback.Text="";try{await action();}catch(Exception e){feedback.Text=e is HttpRequestException?"학교 서버에 연결할 수 없습니다. 주소·인터넷·교내망/VPN을 확인하세요.":e.Message;}finally{busy=false;body.IsEnabled=!resuming;EnableActions(!resuming);}}
     bool Current(MessengerApi source,int version)=>api==source&&version==epoch&&!covered;
     void Invalidate(){epoch++;MainThread.BeginInvokeOnMainThread(()=>{while(Navigation.NavigationStack.Count>1)Navigation.RemovePage(Navigation.NavigationStack.Last());Login();});}
-    public void Cover(){covered=true;epoch++;foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=false;}
-    public async Task Resume(){var preserve=preserveComposerOnResume&&composer is not null&&Navigation.NavigationStack.Contains(composer);covered=false;if(api is null){foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=true;return;}resuming=true;body.IsEnabled=false;EnableActions(false);try{await api.Refresh();if(api.Session.ValueKind!=JsonValueKind.Undefined&&api.Session.GetProperty("user").ValueKind!=JsonValueKind.Null){if(!preserve){while(Navigation.NavigationStack.Count>1)await Navigation.PopAsync(false);await Home();}}}catch(Exception e){Invalidate();feedback.Text=e.Message;}finally{preserveComposerOnResume=false;resuming=false;body.IsEnabled=!busy;EnableActions(!busy);foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=true;}}
+    public void Cover(){covered=true;StopPhonePresence();epoch++;foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=false;}
+    public async Task Resume(){var preserve=preserveComposerOnResume&&composer is not null&&Navigation.NavigationStack.Contains(composer);covered=false;if(api is null){foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=true;return;}resuming=true;body.IsEnabled=false;EnableActions(false);try{await api.Refresh();if(api.Session.ValueKind!=JsonValueKind.Undefined&&api.Session.GetProperty("user").ValueKind!=JsonValueKind.Null){await StartPhonePresence();if(!preserve){while(Navigation.NavigationStack.Count>1)await Navigation.PopAsync(false);await Home();}}}catch(Exception e){Invalidate();feedback.Text=e.Message;}finally{preserveComposerOnResume=false;resuming=false;body.IsEnabled=!busy;EnableActions(!busy);foreach(var p in Navigation.NavigationStack.OfType<ContentPage>())p.Content.IsVisible=true;}}
     static string Date(long value)=>DateTimeOffset.FromUnixTimeMilliseconds(value).ToLocalTime().ToString("MM.dd HH:mm");
     async Task ShowUpdates(bool manual=false)
     {

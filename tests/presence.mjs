@@ -1,0 +1,50 @@
+import assert from 'node:assert/strict';
+import {RemoteChannel} from './features.mjs';
+
+export async function presenceChecks({Client,admin,bob,carol,check}) {
+ const channels=[];const get=async id=>(await admin.request('/api/users')).find(p=>p.id===id);
+ try {
+  let user=await get(bob.user.id);assert.equal(user.online,false);assert.equal(user.away,false);
+  const one=await new RemoteChannel(bob,'/hub').connect();channels.push(one);
+  user=await get(bob.user.id);assert.equal(user.online,true);assert.equal(user.away,false);
+  const changed=one.event('PresenceChanged');assert.equal(await one.invoke('SetAway',true),true);await changed;
+  user=await get(bob.user.id);assert.equal(user.online,true);assert.equal(user.away,true);
+  assert.equal((await get(carol.user.id)).online,false);
+  check('Presence distinguishes offline, online and away; authenticated changes affect only the calling account');
+  one.events=[];assert.equal(await one.invoke('SetAway',true),true);assert.equal(one.events.filter(e=>e.target==='PresenceChanged').length,0);
+  assert.equal(await one.invoke('SetAway',false),true);
+  check('Repeated states do not broadcast; rapid changes cannot flood all connected users');
+  const two=await new RemoteChannel(bob,'/hub').connect();channels.push(two);
+  assert.equal((await get(bob.user.id)).away,false);
+  await two.invoke('SetAway',true);assert.equal((await get(bob.user.id)).away,true);
+  await two.close();assert.equal((await get(bob.user.id)).away,true);
+  await new Promise(r=>setTimeout(r,3100));assert.equal(await one.invoke('SetAway',false),false);
+  assert.equal((await get(bob.user.id)).away,false);
+  check('Any active connection keeps a user online; all connected devices must be away, and resumed input restores online');
+  await one.close();user=await get(bob.user.id);assert.equal(user.online,false);assert.equal(user.away,false);
+  const third=await new RemoteChannel(bob,'/hub').connect();channels.push(third);assert.equal((await get(bob.user.id)).away,false);await third.close();
+  check('Disconnect removes away state; a new connection does not inherit an old away flag');
+  await bob.request('/api/presence/mobile','POST',{userId:carol.user.id});
+  user=await get(bob.user.id);assert.equal(user.mobile,true);assert.equal(user.online,false);
+  assert.equal((await get(carol.user.id)).mobile,false);
+  check('Phone presence is bound to the authenticated account; a supplied other user id cannot spoof presence');
+  const pc=await new RemoteChannel(bob,'/hub').connect();channels.push(pc);
+  user=await get(bob.user.id);assert.equal(user.mobile,true);assert.equal(user.online,true);
+  await pc.invoke('SetAway',true);assert.equal((await get(bob.user.id)).away,true);
+  await pc.close();user=await get(bob.user.id);assert.equal(user.online,false);assert.equal(user.mobile,true);
+  check('PC and phone coexist; disconnecting the PC preserves phone presence without making remote support available');
+  await bob.request('/api/presence/mobile/leave','POST',{});
+  assert.equal((await get(bob.user.id)).mobile,false);
+  await bob.request('/api/presence/mobile/leave','POST',{});
+  check('Leaving the phone removes its session lease and repeated leave remains harmless');
+  await bob.request('/api/presence/mobile','POST',{},400,false);
+  await new Client().request('/api/presence/mobile','POST',{},401);
+  const phone=new Client();await phone.login('bob');
+  await phone.request('/api/presence/mobile','POST',{});
+  const session=(await phone.request('/api/sessions')).find(s=>s.current);
+  await bob.request('/api/sessions/'+session.id,'DELETE');
+  assert.equal((await get(bob.user.id)).mobile,false);
+  await phone.request('/api/presence/mobile','POST',{},401);
+  check('Mobile heartbeat requires authentication and CSRF; revoking its device session immediately removes presence');
+ } finally {for(const channel of channels.reverse())if(!channel.closed)await channel.close();}
+}
