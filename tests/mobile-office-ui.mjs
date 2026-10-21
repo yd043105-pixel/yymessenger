@@ -36,7 +36,11 @@ cmd('shell','input','keyevent','KEYCODE_BACK');await delay(500);await find(n=>n.
 assert.ok(!dump().some(n=>n.text==='받은 메시지'));await click('메시지');await find(n=>n.text==='받은 메시지');await screenshot('android-teacher-inbox-current');await click('홈');await find(n=>n.text==='교직원 업무 메시지 검증');check('teacher home keeps recent messages compact and the message tab exposes mailbox choices');
 await click('학사력 · 행사 · 학교 일정');await find(n=>n.text==='교직원 학사일정 검증');await screenshot('android-teacher-calendar');check('native teacher calendar reads authenticated school events');
 cmd('shell','input','keyevent','KEYCODE_BACK');await delay(500);await click('특별실 예약 · 나의 예약');await find(n=>n.text==='특별실 예약하기');await screenshot('android-teacher-rooms');
-await click('특별실 예약하기');await input(0,'Android-native-reservation');await screenshot('android-teacher-reservation-editor');await click('특별실 예약 저장');await find(n=>n.text==='Android-native-reservation');check('native room picker and time editor save a reservation and reload the server list');
+await click('특별실 예약하기');await input(0,'Android-native-reservation');
+// The isolated fixture already reserves the first period. Pick the second period for both ends.
+for(let index=0;index<2;index++){tap(await find(n=>n.class==='android.widget.EditText'&&n.text.startsWith('1교시')));tap(await find(n=>n.text.startsWith('2교시')));await delay(300);}
+await screenshot('android-teacher-reservation-editor');await click('특별실 예약 저장');await find(n=>n.text==='날짜 조회'&&n.class==='android.widget.Button');
+const bookingDay=new Date(Date.now()+9*3600000+86400000).toISOString().slice(0,10),bookingEnd=new Date(Date.now()+9*3600000+2*86400000).toISOString().slice(0,10);assert.ok((await monitor('office/bookings?from='+bookingDay+'&to='+bookingEnd)).some(b=>b.title==='Android-native-reservation'));check('native room and period editor saves a reservation confirmed by the authenticated office API');
 cmd('shell','input','keyevent','KEYCODE_BACK');await delay(500);await click('내 정보');await click('로그아웃');await find(n=>n.text==='온라인 교무실');
 await install('family');await find(n=>n.text==='우리 학교 소식');await screenshot('android-family-login-current');assert.ok(!dump().some(n=>n.text==='교직원 교무실 · 교내망/VPN'));check('family package has independent installation identity and no office selector');
 await login(fixture.office,fixture.admin);await find(n=>n.text.includes('학생·학부모용 학교 앱은 학교 소식 서버의'));check('student/parent app rejects an internal teacher account before rendering private data');
