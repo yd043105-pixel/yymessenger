@@ -115,6 +115,7 @@ jobs:
           assert not info.get('NSAppTransportSecurity', {}).get('NSAllowsArbitraryLoads', False)
           print('PASS separate iOS ' + sys.argv[2] + ' identity, version and HTTPS configuration')
           PY
+            /usr/bin/ditto -c -k --keepParent "src/SchoolMessenger.Mobile/bin/Release/net10.0-ios/$runtime/SchoolMessenger.Mobile.app" "artifacts/ios/yymessenger-1.0.0-$school_app-ios-release-simulator.zip"
           done
       - name: Save simulator app, screenshots and verification report
         if: always()
