@@ -21,7 +21,7 @@ public sealed class AnnouncementWindow:Window
     object? pending;
     public AnnouncementWindow(MainWindow main)
     {
-        api=main.Api!;Owner=main;Resources=main.Resources;Title="여양 교무실 · 학생·보호자 공지";Width=760;Height=720;MinWidth=620;MinHeight=500;
+        api=main.Api!;Owner=main;Resources=main.Resources;Title="여양 교무실 · 가정통신문";Width=760;Height=720;MinWidth=620;MinHeight=500;
         Style=(Style)FindResource("SchoolWindow");WindowStartupLocation=WindowStartupLocation.CenterOwner;Content=new ScrollViewer{Content=body};
         Loaded+=async(_,_)=>await Run(Load);
     }
@@ -30,7 +30,7 @@ public sealed class AnnouncementWindow:Window
     async Task Run(Func<Task> action){if(busy)return;busy=true;feedback.Text="";try{await action();}catch(Exception e){feedback.Text=e.Message;}finally{busy=false;}}
     async Task Load()
     {
-        body.Children.Clear();body.Children.Add(Text("학생·보호자 공지",24));body.Children.Add(Text("학교 밖 학생·보호자에게 전달됩니다. 교직원 개인 메시지와 별도로 작성하세요."));body.Children.Add(feedback);
+        body.Children.Clear();body.Children.Add(Text("가정통신문",24));body.Children.Add(Text("학생·학부모 앱으로 가정통신문과 일반 공지를 보냅니다. 발송 대상 학급·분반을 선택할 수 있습니다."));body.Children.Add(feedback);
         var setup=await api.Get<JsonElement>("api/external-announcements/setup");
         if(!setup.GetProperty("configured").GetBoolean()||setup.GetProperty("teacherId").ValueKind==JsonValueKind.Null)
         {body.Children.Add(Text("공지 관리자에게 외부 서버 설정과 교사 계정 연결을 요청하세요."));body.Children.Add(Text("교내 계정 번호: "+setup.GetProperty("internalUserId").GetString()));Action("새로고침",Load);return;}

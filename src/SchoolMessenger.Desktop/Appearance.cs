@@ -30,12 +30,13 @@ public static class Appearance
         Brush("Soft", "#F5F7FA"); Brush("Surface", glass ? "#FAFFFFFF" : "#FFFFFF");
         Brush("Glass", glass ? "#ECFFFFFF" : "#FFFFFF");
         Brush("GlassLine", glass ? "#FFFFFFFF" : "#DCE3ED"); Brush("OnAccent", "#FFFFFF");
+        Brush("MessageSectionTint","#E7EFFB");Brush("SchoolSectionTint","#E3F1EB");
         resources["Canvas"] = glass
             ? new LinearGradientBrush(ColorOf(palette.Tint), ColorOf("#F8FAFD"), 55)
             : new SolidColorBrush(ColorOf("#F5F7FA"));
         if (SystemParameters.HighContrast)
         {
-            foreach (var key in new[] { "Surface", "Glass", "Canvas", "Soft", "Pale" }) resources[key] = SystemColors.WindowBrush;
+            foreach (var key in new[] { "Surface", "Glass", "Canvas", "Soft", "Pale", "MessageSectionTint", "SchoolSectionTint" }) resources[key] = SystemColors.WindowBrush;
             foreach (var key in new[] { "Ink", "Muted", "Navy" }) resources[key] = SystemColors.WindowTextBrush;
             resources["Blue"] = SystemColors.HighlightBrush;
             resources["OnAccent"] = SystemColors.HighlightTextBrush;

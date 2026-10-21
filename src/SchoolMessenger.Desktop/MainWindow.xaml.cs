@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         InitializeActivity();
+        InitializeNavigation();
         MinHeight = Math.Min(580, SystemParameters.WorkArea.Height - 30);
         Height = Math.Min(820, SystemParameters.WorkArea.Height - 30);
         Directory.CreateDirectory(LocalDirectory);
@@ -188,6 +189,7 @@ public partial class MainWindow : Window
         refreshing = true;
         try
         {
+            await RefreshNavigationAccess();
             await Archive.Synchronize();
             await RefreshPeople(); await UpdateUnread();
             var incoming = await Api.Get<MessageItem[]>("api/messages?box=received");
@@ -365,6 +367,7 @@ public partial class MainWindow : Window
     async Task Disconnect()
     {
         savedLogin.Clear();
+        ElectivesButton.Visibility=Visibility.Collapsed;
         if (remote is not null) { await remote.DisposeAsync(); remote = null; }
         timer.Stop(); activityTimer.Stop();sentAway=null; foreach (var window in OwnedWindows.Cast<Window>().ToArray()) window.Close();
         if (hub is not null) { await hub.DisposeAsync(); hub = null; } Api?.Dispose(); Api = null;
@@ -440,21 +443,44 @@ public partial class MainWindow : Window
             static System.Collections.Generic.IEnumerable<DependencyObject> Descendants(DependencyObject parent)
             {for(var i=0;i<VisualTreeHelper.GetChildrenCount(parent);i++){var child=VisualTreeHelper.GetChild(parent,i);yield return child;foreach(var nested in Descendants(child))yield return nested;}}
             var navigationButtons=Descendants(Workspace).OfType<System.Windows.Controls.Button>().Where(b=>b.Style==(Style)FindResource("RailButton")).ToArray();
-            foreach(var size in new[]{(Width:380d,Height:580d),(Width:450d,Height:820d)})
+            if(Descendants(NavigationRail).OfType<ScrollViewer>().Any()||NavigationItems.Children.OfType<TextBlock>().Any())throw new InvalidOperationException("툴바 스크롤 또는 연락처 분류가 남아 있습니다.");
+            if(((SolidColorBrush)MessageSection.Background).Color==((SolidColorBrush)SchoolSection.Background).Color)throw new InvalidOperationException("메시지·학교 업무 분류 색상 구분 실패");
+            if(!ElectivesButton.IsVisible)throw new InvalidOperationException("관리자 수강신청 진입 표시 실패");
+            foreach(var size in new[]{(Width:450d,Height:820d),(Width:450d,Height:760d),(Width:380d,Height:580d),(Width:450d,Height:820d)})
             {
-                Width=size.Width;Height=size.Height;UpdateLayout();
+                Width=size.Width;Height=size.Height;UpdateLayout();UpdateNavigationLayout();UpdateLayout();
+                await Dispatcher.InvokeAsync(()=>{},DispatcherPriority.Render);
                 foreach(var button in navigationButtons)
                 {
-                    button.BringIntoView();await Dispatcher.InvokeAsync(()=>{},DispatcherPriority.Render);
-                    foreach(var label in Descendants(button).OfType<TextBlock>())
+                    if(!button.IsVisible)continue;
+                    var buttonBounds=button.TransformToAncestor(NavigationLayout).TransformBounds(new Rect(button.RenderSize));
+                    if(buttonBounds.Top<-.5||buttonBounds.Bottom>NavigationLayout.ActualHeight+.5)throw new InvalidOperationException($"스크롤 없는 툴바 범위 초과 ({size.Width}×{size.Height})");
+                    var icons=Descendants(button).OfType<System.Windows.Shapes.Path>().ToArray();
+                    if(size.Width==380&&icons.Any(i=>i.IsVisible)||size.Width==450&&size.Height==820&&icons.Any(i=>!i.IsVisible))throw new InvalidOperationException("창 크기별 아이콘·텍스트 전환 실패");
+                    foreach(var label in Descendants(button).OfType<TextBlock>().Where(t=>t.IsVisible))
                     {
                         var bounds=label.TransformToAncestor(button).TransformBounds(new Rect(label.RenderSize));
                         if(bounds.Left<button.Padding.Left-.5||bounds.Right>button.ActualWidth-button.Padding.Right+.5||bounds.Top<button.Padding.Top-.5||bounds.Bottom>button.ActualHeight-button.Padding.Bottom+.5)
                             throw new InvalidOperationException($"왼쪽 메뉴 글씨 잘림: {label.Text} ({size.Width}×{size.Height})");
                     }
                 }
-                NavigationScroll.ScrollToTop();SavePreview(this,Path.Combine(directory,$"navigation-{size.Width:0}x{size.Height:0}-preview.png"));
+                SavePreview(this,Path.Combine(directory,$"navigation-{size.Width:0}x{size.Height:0}-preview.png"));
             }
+            using(var ordinary=new Api(ServerAddress.Text))
+            {
+                await ordinary.Login("bob",Environment.GetEnvironmentVariable("SCHOOL_UI_PASSWORD")!);
+                var originalApi=Api;timer.Stop();
+                try
+                {
+                    Api=ordinary;await RefreshNavigationAccess();if(ElectivesButton.IsVisible)throw new InvalidOperationException("일반 교사에게 수강신청 표시");
+                    await originalApi!.Send<JsonElement>(HttpMethod.Post,"api/admin/elective-managers",new SchoolMessenger.Contracts.ElectiveManagerChange(ordinary.Session!.User!.Id,true));
+                    await RefreshNavigationAccess();if(!ElectivesButton.IsVisible)throw new InvalidOperationException("담당자 지정 후 수강신청 표시 실패");
+                    await originalApi.Send<JsonElement>(HttpMethod.Post,"api/admin/elective-managers",new SchoolMessenger.Contracts.ElectiveManagerChange(ordinary.Session.User.Id,false));
+                    await RefreshNavigationAccess();if(ElectivesButton.IsVisible)throw new InvalidOperationException("담당자 해제 후 수강신청 숨김 실패");
+                }
+                finally{Api=originalApi;await RefreshNavigationAccess();timer.Start();}
+            }
+            File.WriteAllText(Path.Combine(directory,"navigation-ui-checks.json"),JsonSerializer.Serialize(new{noScroll=true,compactText=true,categoryColors=true,electiveRoleChecks=4,windowSizes=new[]{"450x820","450x760","380x580"},realSchoolData=false}));
             SavePreview(this, output);
             var originalTheme = Appearance.Selected; var originalGlass = Appearance.Glass;
             var themedInbox = OpenMailbox("received"); await themedInbox.Reload();
