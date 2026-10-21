@@ -8,7 +8,7 @@ import path from 'node:path';
 import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 import {bridgeFetch} from './bridge-client.mjs';
 
-const root=process.cwd(),sdk=path.join(root,'.tools/dotnet/dotnet.exe'),id=()=>randomUUID().replaceAll('-','');
+const root=process.cwd(),sdk=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):process.env.DOTNET_ROOT?path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet'):'dotnet',id=()=>randomUUID().replaceAll('-','');
 const fixture=path.resolve(process.env.YY_TEST_DATA_ROOT??'.test-data','electives-'+randomUUID()),password='Synthetic-'+randomUUID(),key='Synthetic-'+randomUUID()+randomUUID();mkdirSync(fixture,{recursive:true});
 const passed=[],children=[];const check=name=>{passed.push(name);console.log('PASS '+name);},delay=ms=>new Promise(r=>setTimeout(r,ms));
 async function address(){const s=net.createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+s.address().port;await new Promise(r=>s.close(r));return base;}
