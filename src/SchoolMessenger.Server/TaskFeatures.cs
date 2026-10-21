@@ -65,7 +65,8 @@ public static class TaskFeatures
         api.MapGet("/todos", (HttpContext c, int? offset) => store.Query("""
             SELECT Id,Title,DueDate,Status,Revision,SourceId,Evidence,UpdatedAt FROM Todos t WHERE OwnerId=$user
             AND (SourceId IS NULL OR EXISTS(SELECT 1 FROM Recipients r WHERE r.MessageId=t.SourceId AND r.UserId=$user))
-            ORDER BY UpdatedAt DESC,Id LIMIT 100 OFFSET $offset
+            ORDER BY CASE Status WHEN 'open' THEN 0 WHEN 'suggested' THEN 1 WHEN 'done' THEN 2 ELSE 3 END,
+              DueDate IS NULL,DueDate,UpdatedAt DESC,Id LIMIT 100 OFFSET $offset
             """, r => new { id = r.GetString(0), title = r.GetString(1), dueDate = r.IsDBNull(2) ? null : r.GetString(2), status = r.GetString(3), revision = r.GetInt32(4), sourceId = r.IsDBNull(5) ? null : r.GetString(5), evidence = r.GetString(6), updatedAt = r.GetInt64(7) }, ("$user", UserId(c)), ("$offset", Math.Clamp(offset ?? 0, 0, 1_000_000))));
         api.MapPost("/todos", IResult (TodoEdit edit, HttpContext c) =>
         {

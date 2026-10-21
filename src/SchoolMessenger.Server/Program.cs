@@ -12,8 +12,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Data.Sqlite;
 using SchoolMessenger.Server;
+using SchoolMessenger.Shared;
 
 var builder = WebApplication.CreateBuilder(args);
+if(OperationsCommand.TryRun(builder.Configuration,"School","school.db"))return;
+if(BackendRecovery.TryRun(builder.Configuration,"School","school.db"))return;
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 210L * 1024 * 1024);
 if (builder.Configuration["School:CertificateThumbprint"] is { Length: > 0 } thumbprint)
 {
@@ -26,6 +29,12 @@ if (builder.Configuration["School:CertificateThumbprint"] is { Length: > 0 } thu
 }
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 105L * 1024 * 1024);
 builder.Services.AddSingleton<Store>();
+builder.Services.AddSingleton(s=>new FeedbackMail(s.GetRequiredService<Store>().Open,"office",s.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),builder.Configuration));
+builder.Services.AddHostedService(s=>s.GetRequiredService<FeedbackMail>());
+builder.Services.AddSingleton<ExternalAnnouncements>();
+builder.Services.AddHostedService(s => s.GetRequiredService<ExternalAnnouncements>());
+builder.Services.AddSingleton<Timetables>();
+builder.Services.AddHostedService(s => s.GetRequiredService<Timetables>());
 builder.Services.AddSingleton<Presence>();
 builder.Services.AddSingleton<RemoteSessions>();
 builder.Services.AddHostedService(s => s.GetRequiredService<RemoteSessions>());
@@ -34,6 +43,9 @@ builder.Services.AddHostedService(s => s.GetRequiredService<Maintenance>());
 builder.Services.AddSingleton<PasswordHasher<User>>();
 builder.Services.Configure<PasswordHasherOptions>(o => o.IterationCount = 220_000);
 builder.Services.AddHostedService<SubmissionReminders>();
+builder.Services.AddHostedService<MessageDelivery>();
+builder.Services.AddSingleton<ScheduledMessages>();
+builder.Services.AddHostedService(s=>s.GetRequiredService<ScheduledMessages>());
 builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 4096);
 builder.Services.AddSignalR().AddHubOptions<RemoteHub>(o => { o.MaximumReceiveMessageSize = 4096; o.MaximumParallelInvocationsPerClient = 1; });
 builder.Services.AddAntiforgery(o => { o.HeaderName = "X-CSRF-TOKEN"; o.Cookie.SameSite = SameSiteMode.Strict; o.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; });
@@ -50,7 +62,8 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     o.Events.OnValidatePrincipal = async c =>
     {
         var user = c.HttpContext.RequestServices.GetRequiredService<Store>().GetUser(c.Principal!.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        if (user is not { Active: true } || user.SessionVersion.ToString() != c.Principal!.FindFirstValue("version"))
+        using var sessionDb=c.HttpContext.RequestServices.GetRequiredService<Store>().Open();
+        if (user is not { Active: true } || user.SessionVersion.ToString() != c.Principal!.FindFirstValue("version") || !DeviceSessions.Valid(sessionDb,user.Id,c.Principal!.FindFirstValue("version"),c.Principal!.FindFirstValue("sid")))
         {
             c.RejectPrincipal();
             await c.HttpContext.SignOutAsync();
@@ -62,16 +75,33 @@ builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = 429;
     o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(c =>
-        RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString() ?? "local", _ =>
+        RateLimitPartition.GetFixedWindowLimiter(c.User.Identity?.IsAuthenticated==true?"user:"+c.User.FindFirstValue(ClaimTypes.NameIdentifier):"ip:"+(c.Connection.RemoteIpAddress?.ToString() ?? "local"), _ =>
             new FixedWindowRateLimiterOptions { PermitLimit = 600, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     o.AddPolicy("login", c => RateLimitPartition.GetFixedWindowLimiter(c.Connection.RemoteIpAddress?.ToString() ?? "local", _ =>
-        new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+        new FixedWindowRateLimiterOptions { PermitLimit = Math.Clamp(builder.Configuration.GetValue("School:LoginLimitPerMinute",120),20,300), Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    o.AddPolicy("credentials", c => RateLimitPartition.GetFixedWindowLimiter(c.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? c.Connection.RemoteIpAddress?.ToString() ?? "local", _ =>
+        new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(15), QueueLimit = 0 }));
     o.AddPolicy("upload", _ => RateLimitPartition.GetConcurrencyLimiter("uploads", _ => new ConcurrencyLimiterOptions { PermitLimit = 4, QueueLimit = 0 }));
     o.AddPolicy("zip", _ => RateLimitPartition.GetConcurrencyLimiter("zip", _ => new ConcurrencyLimiterOptions { PermitLimit = 2, QueueLimit = 0 }));
 });
 
 var app = builder.Build();
 var store = app.Services.GetRequiredService<Store>();
+var resources=new ServerResources(store.Root,"School",store.Open,builder.Configuration,app.Environment.IsDevelopment());
+var scheduled=app.Services.GetRequiredService<ScheduledMessages>();scheduled.Initialize();
+scheduled.Deliver=async(request,sender)=>
+{
+    var user=store.GetUser(sender)!;
+    var context=new DefaultHttpContext{RequestServices=app.Services,User=new ClaimsPrincipal(new ClaimsIdentity(new[]{new Claim(ClaimTypes.NameIdentifier,sender),new Claim("version",user.SessionVersion.ToString())},"scheduled"))};
+    context.Response.Body=new MemoryStream();
+    await SendStoredMessage(request,context,app.Services.GetRequiredService<IHubContext<MessageHub>>(),null,true).ExecuteAsync(context);
+    context.Response.Body.Position=0;using var result=await JsonDocument.ParseAsync(context.Response.Body);
+    return(context.Response.StatusCode,result.RootElement.TryGetProperty("id",out var id)?id.GetString():null,result.RootElement.TryGetProperty("error",out var error)?error.GetString():null);
+};
+StaffAccounts.Initialize(store);
+OfficeFeatures.Initialize(store);
+var registrationPolicy=new RegistrationPolicy(builder.Configuration["Registration:PolicyFile"],builder.Environment.IsDevelopment(),builder.Environment.ContentRootPath);
+using(var policyDatabase=store.Open())RegistrationPolicy.EnsureSchema(policyDatabase);
 var hasher = app.Services.GetRequiredService<PasswordHasher<User>>();
 if (store.Users().Count == 0)
 {
@@ -86,10 +116,15 @@ var networks = (builder.Configuration["School:AllowedNetworks"] ?? "").Split(','
 // Never accept credentials over plain HTTP from another computer, including Development.
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/api") && !(context.Request.Method == "POST" && context.Request.Path == "/api/attachments"))
+    if (context.Request.Path.StartsWithSegments("/api") && !(context.Request.Method == "POST" && (context.Request.Path == "/api/attachments" || context.Request.Path == "/api/external-announcements/attachments" || context.Request.Path == "/api/timetable/import")))
     {
         var limit = context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
         if (limit is { IsReadOnly: false }) limit.MaxRequestBodySize = context.Request.Path.StartsWithSegments("/api/surveys") ? 524_288 : 131_072;
+    }
+    if(context.Request.Path=="/api/timetable/import")
+    {
+        var limit=context.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+        if(limit is{IsReadOnly:false})limit.MaxRequestBodySize=12_582_912;
     }
     if (!context.Request.IsHttps && context.Connection.RemoteIpAddress is { } ip && !System.Net.IPAddress.IsLoopback(ip))
     { context.Response.StatusCode = 400; await context.Response.WriteAsync("교내 접속에는 HTTPS가 필요합니다."); return; }
@@ -121,23 +156,41 @@ app.UseExceptionHandler(error => error.Run(async context =>
 }));
 app.UseDefaultFiles();
 app.UseStaticFiles();
+if (app.Environment.IsDevelopment() && Directory.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot")))
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.Combine(AppContext.BaseDirectory, "wwwroot")) });
 app.UseRouting();
-app.UseRateLimiter();
+BackendOperations.UseAudit(app,store.Open,"Server");
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
+RecoveryGuard.Use(app,store.Open);
 app.Use(async (context, next) =>
 {
-    if (context.Request.Path.StartsWithSegments("/api") && context.Request.Method is "POST" or "PATCH" or "DELETE")
+    if(context.User.Identity?.IsAuthenticated==true && StaffAccounts.Pending(store,UserId(context)) &&
+       (context.Request.Path.StartsWithSegments("/api")||context.Request.Path.StartsWithSegments("/hub")||context.Request.Path.StartsWithSegments("/remote")) &&
+       context.Request.Path.Value is not("/api/session" or "/api/activate" or "/api/logout" or "/api/registration/policy"))
+    { context.Response.StatusCode=403;context.Response.Headers.CacheControl="no-store";await context.Response.WriteAsJsonAsync(new{error="개별 활성화 번호와 개인 비밀번호 설정을 먼저 완료하세요.",activationRequired=true});return; }
+    await next();
+});
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/api")) context.Response.Headers.CacheControl = "no-store";
+    if (context.Request.Path.StartsWithSegments("/api") && context.Request.Method is "POST" or "PUT" or "PATCH" or "DELETE")
     {
+        // Native/JSON APIs use the header. Do not let antiforgery read an untrusted multipart form for a fallback token.
+        var token = context.Request.Headers["X-CSRF-TOKEN"];
+        if (token.Count != 1 || string.IsNullOrWhiteSpace(token.ToString()))
+        { context.Response.StatusCode = 400; await context.Response.WriteAsJsonAsync(new { error = "요청 인증 만료. 다시 로그인하세요." }); return; }
         try { await context.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(context); }
         catch (AntiforgeryValidationException)
         { context.Response.StatusCode = 400; await context.Response.WriteAsJsonAsync(new { error = "요청 인증 만료. 다시 로그인하세요." }); return; }
     }
-    if (context.Request.Path.StartsWithSegments("/api")) context.Response.Headers.CacheControl = "no-store";
     await next();
 });
 
+resources.Use(app);resources.Map(app);
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+OperationalHealth.Map(app, store.Open, store.Root, "School");
 app.MapGet("/api/session", (HttpContext c, IAntiforgery antiforgery) => Results.Ok(new
 {
     schoolName = builder.Configuration["School:Name"],
@@ -146,7 +199,7 @@ app.MapGet("/api/session", (HttpContext c, IAntiforgery antiforgery) => Results.
 }));
 app.MapPost("/api/login", async Task<IResult> (Login request, HttpContext c) =>
 {
-    if (request.Username is null || request.Password is null || request.Password.Length > 128) return Error("계정과 비밀번호를 확인하세요.", 401);
+    if (request.Username is not {Length:>=1 and <=50} || request.Password is null || request.Password.Length > 128) return Error("계정과 비밀번호를 확인하세요.", 401);
     var user = store.FindUser(request.Username.Trim());
     if (user is null && store.FindRegistration(request.Username.Trim()) is { } registration)
     {
@@ -155,6 +208,8 @@ app.MapPost("/api/login", async Task<IResult> (Login request, HttpContext c) =>
             return Error(registration.Status == "pending" ? "관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다." : "계정 신청이 반려되었습니다. 정보를 확인하고 다시 신청하세요.", 403);
     }
     if (user is not { Active: true } || user.LockedUntil > Maintenance.Now) return Error("계정과 비밀번호를 확인하세요. 반복 실패 시 15분 후 재시도하세요.", 401);
+    var initialProfile=StaffAccounts.Get(store,user.Id);
+    if(initialProfile is{NeedsActivation:true}&&initialProfile.ExpiresAt<=Maintenance.Now)return Error("초기 계정의 활성화 기간이 만료되었습니다. 관리자에게 재발급을 요청하세요.",401);
     var verified = hasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
     if (verified == PasswordVerificationResult.Failed)
     {
@@ -167,20 +222,27 @@ app.MapPost("/api/login", async Task<IResult> (Login request, HttpContext c) =>
     store.Execute("UPDATE Users SET FailedAttempts=0,LockedUntil=0 WHERE Id=$id", ("$id", user.Id));
     var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, user.Id), new(ClaimTypes.Name, user.Name), new("version", user.SessionVersion.ToString()) };
     if (user.IsAdmin) claims.Add(new(ClaimTypes.Role, "Admin"));
+    var expires=DateTimeOffset.UtcNow.Add(initialProfile?.NeedsActivation==true?TimeSpan.FromMinutes(15):request.RememberLogin?TimeSpan.FromDays(30):TimeSpan.FromHours(8));
+    using(var sessionDb=store.Open()) claims.Add(new("sid",DeviceSessions.Create(sessionDb,user.Id,user.SessionVersion.ToString(),expires)));
     await c.SignInAsync(new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)),
-        new AuthenticationProperties { IsPersistent = request.RememberLogin, ExpiresUtc = DateTimeOffset.UtcNow.Add(request.RememberLogin ? TimeSpan.FromDays(30) : TimeSpan.FromHours(8)) });
+        new AuthenticationProperties { IsPersistent = request.RememberLogin && initialProfile?.NeedsActivation!=true, ExpiresUtc = expires });
     return Results.Ok(PublicUser(user));
 }).RequireRateLimiting("login");
+app.MapGet("/api/registration/policy",()=>registrationPolicy.Current).RequireRateLimiting("login");
 app.MapPost("/api/register", IResult (RegistrationRequest request) =>
 {
     if (!ValidProfile(request.Username, request.Name, request.Department) || !ValidPassword(request.Password)) return Error("아이디는 영문·숫자·._- 3~32자, 이름·부서는 1~50자, 비밀번호는 12~128자입니다.");
+    if(registrationPolicy.Validate(request.Agreement) is{} policyError)return Error(policyError,registrationPolicy.Current.CanRegister?400:503);
     var username = request.Username!.Trim();
     if (store.FindUser(username) is not null) return Error("이미 사용 중인 아이디입니다.", 409);
     var user = new User(Guid.NewGuid().ToString("N"), username, request.Name!.Trim(), request.Department!.Trim(), "", false, false, false, 1, 0, 0);
-    var saved = store.Execute("""
+    using var registrationDatabase=store.Open();using var registrationTransaction=registrationDatabase.BeginTransaction();
+    using var registrationCommand=Store.Command(registrationDatabase,"""
         INSERT INTO Registrations(Id,Username,Name,Department,PasswordHash,Status,CreatedAt) VALUES($id,$username,$name,$department,$hash,'pending',$now)
         ON CONFLICT(Username) DO UPDATE SET Id=excluded.Id,Name=excluded.Name,Department=excluded.Department,PasswordHash=excluded.PasswordHash,Status='pending',CreatedAt=excluded.CreatedAt WHERE Registrations.Status='rejected'
-        """, ("$id", user.Id), ("$username", username), ("$name", user.Name), ("$department", user.Department), ("$hash", hasher.HashPassword(user, request.Password!)), ("$now", Maintenance.Now));
+        """,registrationTransaction, ("$id", user.Id), ("$username", username), ("$name", user.Name), ("$department", user.Department), ("$hash", hasher.HashPassword(user, request.Password!)), ("$now", Maintenance.Now));
+    var saved=registrationCommand.ExecuteNonQuery();
+    if(saved!=0){registrationPolicy.Record(registrationDatabase,registrationTransaction,user.Id,request.Agreement!);registrationTransaction.Commit();}
     return saved == 0 ? Error("이미 신청한 아이디입니다. 관리자 승인 후 로그인하세요.", 409) : Results.Ok(new { status = "pending", message = "계정 신청 완료. 관리자 승인 후 로그인할 수 있습니다." });
 }).RequireRateLimiting("login");
 app.MapPost("/api/logout", async (HttpContext c, RemoteSessions sessions) =>
@@ -197,13 +259,18 @@ app.MapPost("/api/password", async Task<IResult> (PasswordChange request, HttpCo
         return Error("새 비밀번호는 12~128자입니다.");
     if (hasher.VerifyHashedPassword(user, user.PasswordHash, request.CurrentPassword) == PasswordVerificationResult.Failed)
         return Error("현재 비밀번호가 일치하지 않습니다.");
-    store.Execute("UPDATE Users SET PasswordHash=$hash,SessionVersion=SessionVersion+1 WHERE Id=$id", ("$hash", hasher.HashPassword(user, request.NewPassword!)), ("$id", user.Id));
+    // A reset, deactivation or other password change may finish during password verification.
+    // Never let that earlier request overwrite the newer account state.
+    var changed = store.Execute("UPDATE Users SET PasswordHash=$hash,SessionVersion=SessionVersion+1 WHERE Id=$id AND Active=1 AND SessionVersion=$version AND PasswordHash=$old",
+        ("$hash", hasher.HashPassword(user, request.NewPassword!)), ("$id", user.Id), ("$version", c.User.FindFirstValue("version")), ("$old", user.PasswordHash));
+    if (changed != 1) return Error("계정 상태가 변경되었습니다. 다시 로그인하세요.", 409);
     await c.SignOutAsync();
     return Results.Ok();
-}).RequireAuthorization();
+}).RequireAuthorization().RequireRateLimiting("credentials");
 var api = app.MapGroup("/api").RequireAuthorization();
 api.MapGet("/users", (Presence presence) => store.Users().Where(u => u.Active).Select(u => new
-{ u.Id, u.Name, u.Department, online = presence.Online(u.Id) }));
+{ u.Id, u.Name, u.Department,u.Position, online = presence.Online(u.Id), away = presence.Away(u.Id),mobile=presence.Mobile(u.Id,store) }));
+Presence.MapMobile(api,store);
 
 api.MapPost("/attachments", async Task<IResult> (HttpContext c) =>
 {
@@ -224,10 +291,13 @@ api.MapPost("/attachments", async Task<IResult> (HttpContext c) =>
         return Error("서버 저장 공간이 부족합니다. 관리자에게 문의하세요.", 507);
     var id = Guid.NewGuid().ToString("N");
     var path = Path.Combine(store.Files, id);
+    var kept=false;
+    using(var state=store.Open())StoredFiles.State(state,"office",id,"uploading");
     try
     {
         await using (var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, true))
             await file.CopyToAsync(output, c.RequestAborted);
+        using(var state=store.Open())StoredFiles.State(state,"office",id,"scanning");
         if (!FileSignatureMatches(path, extension)) { File.Delete(path); return Error("파일 내용과 확장자가 일치하지 않습니다."); }
         if (!app.Environment.IsDevelopment())
         {
@@ -242,19 +312,21 @@ api.MapPost("/attachments", async Task<IResult> (HttpContext c) =>
             catch { if (!scan.HasExited) scan.Kill(true); throw; }
             if (scan.ExitCode != 0 || !File.Exists(path)) { File.Delete(path); return Error("파일 검사 실패 또는 위험 파일입니다.", 422); }
         }
-        var inserted = store.Execute("""
-            INSERT INTO Attachments(Id,OwnerId,Name,Size,UploadedAt)
-            SELECT $id,$owner,$name,$size,$now WHERE
+        using var uploadDb=store.Open();using var uploadTx=uploadDb.BeginTransaction();
+        using var uploadInsert=Store.Command(uploadDb,"""
+            INSERT INTO Attachments(Id,OwnerId,Name,Size,UploadedAt,ExpiresAt)
+            SELECT $id,$owner,$name,$size,$now,$expires WHERE
             (SELECT COALESCE(SUM(Size),0) FROM Attachments a WHERE OwnerId=$owner AND MessageId IS NULL AND DeletedAt IS NULL AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=a.Id))+$size <= 524288000
-            """, ("$id", id), ("$owner", owner), ("$name", name), ("$size", file.Length), ("$now", Maintenance.Now));
-        if (inserted == 0) { File.Delete(path); return Error("미전송 첨부 용량이 500MB를 넘습니다.", 413); }
+            """, uploadTx,("$id", id), ("$owner", owner), ("$name", name), ("$size", file.Length), ("$now", Maintenance.Now),("$expires",Maintenance.Now+(app.Environment.IsDevelopment()?Math.Max(1,builder.Configuration.GetValue("School:RetentionSeconds",2_592_000)):2_592_000)*1000L));
+        if (uploadInsert.ExecuteNonQuery() == 0) { File.Delete(path); return Error("미전송 첨부 용량이 500MB를 넘습니다.", 413); }
+        StoredFiles.State(uploadDb,"office",id,"ready",StoredFiles.Hash(path),uploadTx);uploadTx.Commit();kept=true;
         return Results.Ok(new { id, name, size = file.Length });
     }
-    catch { File.Delete(path); throw; }
+    finally { if(!kept){File.Delete(path);using var state=store.Open();StoredFiles.State(state,"office",id,"rejected");} }
 }).RequireRateLimiting("upload");
 api.MapDelete("/attachments/{id}", (string id, HttpContext c) =>
 {
-    var changed = store.Execute("UPDATE Attachments SET DeletedAt=$now WHERE Id=$id AND OwnerId=$owner AND MessageId IS NULL AND DeletedAt IS NULL AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=Attachments.Id)",
+    var changed = store.Execute("UPDATE Attachments SET DeletedAt=$now WHERE Id=$id AND OwnerId=$owner AND MessageId IS NULL AND DeletedAt IS NULL AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=Attachments.Id) AND NOT EXISTS(SELECT 1 FROM ScheduledAttachments WHERE AttachmentId=Attachments.Id)",
         ("$now", Maintenance.Now), ("$id", id), ("$owner", UserId(c)));
     if (changed == 0) return Results.NotFound();
     File.Delete(Path.Combine(store.Files, id));
@@ -264,7 +336,7 @@ api.MapDelete("/attachments/{id}", (string id, HttpContext c) =>
 api.MapPost("/messages", (SendMessage request, HttpContext c, IHubContext<MessageHub> hub) => SendStoredMessage(request, c, hub));
 api.MapPost("/chats/{roomId}/messages", (string roomId, ChatSend request, HttpContext c, IHubContext<MessageHub> hub) =>
     SendStoredMessage(new SendMessage(request.ClientId, "대화", request.Body, [], request.AttachmentIds, false, null), c, hub, roomId));
-async Task<IResult> SendStoredMessage(SendMessage request, HttpContext c, IHubContext<MessageHub> hub, string? roomId = null)
+IResult SendStoredMessage(SendMessage request, HttpContext c, IHubContext<MessageHub> hub, string? roomId = null,bool scheduledDelivery=false)
 {
     if (request.SubmissionDeadline is not null && roomId is not null) return Error("제출 요청은 쪽지에서 작성하세요.");
     if (request.SubmissionDeadline is { } rawDeadline)
@@ -286,6 +358,8 @@ async Task<IResult> SendStoredMessage(SendMessage request, HttpContext c, IHubCo
         request.RecipientIds.Length > 1000 || request.AttachmentIds.Length > 10 || (request.Department?.Length ?? 0) > 50)
         return Error("제목·본문·수신자를 확인하세요. 첨부는 최대 10개입니다.");
     var sender = store.GetUser(UserId(c))!;
+    if(request.ScheduledAt is not null)return roomId is null?scheduled.Add(request,c):Error("채팅에는 예약 발송을 사용할 수 없습니다.");
+    if(!scheduledDelivery&&scheduled.Exists(sender.Id,request.ClientId!))return Error("예약에 사용한 요청 번호로 즉시 전송할 수 없습니다.",409);
     // Preserve fingerprints for ordinary messages queued by an older desktop version.
     var fingerprintJson = roomId is null ? request.SubmissionDeadline is null ? JsonSerializer.Serialize(new
     { request.Title, request.Body, request.All, request.Department, recipients = request.RecipientIds.Distinct().Order(), attachments = request.AttachmentIds.Distinct().Order() }) : JsonSerializer.Serialize(new
@@ -297,6 +371,7 @@ async Task<IResult> SendStoredMessage(SendMessage request, HttpContext c, IHubCo
     using (var connection = store.Open())
     using (var transaction = connection.BeginTransaction())
     {
+        using(var authorized=Store.Command(connection,"SELECT 1 FROM Users WHERE Id=$id AND Active=1 AND SessionVersion=$version",transaction,("$id",sender.Id),("$version",c.User.FindFirstValue("version"))))if(authorized.ExecuteScalar() is null)return Error("계정 상태가 변경되었습니다. 다시 로그인하세요.",401);
         using (var existing = Store.Command(connection, "SELECT Id,Fingerprint FROM Messages WHERE SenderId=$sender AND ClientId=$client", transaction,
             ("$sender", sender.Id), ("$client", request.ClientId)))
         using (var reader = existing.ExecuteReader())
@@ -315,8 +390,8 @@ async Task<IResult> SendStoredMessage(SendMessage request, HttpContext c, IHubCo
         long total = 0;
         foreach (var fileId in request.AttachmentIds.Distinct())
         {
-            using var command = Store.Command(connection, "SELECT Size FROM Attachments a WHERE Id=$id AND OwnerId=$owner AND MessageId IS NULL AND DeletedAt IS NULL AND UploadedAt>$cutoff AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=a.Id)", transaction,
-                ("$id", fileId), ("$owner", sender.Id), ("$cutoff", Maintenance.Now - 86_400_000));
+            using var command = Store.Command(connection, "SELECT Size FROM Attachments a WHERE Id=$id AND OwnerId=$owner AND MessageId IS NULL AND DeletedAt IS NULL AND ExpiresAt>$now AND (UploadedAt>$cutoff OR $scheduled=1 AND EXISTS(SELECT 1 FROM ScheduledAttachments sa JOIN ScheduledMessages sm ON sm.Id=sa.ScheduleId WHERE sa.AttachmentId=a.Id AND sm.SenderId=$owner AND sm.ClientId=$client AND sm.State='pending')) AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=a.Id) AND NOT EXISTS(SELECT 1 FROM ScheduledAttachments sa JOIN ScheduledMessages sm ON sm.Id=sa.ScheduleId WHERE sa.AttachmentId=a.Id AND ($scheduled=0 OR sm.SenderId!=$owner OR sm.ClientId!=$client))", transaction,
+                ("$id", fileId), ("$owner", sender.Id), ("$cutoff", Maintenance.Now - 86_400_000),("$now",Maintenance.Now),("$scheduled",scheduledDelivery),("$client",request.ClientId));
             var size = command.ExecuteScalar();
             if (size is null || !Guid.TryParseExact(fileId, "N", out _) || !File.Exists(Path.Combine(store.Files, fileId))) return Error("사용할 수 없는 첨부파일입니다.");
             total += Convert.ToInt64(size);
@@ -334,7 +409,7 @@ async Task<IResult> SendStoredMessage(SendMessage request, HttpContext c, IHubCo
         var seconds = app.Environment.IsDevelopment() ? Math.Max(1, builder.Configuration.GetValue("School:RetentionSeconds", 2_592_000)) : 2_592_000;
         foreach (var fileId in request.AttachmentIds.Distinct())
         {
-            using var update = Store.Command(connection, "UPDATE Attachments SET MessageId=$message,ExpiresAt=$expires WHERE Id=$id", transaction,
+            using var update = Store.Command(connection, "UPDATE Attachments SET MessageId=$message,ExpiresAt=MIN(COALESCE(ExpiresAt,UploadedAt+2592000000),$expires) WHERE Id=$id", transaction,
                 ("$message", id), ("$expires", now + seconds * 1000L), ("$id", fileId));
             update.ExecuteNonQuery();
         }
@@ -349,11 +424,11 @@ async Task<IResult> SendStoredMessage(SendMessage request, HttpContext c, IHubCo
             foreach (var recipient in recipients.Where(u => u != sender.Id))
             { using var target = Store.Command(connection, "INSERT INTO SubmissionTargets(RequestId,UserId) VALUES($id,$user)", transaction, ("$id", id), ("$user", recipient)); target.ExecuteNonQuery(); }
         }
+        foreach (var recipient in recipients)
+            MessageDelivery.Enqueue(connection, transaction, "message:" + id + ":" + recipient, recipient, roomId is null ? "NewMessage" : "ChatChanged", roomId ?? id, now);
+        if(!recipients.Contains(sender.Id))MessageDelivery.Enqueue(connection,transaction,"sent:"+id+":"+sender.Id,sender.Id,"SentMessage",id,now);
         transaction.Commit();
     }
-    // Database commit is the source of truth; notification failure must not undo delivery.
-    try { await hub.Clients.Groups(recipients).SendAsync(roomId is null ? "NewMessage" : "ChatChanged", roomId ?? id); }
-    catch (Exception error) { app.Logger.LogWarning(error, "Notification failed for stored message {MessageId}", id); }
     return Results.Ok(new { id, duplicate = false });
 }
 api.MapGet("/messages", (HttpContext c, string? box, string? q, string? person, long? from, long? to, int? offset) =>
@@ -369,7 +444,7 @@ api.MapGet("/messages", (HttpContext c, string? box, string? q, string? person, 
         FROM Messages m JOIN Users u ON u.Id=m.SenderId
         WHERE
         """ + (box == "conversation" ? " (m.SenderId=$user OR EXISTS(SELECT 1 FROM Recipients r WHERE r.MessageId=m.Id AND r.UserId=$user)) " : sent ? " m.SenderId=$user " : " EXISTS(SELECT 1 FROM Recipients r WHERE r.MessageId=m.Id AND r.UserId=$user) ") +
-        " AND NOT EXISTS(SELECT 1 FROM ChatEntries ce WHERE ce.MessageId=m.Id) AND ($person='' OR m.SenderId=$person OR EXISTS(SELECT 1 FROM Recipients r WHERE r.MessageId=m.Id AND r.UserId=$person)) " +
+        " AND NOT EXISTS(SELECT 1 FROM MessageRecalls mr WHERE mr.MessageId=m.Id) AND NOT EXISTS(SELECT 1 FROM ChatEntries ce WHERE ce.MessageId=m.Id) AND ($person='' OR m.SenderId=$person OR EXISTS(SELECT 1 FROM Recipients r WHERE r.MessageId=m.Id AND r.UserId=$person)) " +
         (box == "unread" ? " AND EXISTS(SELECT 1 FROM Recipients r WHERE r.MessageId=m.Id AND r.UserId=$user AND r.ReadAt IS NULL) " : "") +
         " AND ($q='' OR instr(m.Title,$q)>0 OR instr(m.Body,$q)>0 OR instr(u.Name,$q)>0) AND m.CreatedAt>=$from AND m.CreatedAt<=$to ORDER BY m.CreatedAt DESC,m.Id DESC LIMIT 100 OFFSET $offset";
     var rows = store.Query(sql, r => new
@@ -382,6 +457,7 @@ api.MapGet("/messages", (HttpContext c, string? box, string? q, string? person, 
 });
 api.MapGet("/messages/{id}", (string id, HttpContext c) =>
 {
+    using(var opened=store.Open())using(var tx=opened.BeginTransaction()){if(!MessageRecall.Read(opened,tx,id,UserId(c)))return Results.NotFound();tx.Commit();}
     var messages = store.Query("""
         SELECT m.Id,m.SenderId,u.Name,m.Title,m.Body,m.CreatedAt FROM Messages m JOIN Users u ON u.Id=m.SenderId
         WHERE m.Id=$id AND (m.SenderId=$user OR EXISTS(SELECT 1 FROM Recipients WHERE MessageId=m.Id AND UserId=$user))
@@ -394,34 +470,46 @@ api.MapGet("/messages/{id}", (string id, HttpContext c) =>
     var submissionRequestId = store.Query("SELECT MessageId FROM SubmissionRequests WHERE MessageId=$id UNION SELECT RequestId FROM SubmissionReminders WHERE MessageId=$id", r => r.GetString(0), ("$id", id)).FirstOrDefault();
     return Results.Ok(new { message = messages[0], attachments, recipients, submissionRequest = submissionRequestId is not null, submissionRequestId });
 });
-api.MapPost("/messages/{id}/read", async Task<IResult> (string id, HttpContext c, IHubContext<MessageHub> hub) =>
+api.MapGet("/messages/changes", (HttpContext c, long? after) =>
 {
-    var changed = store.Execute("UPDATE Recipients SET ReadAt=COALESCE(ReadAt,$now) WHERE MessageId=$id AND UserId=$user", ("$now", Maintenance.Now), ("$id", id), ("$user", UserId(c)));
-    if (changed == 0) return Results.NotFound();
-    var sender = store.Query("SELECT SenderId FROM Messages WHERE Id=$id", r => r.GetString(0), ("$id", id))[0];
-    try { await hub.Clients.Group(sender).SendAsync("ReadChanged", id); } catch { /* Next refresh reads the durable receipt. */ }
-    return Results.Ok();
+    if (after < 0) return Error("동기화 위치를 확인하세요.");
+    var events = store.Query("SELECT Sequence,Kind,ResourceId,CreatedAt FROM MessageEvents WHERE RecipientId=$user AND Sequence>$after ORDER BY Sequence LIMIT 200",
+        r => new { sequence=r.GetInt64(0), kind=r.GetString(1), resourceId=r.GetString(2), createdAt=r.GetInt64(3) }, ("$user", UserId(c)), ("$after", after ?? 0));
+    return Results.Ok(new { events, cursor=events.LastOrDefault()?.sequence ?? after ?? 0, hasMore=events.Count==200 });
+});
+api.MapPost("/messages/{id}/read", (string id, HttpContext c) =>
+{
+    using var connection=store.Open();using var transaction=connection.BeginTransaction();
+    if(!MessageRecall.Read(connection,transaction,id,UserId(c)))return Results.NotFound();
+    transaction.Commit();return Results.Ok();
 });
 api.MapGet("/attachments/{id}/download", (string id, HttpContext c) =>
 {
     var rows = store.Query("""
         SELECT a.Name,a.ExpiresAt,a.DeletedAt FROM Attachments a
         WHERE a.Id=$id AND (
-          EXISTS(SELECT 1 FROM Messages m WHERE m.Id=a.MessageId AND (m.SenderId=$user OR EXISTS(SELECT 1 FROM Recipients WHERE MessageId=m.Id AND UserId=$user))) OR
-          EXISTS(SELECT 1 FROM SubmissionFiles sf JOIN Submissions s ON s.Id=sf.SubmissionId JOIN Messages m ON m.Id=s.RequestId WHERE sf.AttachmentId=a.Id AND (s.UserId=$user OR m.SenderId=$user)))
+          EXISTS(SELECT 1 FROM Messages m WHERE m.Id=a.MessageId AND NOT EXISTS(SELECT 1 FROM MessageRecalls WHERE MessageId=m.Id) AND (m.SenderId=$user OR EXISTS(SELECT 1 FROM Recipients WHERE MessageId=m.Id AND UserId=$user))) OR
+          EXISTS(SELECT 1 FROM SubmissionFiles sf JOIN Submissions s ON s.Id=sf.SubmissionId JOIN Messages m ON m.Id=s.RequestId WHERE sf.AttachmentId=a.Id AND NOT EXISTS(SELECT 1 FROM SubmissionWithdrawals w WHERE w.SubmissionId=s.Id) AND (s.UserId=$user OR m.SenderId=$user)))
         """, r => new { name = r.GetString(0), expires = r.GetInt64(1), deleted = !r.IsDBNull(2) }, ("$id", id), ("$user", UserId(c)));
     if (rows.Count == 0) return Results.NotFound();
     if (rows[0].expires <= Maintenance.Now || rows[0].deleted) return Error("첨부파일 보관 기간이 만료되었습니다.", 410);
     if (!Guid.TryParseExact(id, "N", out _)) return Results.NotFound();
     var path = Path.Combine(store.Files, id);
-    if (!File.Exists(path)) return Error("첨부파일이 없습니다. 발신자에게 재전송을 요청하세요.", 410);
+    using var verification=store.Open();
+    if (!StoredFiles.Ready(verification,"office",id,path)) return Error("첨부파일이 없거나 무결성 검사를 통과하지 못했습니다.", 410);
+    var source=store.Query("SELECT MessageId FROM Attachments WHERE Id=$id AND MessageId IS NOT NULL UNION SELECT s.RequestId FROM SubmissionFiles sf JOIN Submissions s ON s.Id=sf.SubmissionId WHERE sf.AttachmentId=$id",r=>r.GetString(0),("$id",id)).FirstOrDefault();
+    if(source is not null)using(var opened=store.Open())using(var tx=opened.BeginTransaction()){if(!MessageRecall.Read(opened,tx,source,UserId(c)))return Results.NotFound();tx.Commit();}
     return Results.File(path, "application/octet-stream", rows[0].name, enableRangeProcessing: false);
 });
 
 var adminApi = app.MapGroup("/api/admin").RequireAuthorization("Admin");
+StaffAccounts.Map(app,adminApi,store,hasher,registrationPolicy);
+OfficeFeatures.Map(api,adminApi,store);
 CollaborationFeatures.Map(api, store);
 TaskFeatures.Map(api, store);
 SubmissionFeatures.Map(api, store, app.Configuration, app.Environment);
+scheduled.Map(api);
+MessageRecall.Map(api,store);
 adminApi.MapGet("/registrations", () => store.PendingRegistrations().Select(r => new { r.Id, r.Username, r.Name, r.Department, r.CreatedAt }));
 adminApi.MapPost("/registrations/{id}/approve", (string id) => DecideRegistration(id, true));
 adminApi.MapPost("/registrations/{id}/reject", (string id) => DecideRegistration(id, false));
@@ -441,9 +529,12 @@ IResult DecideRegistration(string id, bool approve)
     using var decide = Store.Command(connection, "UPDATE Registrations SET Status=$status WHERE Id=$id", transaction, ("$status", approve ? "approved" : "rejected"), ("$id", id));
     decide.ExecuteNonQuery(); transaction.Commit(); return Results.Ok();
 }
+store.Execute("INSERT OR IGNORE INTO BackendRoot(UserId) SELECT Id FROM Users WHERE Username='admin' AND NOT EXISTS(SELECT 1 FROM BackendRoot)");
+bool Root(HttpContext c)=>store.Query("SELECT 1 FROM BackendRoot WHERE UserId=$id",r=>r.GetInt32(0),("$id",UserId(c))).Count==1;
 adminApi.MapGet("/users", () => store.Users().Select(PublicUser));
-adminApi.MapPost("/users", IResult (CreateUser request) =>
+adminApi.MapPost("/users", IResult (CreateUser request,HttpContext c) =>
 {
+    if(request.IsAdmin&&!Root(c))return Error("관리자 권한 부여는 최고관리자만 할 수 있습니다.",403);
     if (!ValidProfile(request.Username, request.Name, request.Department) || !ValidPassword(request.Password)) return Error("아이디는 영문·숫자·._- 3~32자, 이름·부서는 1~50자, 비밀번호는 12~128자입니다.");
     if (store.FindUser(request.Username!) is not null) return Error("이미 사용 중인 아이디입니다.", 409);
     var user = new User(Guid.NewGuid().ToString("N"), request.Username!, request.Name!.Trim(), request.Department!.Trim(), "", request.IsAdmin, request.CanBroadcast, true, 1, 0, 0);
@@ -455,11 +546,14 @@ adminApi.MapPatch("/users/{id}", IResult (string id, UpdateUser request, HttpCon
 {
     var user = store.GetUser(id);
     if (user is null) return Results.NotFound();
+    if(!Root(c)&&(user.IsAdmin||request.IsAdmin!=user.IsAdmin))return Error("관리자 계정 변경은 최고관리자만 할 수 있습니다.",403);
+    if(store.Query("SELECT 1 FROM BackendRoot WHERE UserId=$id",r=>r.GetInt32(0),("$id",id)).Count==1&&(!request.Active||!request.IsAdmin))return Error("최고관리자 계정을 비활성화하거나 권한을 해제할 수 없습니다.",403);
+    if(!string.IsNullOrEmpty(request.Password)&&StaffAccounts.Get(store,id) is not null)return Error("사전 등록된 교사는 계정 초기화에서 임시 비밀번호와 새 활성화 번호를 발급하세요.");
     if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 50 || string.IsNullOrWhiteSpace(request.Department) || request.Department.Length > 50 ||
-        (!string.IsNullOrEmpty(request.Password) && !ValidPassword(request.Password))) return Error("이름·부서·비밀번호 형식을 확인하세요.");
+        (request.Position is not null&&!StaffAccounts.Position(request.Position))||(!string.IsNullOrEmpty(request.Password) && !ValidPassword(request.Password))) return Error("이름·부서·직책·비밀번호 형식을 확인하세요.");
     if (id == UserId(c) && (!request.Active || !request.IsAdmin)) return Error("자신의 관리자 권한을 해제하거나 계정을 비활성화할 수 없습니다.");
-    store.Execute("UPDATE Users SET Name=$name,Department=$department,Active=$active,IsAdmin=$admin,CanBroadcast=$broadcast,PasswordHash=$hash,SessionVersion=SessionVersion+1,FailedAttempts=0,LockedUntil=0 WHERE Id=$id",
-        ("$name", request.Name.Trim()), ("$department", request.Department.Trim()), ("$active", request.Active), ("$admin", request.IsAdmin), ("$broadcast", request.CanBroadcast),
+    store.Execute("UPDATE Users SET Name=$name,Department=$department,Position=$position,Active=$active,IsAdmin=$admin,CanBroadcast=$broadcast,PasswordHash=$hash,SessionVersion=SessionVersion+1,FailedAttempts=0,LockedUntil=0 WHERE Id=$id",
+        ("$name", request.Name.Trim()), ("$department", request.Department.Trim()),("$position",(request.Position??user.Position).Trim()), ("$active", request.Active), ("$admin", request.IsAdmin), ("$broadcast", request.CanBroadcast),
         ("$hash", string.IsNullOrEmpty(request.Password) ? user.PasswordHash : hasher.HashPassword(user, request.Password)), ("$id", id));
     return Results.Ok();
 });
@@ -469,17 +563,22 @@ adminApi.MapGet("/status", (Maintenance maintenance, Presence presence) =>
     return Results.Ok(new { online = presence.Connections.Values.Distinct().Count(), users = store.Users().Count(u => u.Active),
         filesBytes = Directory.EnumerateFiles(store.Files).Sum(f => new FileInfo(f).Length), freeBytes = drive.AvailableFreeSpace,
         maintenance.LastCleanup, maintenance.LastBackup, maintenance.LastError,
-        attachmentBackup = false, retentionDays = 30, messageRetention = "자동 삭제 없음: 학교 보관 정책 확정 필요" });
+        attachmentBackup = store.AttachmentBackupEnabled, retentionDays = 30, messageRetention = "자동 삭제 없음: 학교 보관 정책 확정 필요" });
 });
 adminApi.MapPost("/maintenance", (Maintenance maintenance) => { maintenance.Cleanup(); maintenance.Backup(); return Results.Ok(); });
 app.MapHub<MessageHub>("/hub", options => options.CloseOnAuthenticationExpiration = true);
 app.MapHub<RemoteHub>("/remote", options => { options.CloseOnAuthenticationExpiration = true; options.ApplicationMaxBufferSize = 4096; options.TransportMaxBufferSize = 4096; });
 // Cleanup before accepting connections also handles expiry while the server was offline.
 app.Services.GetRequiredService<Maintenance>().Cleanup();
+ExternalAnnouncements.Map(app, app.Services.GetRequiredService<ExternalAnnouncements>());
+Timetables.Map(app, app.Services.GetRequiredService<Timetables>());
+BackendOperations.Map(app,store.Open);
+DeviceSessions.Map(app,store.Open);
+FeedbackReports.Map(app,store.Open,app.Services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),"office");
 app.Run();
 
 static string UserId(HttpContext c) => c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-static object PublicUser(User u) => new { u.Id, u.Username, u.Name, u.Department, u.IsAdmin, u.CanBroadcast, u.Active };
+object PublicUser(User u) => new { u.Id, u.Username, u.Name, u.Department,u.Position, u.IsAdmin, u.CanBroadcast, u.Active, activationRequired=StaffAccounts.Pending(store,u.Id), seatIp=StaffAccounts.Get(store,u.Id)?.SeatIp };
 static IResult Error(string message, int status = 400) => Results.Json(new { error = message }, statusCode: status);
 static bool ValidPassword(string? password) => password is { Length: >= 12 and <= 128 } && !string.IsNullOrWhiteSpace(password);
 static bool ValidProfile(string? username, string? name, string? department) => username is not null && Regex.IsMatch(username, "^[A-Za-z0-9._-]{3,32}$") &&
@@ -499,8 +598,8 @@ static bool FileSignatureMatches(string path, string extension)
     return extension is ".txt" or ".csv";
 }
 record Login(string? Username, string? Password, bool RememberLogin = false);
-record RegistrationRequest(string? Username, string? Name, string? Department, string? Password);
+record RegistrationRequest(string? Username, string? Name, string? Department, string? Password,SchoolMessenger.Contracts.RegistrationAcceptance? Agreement=null);
 record PasswordChange(string? CurrentPassword, string? NewPassword);
-record SendMessage(string? ClientId, string? Title, string? Body, string[]? RecipientIds, string[]? AttachmentIds, bool All, string? Department, long? SubmissionDeadline = null);
+record SendMessage(string? ClientId, string? Title, string? Body, string[]? RecipientIds, string[]? AttachmentIds, bool All, string? Department, long? SubmissionDeadline = null,long? ScheduledAt=null);
 record CreateUser(string? Username, string? Name, string? Department, string? Password, bool IsAdmin, bool CanBroadcast);
-record UpdateUser(string? Name, string? Department, string? Password, bool IsAdmin, bool CanBroadcast, bool Active);
+record UpdateUser(string? Name, string? Department, string? Password, bool IsAdmin, bool CanBroadcast, bool Active,string? Position=null);

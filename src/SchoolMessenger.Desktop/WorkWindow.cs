@@ -1,7 +1,9 @@
 using System.Text.Json;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Button = System.Windows.Controls.Button;
 using TextBox = System.Windows.Controls.TextBox;
 using Orientation = System.Windows.Controls.Orientation;
@@ -19,6 +21,9 @@ public sealed class WorkWindow : Window
     string view = "todos";
     int offset;
     bool busy, rendering;
+    readonly DispatcherTimer deadlineClock=new(){Interval=TimeSpan.FromSeconds(30)};
+    DateOnly displayedDay=KoreanToday;
+    static DateOnly KoreanToday=>DateOnly.FromDateTime(DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(9)).DateTime);
     string? requestedId;
     public WorkWindow(MainWindow main, string? requestId = null)
     {
@@ -28,7 +33,7 @@ public sealed class WorkWindow : Window
         requestedId = requestId; if (requestId is not null) view = "submission-requests";
         var layout = new DockPanel { Background = Brushes.White }; Content = layout;
         var heading = new StackPanel { Margin = new Thickness(20, 16, 20, 12) };
-        heading.Children.Add(Text("할 일과 파일 제출", 21)); heading.Children.Add(Text("받은 요청을 확인하고 자료를 제출하세요. 파일은 제출일부터 30일간 보관됩니다.", 11));
+        heading.Children.Add(Text("할 일과 파일 제출", 21)); heading.Children.Add(Text("추천은 확인 후 등록하세요. 진행 중인 일은 기한순으로 표시합니다. D-Day는 한국 날짜 기준입니다.", 11));
         var navigation = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
         navigation.Children.Add(Action("나의 할 일", async () => { view = "todos"; offset = 0; detail.Children.Clear(); await Reload(); }));
         navigation.Children.Add(Action("파일 제출 · 수합", async () => { view = "submission-requests"; offset = 0; detail.Children.Clear(); await Reload(); }));
@@ -42,6 +47,8 @@ public sealed class WorkWindow : Window
         list.SelectionChanged += async (_, _) => { if (!rendering && list.SelectedItem is WorkRow row) await Run(() => Show(row.Value)); };
         grid.Children.Add(list); var scroll = new ScrollViewer { Content = detail, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; Grid.SetColumn(scroll, 1); grid.Children.Add(scroll); layout.Children.Add(grid);
         Loaded += async (_, _) => await Run(async () => { await Reload(); if (requestedId is not null) await Submission(requestedId); });
+        Loaded+=(_,_)=>deadlineClock.Start();Closed+=(_,_)=>deadlineClock.Stop();
+        deadlineClock.Tick+=async(_,_)=>{var today=KoreanToday;if(today!=displayedDay&&!busy){if(view=="todos")await Run(Reload);else displayedDay=today;}};
         Closing += (_, e) => { if (busy) e.Cancel = true; };
     }
     static TextBlock Text(string text, double size = 13) => new() { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) };
@@ -57,20 +64,32 @@ public sealed class WorkWindow : Window
         var previous = (list.SelectedItem as WorkRow)?.Value.GetProperty("id").GetString();
         var rows = await api.Get<JsonElement[]>($"api/{view}?offset={offset}");
         if (currentView != view) return;
+        feedback.Text="";
         rendering = true;
-        try { list.ItemsSource = rows.Select(v => new WorkRow(v, v.GetProperty("title").GetString()! + "\n" + (view == "todos" ? Status(v.GetProperty("status").GetString()!) + " · " + String(v, "dueDate") : v.GetProperty("ownerName").GetString() + " · " + v.GetProperty("submittedCount").GetInt32() + "/" + v.GetProperty("targetCount").GetInt32() + "명 제출"))).ToArray(); list.DisplayMemberPath = "Label"; list.SelectedItem = list.Items.Cast<WorkRow>().FirstOrDefault(r => r.Value.GetProperty("id").GetString() == previous); }
+        try { displayedDay=KoreanToday;list.ItemsSource = rows.Select(v => new WorkRow(v, v.GetProperty("title").GetString()! + "\n" + (view == "todos" ? Status(v.GetProperty("status").GetString()!) + " · " + Deadline(String(v,"dueDate"),String(v,"status"),displayedDay) : v.GetProperty("ownerName").GetString() + " · " + v.GetProperty("submittedCount").GetInt32() + "/" + v.GetProperty("targetCount").GetInt32() + "명 제출"))).ToArray(); list.DisplayMemberPath = "Label"; list.SelectedItem = list.Items.Cast<WorkRow>().FirstOrDefault(r => r.Value.GetProperty("id").GetString() == previous); }
         finally { rendering = false; }
+        if(currentView=="todos"&&list.SelectedItem is WorkRow selected&&detail.Children.OfType<TextBlock>().FirstOrDefault(t=>Equals(t.Tag,"deadline-counter")) is{} counter)
+            counter.Text=Deadline(String(selected.Value,"dueDate"),String(selected.Value,"status"),displayedDay);
         if (rows.Length == 0) feedback.Text = "표시할 항목이 없습니다. 이전 목록은 메뉴를 다시 선택하세요.";
     }
     Task Show(JsonElement value) { if (view == "todos") { Todo(value); return Task.CompletedTask; } return Submission(value.GetProperty("id").GetString()!); }
     static string String(JsonElement value, string field) => value.TryGetProperty(field, out var p) && p.ValueKind == JsonValueKind.String ? p.GetString()! : "";
     static string Status(string status) => status switch { "suggested" => "추천 · 확인 필요", "open" => "진행 중", "done" => "완료", _ => "제외" };
+    static string Deadline(string value,string status,DateOnly today)
+    {
+        if(!DateOnly.TryParseExact(value,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var due))return "기한 없음";
+        var date=due.ToString("yyyy.MM.dd",CultureInfo.InvariantCulture);
+        if(status is "done" or "dismissed")return date;
+        var days=due.DayNumber-today.DayNumber;
+        return date+" · "+(days>0?"D-"+days:days==0?"D-Day":"기한 지남 "+(-days)+"일");
+    }
     void Todo(JsonElement? item)
     {
         detail.Children.Clear(); detail.Children.Add(Text(item is null ? "할 일 직접 추가" : "할 일 확인 · 수정", 19));
         if (item is { } original)
         {
             detail.Children.Add(Text(String(original, "evidence"), 12));
+            var counter=Text(Deadline(String(original,"dueDate"),String(original,"status"),KoreanToday),14);counter.Tag="deadline-counter";detail.Children.Add(counter);
             if (String(original, "sourceId") is { Length: > 0 } source)
                 detail.Children.Add(Action("원본 메시지 보기", async () => { var originalMessage = await api.Get<Detail>($"api/messages/{source}"); var window = new Window { Owner = this, Title = originalMessage.Message.Title, Width = 550, Height = 450, Content = new ScrollViewer { Content = Text(originalMessage.Message.Body), Margin = new Thickness(20) } }; window.Show(); }));
         }
@@ -89,6 +108,7 @@ public sealed class WorkWindow : Window
     }
     public async Task Submission(string id)
     {
+        if(view!="submission-requests"){view="submission-requests";offset=0;await Reload();}
         var response = await api.Get<JsonElement>($"api/submission-requests/{id}"); var request = response.GetProperty("request");
         detail.Children.Clear(); detail.Children.Add(Text(String(request, "title"), 19)); detail.Children.Add(Text(String(request, "body")));
         var closed = request.GetProperty("closed").GetBoolean();
@@ -100,6 +120,7 @@ public sealed class WorkWindow : Window
             if (!closed) detail.Children.Add(Action("요청 종료", async () => { if (System.Windows.MessageBox.Show(this, "새 제출과 자동 알림을 종료할까요?", "제출 요청 종료", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return; await api.Send<JsonElement>(HttpMethod.Post, $"api/submission-requests/{id}/close"); await Submission(id); }));
         }
         var targets = response.GetProperty("targets").EnumerateArray().ToArray();
+        if(mine){var required=targets.Where(t=>!t.GetProperty("exempt").GetBoolean()).ToArray();var submitted=required.Count(t=>t.GetProperty("submittedAt").ValueKind!=JsonValueKind.Null);detail.Children.Insert(3,Text($"제출 {submitted}/{required.Length}명 · 미제출 {required.Length-submitted}명 · 면제 {targets.Length-required.Length}명",14));}
         foreach (var target in targets)
         {
             var exempt = target.GetProperty("exempt").GetBoolean(); var submitted = target.GetProperty("submittedAt").ValueKind != JsonValueKind.Null;
@@ -113,6 +134,17 @@ public sealed class WorkWindow : Window
             if (mine && !closed) detail.Children.Add(Action(exempt ? "면제 해제" : "제출 면제", async () => { await api.Send<JsonElement>(HttpMethod.Patch, $"api/submission-requests/{id}/targets/{String(target, "id")}", new { exempt = !exempt }); await Submission(id); }));
         }
         if (!mine && !closed && targets.Length > 0 && !targets[0].GetProperty("exempt").GetBoolean())
+        {
+            detail.Children.Add(Text("답장 없이 파일만 제출할 수 있습니다. 재제출하면 최신 파일로 바뀝니다.",11));
+            if(targets[0].GetProperty("submissionId").ValueKind==JsonValueKind.String)
+            {
+                var submissionId=String(targets[0],"submissionId");
+                detail.Children.Add(Action("제출 회수",async()=>
+                {
+                    if(System.Windows.MessageBox.Show(this,"제출 파일을 회수하고 미제출 상태로 바꿀까요? 이미 다운로드한 사본은 회수할 수 없습니다.","제출 회수",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;
+                    await api.Send<JsonElement>(HttpMethod.Post,$"api/submission-requests/{id}/withdraw",new{submissionId});pending.Remove(id);await Reload();await Submission(id);
+                }));
+            }
             detail.Children.Add(Action(pending.ContainsKey(id) ? "같은 제출 다시 시도" : "파일 선택하여 제출 · 재제출", async () =>
             {
                 if (!pending.TryGetValue(id, out var packet))
@@ -125,10 +157,15 @@ public sealed class WorkWindow : Window
                 }
                 await api.Send<JsonElement>(HttpMethod.Post, $"api/submission-requests/{id}/submit", packet); pending.Remove(id); await Reload(); await Submission(id);
             }));
+        }
     }
     sealed record WorkRow(JsonElement Value, string Label);
     internal async Task Verify()
     {
+        var day=new DateOnly(2026,12,31);
+        if(Deadline("2027-01-01","open",day)!="2027.01.01 · D-1"||Deadline("2026-12-31","open",day)!="2026.12.31 · D-Day"
+           ||Deadline("2026-12-29","open",day)!="2026.12.29 · 기한 지남 2일"||Deadline("","open",day)!="기한 없음"
+           ||Deadline("2026-12-29","done",day)!="2026.12.29")throw new InvalidOperationException("기한별 D-Day 표시 검증 실패");
         Todo(null);
         detail.Children.OfType<TextBox>().Single().Text = "Windows 업무 창에서 등록한 할 일";
         detail.Children.OfType<Button>().Single(b => b.Content?.ToString() == "저장").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

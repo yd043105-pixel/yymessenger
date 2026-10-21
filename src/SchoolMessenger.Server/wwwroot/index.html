@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>여양고 교무실 관리</title><link rel="stylesheet" href="admin.css"><script src="admin.js" defer></script></head>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>여양고 교무실 관리</title><link rel="stylesheet" href="admin.css"><script src="/update-notice.js" defer></script><script src="admin.js" defer></script><link rel="stylesheet" href="/update-notice.css"></head>
 <body>
 <aside><div class="brand">여양고<span>온라인 교무실</span></div><p>교직원 · 서버 관리</p><div class="policy">첨부파일 30일 보관<br>교내망 전용</div></aside>
 <main>
- <header><div><p class="eyebrow">학교 운영</p><h1>교무실 관리</h1></div><button id="logout" hidden>로그아웃</button></header>
+ <header><div><p class="eyebrow">학교 운영</p><h1>교무실 관리</h1></div><button id="updates" hidden>업데이트 내역</button><button id="logout" hidden>로그아웃</button></header>
  <p id="notice" role="status" aria-live="polite"></p>
  <section id="login-panel" class="card narrow"><h2>관리자 로그인</h2><form id="login-form"><label>아이디<input name="username" required autocomplete="username"></label><label>비밀번호<input name="password" type="password" required autocomplete="current-password"></label><button class="primary">로그인</button></form></section>
  <div id="dashboard" hidden>

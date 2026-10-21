@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>UIUserInterfaceStyle</key>
+    <string>Light</string>
+    <key>UIStatusBarStyle</key>
+    <string>UIStatusBarStyleLightContent</string>
+    <key>UIViewControllerBasedStatusBarAppearance</key>
+    <false/>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>교내 Wi-Fi 또는 학교 VPN에서 교직원 메시지와 첨부파일을 확인하기 위해 학교 서버에 연결합니다.</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>사용자가 선택한 이미지 첨부파일을 사진 앱에 저장할 때 사용합니다.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>사용자가 이미지 첨부파일의 사진 앱 저장·공유를 선택할 때 사용합니다.</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+		<integer>2</integer>
+	</array>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>XSAppIconAssets</key>
+	<string>Assets.xcassets/appicon.appiconset</string>
+</dict>
+</plist>

@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: 10.0.401
+          dotnet-version: 10.0.402
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
@@ -23,3 +23,107 @@ jobs:
         run: ./scripts/Build.ps1 -HeadlessTests
       - name: Verify packaged executables
         run: node tests/smoke.mjs --features --package
+      - name: Verify Windows installer
+        shell: pwsh
+        run: |
+          ./scripts/Build-Installer.ps1 -ClientDirectory (Join-Path $PWD 'artifacts/여양고-교무메신저/client')
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
+          ./tests/installer.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Installer verification failed' }
+  android:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - name: Install Android workload
+        run: dotnet workload install maui-android --skip-manifest-update
+      - name: Build Release Android with locked packages
+        shell: powershell
+        run: |
+          $sdkDirectory = $env:ANDROID_HOME
+          $javaDirectory = $env:JAVA_HOME_21_X64
+          if (-not $sdkDirectory -or -not $javaDirectory) { throw 'Android SDK/JDK21 unavailable' }
+          dotnet build src/SchoolMessenger.Mobile -f net10.0-android -t:InstallAndroidDependencies "-p:AndroidSdkDirectory=$sdkDirectory" "-p:JavaSdkDirectory=$javaDirectory" -p:AcceptAndroidSDKLicenses=true -p:RestoreLockedMode=true
+          if ($LASTEXITCODE -ne 0) { throw 'Android dependency setup failed' }
+          dotnet restore src/SchoolMessenger.Mobile --locked-mode "-p:AndroidSdkDirectory=$sdkDirectory" "-p:JavaSdkDirectory=$javaDirectory"
+          if ($LASTEXITCODE -ne 0) { throw 'Mobile lock verification failed' }
+          foreach ($schoolApp in @('Teacher','Family')) {
+            dotnet build src/SchoolMessenger.Mobile -f net10.0-android -c Release --no-restore "-p:SchoolApp=$schoolApp" "-p:AndroidSdkDirectory=$sdkDirectory" "-p:JavaSdkDirectory=$javaDirectory"
+            if ($LASTEXITCODE -ne 0) { throw "Release Android $schoolApp build failed" }
+          }
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.402
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Select Xcode and install the pinned iOS workload
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+          dotnet workload install maui-ios --version 10.0.401
+      - name: Build iOS simulator app
+        env:
+          IOS_VERIFICATION: 'true'
+          YY_SCHOOL_APP: Combined
+        run: bash scripts/Build-iOS.sh simulator
+      - name: Build synthetic school and announcement services
+        run: |
+          dotnet build src/SchoolMessenger.Server -p:RestoreLockedMode=true --nologo
+          dotnet build src/SchoolMessenger.AnnouncementServer -p:RestoreLockedMode=true --nologo
+      - name: Verify native iPhone simulator
+        run: node tests/ios-simulator.mjs
+      - name: Verify Release build and transport settings
+        run: |
+          runtime=iossimulator-x64
+          [[ "$(uname -m)" != arm64 ]] || runtime=iossimulator-arm64
+          dotnet build src/SchoolMessenger.Mobile -f net10.0-ios -c Release -r "$runtime" --no-restore --nologo -p:SchoolApp=Family
+          python3 - "$runtime" <<'PY'
+          import plistlib, sys
+          from pathlib import Path
+          bundle = Path('src/SchoolMessenger.Mobile/bin/Release/net10.0-ios') / sys.argv[1] / 'SchoolMessenger.Mobile.app'
+          info = plistlib.loads((bundle / 'Info.plist').read_bytes())
+          assert info['CFBundleShortVersionString'] == '1.0.0'
+          assert info['CFBundleVersion'] == '2'
+          assert info.get('NSLocalNetworkUsageDescription')
+          assert info.get('NSPhotoLibraryAddUsageDescription') and info.get('NSPhotoLibraryUsageDescription')
+          assert not info.get('NSAppTransportSecurity', {}).get('NSAllowsArbitraryLoads', False)
+          assert 'localhost' not in info.get('NSAppTransportSecurity', {}).get('NSExceptionDomains', {})
+          assert (bundle / 'PrivacyInfo.xcprivacy').exists()
+          print('PASS iOS Release bundle version, permission descriptions, privacy manifest and exclusion of Debug HTTP exception')
+          PY
+          for school_app in Family Teacher; do
+            if [[ "$school_app" != Family ]]; then
+              dotnet build src/SchoolMessenger.Mobile -f net10.0-ios -c Release -r "$runtime" --no-restore --nologo "-p:SchoolApp=$school_app"
+            fi
+            python3 - "$runtime" "$school_app" <<'PY'
+          import plistlib, sys
+          from pathlib import Path
+          bundle = Path('src/SchoolMessenger.Mobile/bin/Release/net10.0-ios') / sys.argv[1] / 'SchoolMessenger.Mobile.app'
+          info = plistlib.loads((bundle / 'Info.plist').read_bytes())
+          assert info['CFBundleIdentifier'] == 'kr.school.yeoyang.' + sys.argv[2].lower()
+          assert info['CFBundleShortVersionString'] == '1.0.0'
+          assert info['CFBundleVersion'] == '2'
+          assert not info.get('NSAppTransportSecurity', {}).get('NSAllowsArbitraryLoads', False)
+          print('PASS separate iOS ' + sys.argv[2] + ' identity, version and HTTPS configuration')
+          PY
+            /usr/bin/ditto -c -k --keepParent "src/SchoolMessenger.Mobile/bin/Release/net10.0-ios/$runtime/SchoolMessenger.Mobile.app" "artifacts/ios/yymessenger-1.0.0-$school_app-ios-release-simulator.zip"
+          done
+      - name: Save simulator app, screenshots and verification report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-simulator-1.0.0
+          path: |
+            artifacts/ios/
+            src/SchoolMessenger.Mobile/packages.ios.lock.json
+          if-no-files-found: error
+          retention-days: 7

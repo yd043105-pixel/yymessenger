@@ -1,22 +1,30 @@
+using SchoolMessenger.Shared;
 using Microsoft.Data.Sqlite;
 
 namespace SchoolMessenger.Server;
 
 public sealed record User(string Id, string Username, string Name, string Department, string PasswordHash,
-    bool IsAdmin, bool CanBroadcast, bool Active, int SessionVersion, int FailedAttempts, long LockedUntil);
+    bool IsAdmin, bool CanBroadcast, bool Active, int SessionVersion, int FailedAttempts, long LockedUntil,string Position="");
 public sealed record Registration(string Id, string Username, string Name, string Department, string PasswordHash, string Status, long CreatedAt);
 
-public sealed class Store
+public sealed class Store : IDisposable
 {
+    readonly FileStream lease;
+    public void Dispose() => lease.Dispose();
     public string Root { get; }
     public string Files => Path.Combine(Root, "files");
     public string Database => Path.Combine(Root, "school.db");
     public string BackupDirectory { get; }
+    public bool AttachmentBackupEnabled { get; }
     public Store(IConfiguration config)
     {
         Root = Path.GetFullPath(config["School:DataDirectory"] ?? "data");
+        if(File.Exists(Path.Combine(Root,"announcements.db")))throw new InvalidOperationException("교직원 서버와 외부 공지 서버의 데이터 폴더를 분리하세요.");
         BackupDirectory = Path.GetFullPath(config["School:BackupDirectory"] ?? Path.Combine(Root, "backups"));
+        AttachmentBackupEnabled = config.GetValue("School:AttachmentBackup", false);
         Directory.CreateDirectory(Files);
+        lease = BackendDatabase.Acquire(Root);
+        using (var migrated = Open()) BackendDatabase.Migrate(migrated, Root);
         using var connection = Open();
         using var command = connection.CreateCommand();
         command.CommandText = """
@@ -37,6 +45,8 @@ public sealed class Store
             CREATE TABLE IF NOT EXISTS SubmissionFiles(
               SubmissionId TEXT NOT NULL REFERENCES Submissions(Id),AttachmentId TEXT NOT NULL UNIQUE REFERENCES Attachments(Id),
               PRIMARY KEY(SubmissionId,AttachmentId));
+            CREATE TABLE IF NOT EXISTS SubmissionWithdrawals(
+              SubmissionId TEXT PRIMARY KEY REFERENCES Submissions(Id),WithdrawnAt INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS SubmissionReminders(
               RequestId TEXT NOT NULL,UserId TEXT NOT NULL,Day TEXT NOT NULL,MessageId TEXT NOT NULL REFERENCES Messages(Id),
               PRIMARY KEY(RequestId,UserId,Day));
@@ -55,6 +65,8 @@ public sealed class Store
               ReadAt INTEGER, PRIMARY KEY(MessageId,UserId));
             CREATE INDEX IF NOT EXISTS IX_Recipients_User ON Recipients(UserId,MessageId);
             CREATE INDEX IF NOT EXISTS IX_Messages_Date ON Messages(CreatedAt);
+            CREATE TABLE IF NOT EXISTS MessageRecalls(
+              MessageId TEXT PRIMARY KEY REFERENCES Messages(Id),RecalledAt INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS Attachments(
               Id TEXT PRIMARY KEY, OwnerId TEXT NOT NULL REFERENCES Users(Id), Name TEXT NOT NULL,
               Size INTEGER NOT NULL, UploadedAt INTEGER NOT NULL,
@@ -72,6 +84,7 @@ public sealed class Store
             CREATE TABLE IF NOT EXISTS SurveyResponses(SurveyId TEXT NOT NULL REFERENCES Surveys(Id), UserId TEXT NOT NULL REFERENCES Users(Id), Answers TEXT NOT NULL, UpdatedAt INTEGER NOT NULL, PRIMARY KEY(SurveyId,UserId));
             """;
         command.ExecuteNonQuery();
+        if(!Query("PRAGMA table_info(Users)",r=>r.GetString(1)).Contains("Position"))Execute("ALTER TABLE Users ADD COLUMN Position TEXT NOT NULL DEFAULT ''");
     }
     public SqliteConnection Open()
     {
@@ -111,18 +124,19 @@ public sealed class Store
     public List<Registration> PendingRegistrations() => Query("SELECT * FROM Registrations WHERE Status='pending' ORDER BY CreatedAt", ReadRegistration);
     public static Registration ReadRegistration(SqliteDataReader r) => new(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4), r.GetString(5), r.GetInt64(6));
     static User ReadUser(SqliteDataReader r) => new(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3),
-        r.GetString(4), r.GetBoolean(5), r.GetBoolean(6), r.GetBoolean(7), r.GetInt32(8), r.GetInt32(9), r.GetInt64(10));
+        r.GetString(4), r.GetBoolean(5), r.GetBoolean(6), r.GetBoolean(7), r.GetInt32(8), r.GetInt32(9), r.GetInt64(10),r.GetString(r.GetOrdinal("Position")));
     public void Backup()
     {
+        lock (AttachmentBackup.Gate)
+        {
         var directory = BackupDirectory;
         Directory.CreateDirectory(directory);
         using var source = Open();
         var path = Path.Combine(directory, $"school-{DateTime.UtcNow:yyyyMMdd}.db");
-        using var destination = new SqliteConnection($"Data Source={path}");
-        destination.Open();
-        source.BackupDatabase(destination);
-        // Backups contain metadata only; attachment contents never enter database snapshots.
+        BackendDatabase.Backup(source,path);
+        if (AttachmentBackupEnabled) AttachmentBackup.Copy(source, Files, directory, false);
         foreach (var file in Directory.EnumerateFiles(directory, "school-*.db"))
             if (File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddDays(-14)) File.Delete(file);
+        }
     }
 }
