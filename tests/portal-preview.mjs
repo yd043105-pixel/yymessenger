@@ -36,6 +36,9 @@ const fixtureBatch={id:baselineId,revision:1,owner:fixtureTeacher.internalUserId
 for(const batch of [fixtureBatch,{...fixtureBatch,id:datedId,revision:2,clientId:randomUUID().replaceAll('-',''),kind:'daily',start:'2026-10-08',end:'2026-10-08',date:'2026-10-08',cells:fixtureBatch.cells.map(c=>({...c,subject:c.period===1?'가상 영어':'',teacherId:c.period===1?c.teacherId:'',teacherName:c.period===1?c.teacherName:''}))}]){
  const response=await bridgeFetch(key,portal+'/bridge/timetable',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({batch,homerooms:[],notices:[]})});if(!response.ok)throw Error('Synthetic timetable initialization failed '+response.status);
 }
-writeFileSync(path.join(fixture,'access.json'),JSON.stringify({...fixtureAccess,timetableDate:'2026-10-08',timetableClass:fixtureClass.id}));
+const electiveCourseIds=[randomUUID().replaceAll('-',''),randomUUID().replaceAll('-','')];
+const elective=await officeManager.req('elective-management','POST',{clientId:randomUUID().replaceAll('-',''),title:'가상 선택과목 신청',term:'2026-2',classIds:[fixtureClass.id],startsAt:Date.now()-60000,endsAt:Date.now()+86400000,groups:[{id:randomUUID().replaceAll('-',''),name:'가상 탐구 선택',required:1,courses:electiveCourseIds.map((id,index)=>({id,name:index===0?'가상 물리학':'가상 화학',teacherIds:[fixtureTeacher.id]}))}]});
+await officeManager.req('elective-management/'+elective.id+'/state','POST',{clientId:randomUUID().replaceAll('-',''),revision:elective.revision,action:'open'});
+writeFileSync(path.join(fixture,'access.json'),JSON.stringify({...fixtureAccess,timetableDate:'2026-10-08',timetableClass:fixtureClass.id,electiveId:elective.id,electiveCourseIds}));
 console.log('Local timetable fixture ready.');
 async function close(){for(const c of children)c.kill();process.exit();}process.on('SIGINT',close);process.on('SIGTERM',close);setInterval(()=>{if(existsSync(path.join(data,'stop')))close();},500);await new Promise(()=>{});

@@ -45,6 +45,8 @@ public sealed class MessengerApi : IDisposable
         var handler=new HttpClientHandler{CookieContainer=cookies,AllowAutoRedirect=false};
 #endif
         http=new HttpClient(handler){BaseAddress=uri,Timeout=TimeSpan.FromSeconds(90)};
+        http.DefaultRequestHeaders.Add("X-YY-Product",(office?"teacher-":"school-")+(DeviceInfo.Platform==DevicePlatform.iOS?"ios":"android"));
+        http.DefaultRequestHeaders.Add("X-YY-Version",AppInfo.Current.VersionString);
     }
     public async Task Restore()
     {
@@ -165,4 +167,9 @@ internal record MobileEmpty;
 [JsonSerializable(typeof(CounselingReserve))]
 [JsonSerializable(typeof(CounselingView))]
 [JsonSerializable(typeof(JsonElement))]
+[JsonSerializable(typeof(SchoolMessenger.Contracts.FeedbackRequest))]
+[JsonSerializable(typeof(ElectiveRound))]
+[JsonSerializable(typeof(ElectiveRound[]))]
+[JsonSerializable(typeof(ElectiveApplicationRequest))]
+[JsonSerializable(typeof(ElectiveCancellation))]
 internal partial class MobileJson:JsonSerializerContext;

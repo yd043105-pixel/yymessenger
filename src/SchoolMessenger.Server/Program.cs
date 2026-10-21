@@ -29,6 +29,8 @@ if (builder.Configuration["School:CertificateThumbprint"] is { Length: > 0 } thu
 }
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 105L * 1024 * 1024);
 builder.Services.AddSingleton<Store>();
+builder.Services.AddSingleton(s=>new FeedbackMail(s.GetRequiredService<Store>().Open,"office",s.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),builder.Configuration));
+builder.Services.AddHostedService(s=>s.GetRequiredService<FeedbackMail>());
 builder.Services.AddSingleton<ExternalAnnouncements>();
 builder.Services.AddHostedService(s => s.GetRequiredService<ExternalAnnouncements>());
 builder.Services.AddSingleton<Timetables>();
@@ -571,6 +573,7 @@ ExternalAnnouncements.Map(app, app.Services.GetRequiredService<ExternalAnnouncem
 Timetables.Map(app, app.Services.GetRequiredService<Timetables>());
 BackendOperations.Map(app,store.Open);
 DeviceSessions.Map(app,store.Open);
+FeedbackReports.Map(app,store.Open,app.Services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),"office");
 app.Run();
 
 static string UserId(HttpContext c) => c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;

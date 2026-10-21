@@ -8,6 +8,7 @@ import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 import {bridgeFetch,bridgeHeaders} from './bridge-client.mjs';
 const root=process.cwd(),fixture=path.resolve(process.env.YY_TEST_DATA_ROOT??'.test-data','server-resources-'+randomUUID());mkdirSync(fixture,{recursive:true});
 const dotnet=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):process.env.DOTNET_ROOT?path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet'):'dotnet';
+const packageRoot=process.env.YY_PACKAGE_ROOT;
 const id=()=>randomUUID().replaceAll('-',''),password='Synthetic-'+randomUUID(),passed=[],delay=ms=>new Promise(r=>setTimeout(r,ms));
 const check=text=>{passed.push(text);console.log('PASS '+text);};
 async function address(){const s=net.createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const url='http://127.0.0.1:'+s.address().port;await new Promise(r=>s.close(r));return url;}
@@ -29,7 +30,7 @@ class Client{
 for(const role of ['Server','AnnouncementServer']){
  const portal=role==='AnnouncementServer',prefix=portal?'Portal':'School',data=path.join(fixture,role),base=await address();let child,logs='';
  const env={...process.env,ASPNETCORE_ENVIRONMENT:'Development',[prefix+'__DataDirectory']:data,[prefix+'__AdminPassword']:password,Portal__BridgeKey:'Synthetic-'+randomUUID(),Announcements__Address:'',Operations__ResourceProfile:'balanced'};
- async function start(){logs='';child=spawn(dotnet,[path.join(root,'src/SchoolMessenger.'+role+'/bin/Debug/net10.0/SchoolMessenger.'+role+'.dll'),'--urls',base],{env,windowsHide:true});child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);for(let n=0;n<100;n++){if(child.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok)return;}catch{}await delay(100);}throw Error('Startup timeout '+logs);}
+ async function start(){logs='';child=spawn(packageRoot?path.join(packageRoot,portal?'announcement-server':'server','SchoolMessenger.'+role+'.exe'):dotnet,packageRoot?['--urls',base]:[path.join(root,'src/SchoolMessenger.'+role+'/bin/Debug/net10.0/SchoolMessenger.'+role+'.dll'),'--urls',base],{env,windowsHide:true});child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);for(let n=0;n<100;n++){if(child.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok)return;}catch{}await delay(100);}throw Error('Startup timeout '+logs);}
  async function stop(){if(child?.exitCode===null){child.kill();await new Promise(r=>child.once('exit',r));}}
  try{
   await start();const admin=await new Client(base).login('admin'),guest=new Client(base);await guest.req('admin/server-resources','GET',undefined,401);
@@ -88,10 +89,14 @@ for(const role of ['Server','AnnouncementServer']){
    async function* body(){yield Buffer.from('--fixture\r\nContent-Disposition: form-data; name="file"; filename="slow.txt"\r\nContent-Type: text/plain\r\n\r\nA');await finish;yield Buffer.from('\r\n--fixture--\r\n');}
    const slow=fetch(base+'/api/attachments',{method:'POST',headers:{...admin.headers(),'Content-Type':'multipart/form-data; boundary=fixture'},body:body(),duplex:'half',signal:abort.signal}).catch(()=>null);
    for(let n=0;n<40&&(await admin.req('admin/server-resources')).active.uploads===0;n++)await delay(50);
-   const other=new FormData();other.append('file',new Blob(['synthetic']),'other.txt');await admin.req('attachments','POST',other,429);abort.abort();release();await slow;
+   const other=new FormData();other.append('file',new Blob(['synthetic']),'other.txt');
+   try{
+    await admin.req('attachments','POST',other,429);
+    await headersOnlyRejection(base,'/api/timetable/import',admin.headers(),429,1000,false,'multipart/form-data; boundary=fixture');
+   }finally{abort.abort();release();await slow;}
    for(let n=0;n<40&&(await admin.req('admin/server-resources')).active.uploads!==0;n++)await delay(50);
    assert.equal((await admin.req('admin/server-resources')).active.uploads,0);await admin.req('attachments','POST',other);
-   check('Server: one in-flight upload blocks a second and cancelled uploads release capacity');
+   check('Server: one in-flight upload blocks attachments and timetable imports before reading their body; cancellation releases capacity');
   }
   await stop();await start();await admin.login('admin');assert.equal((await admin.req('admin/server-resources')).profile,'low-memory');
   const copied=new Client(base);copied.cookies=new Map(admin.cookies);await admin.req('logout','POST');await copied.req('admin/server-resources','GET',undefined,401);

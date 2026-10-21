@@ -32,6 +32,8 @@ using(var policyDatabase=store.Open())RegistrationPolicy.EnsureSchema(policyData
 var dataPath = builder.Services.AddDataProtection().SetApplicationName("YyAnnouncements").PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(store.Root,"keys")));
 if (OperatingSystem.IsWindows()) dataPath.ProtectKeysWithDpapi();
 builder.Services.AddSingleton(store);
+builder.Services.AddSingleton(s=>new FeedbackMail(store.Open,"announcements",s.GetRequiredService<IDataProtectionProvider>(),builder.Configuration));
+builder.Services.AddHostedService(s=>s.GetRequiredService<FeedbackMail>());
 builder.Services.AddSingleton<PasswordHasher<Account>>(); builder.Services.Configure<PasswordHasherOptions>(o=>o.IterationCount=220_000);
 builder.Services.AddHostedService<PortalMaintenance>();
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o=>o.MultipartBodyLengthLimit=105L*1024*1024);
@@ -112,7 +114,7 @@ app.Use(async(c,next)=>
         try{await c.RequestServices.GetRequiredService<IAntiforgery>().ValidateRequestAsync(c);}catch(AntiforgeryValidationException){await Error("요청 인증 만료. 다시 로그인하세요.").ExecuteAsync(c);return;}
     }
     if(c.User.Identity?.IsAuthenticated==true&&c.Request.Path.StartsWithSegments("/api")&&store.Person(Id(c)) is{Role:"parent"} parent&&!store.Regular(parent)
-        &&c.Request.Path!="/api/session"&&c.Request.Path!="/api/login"&&c.Request.Path!="/api/register"&&c.Request.Path!="/api/registration/classes"&&c.Request.Path!="/api/registration/policy"&&c.Request.Path!="/api/logout"&&!c.Request.Path.StartsWithSegments("/api/sessions")&&c.Request.Path!="/api/children"&&!c.Request.Path.StartsWithSegments("/api/settings"))
+        &&c.Request.Path!="/api/session"&&c.Request.Path!="/api/login"&&c.Request.Path!="/api/register"&&c.Request.Path!="/api/registration/classes"&&c.Request.Path!="/api/registration/policy"&&c.Request.Path!="/api/logout"&&c.Request.Path!="/api/feedback"&&!c.Request.Path.StartsWithSegments("/api/sessions")&&c.Request.Path!="/api/children"&&!c.Request.Path.StartsWithSegments("/api/settings"))
     {await Error("임시회원입니다. 설정에서 자녀 고유번호를 입력하면 학교 소식과 시간표를 볼 수 있습니다.",403).ExecuteAsync(c);return;}
     await next();
 });
@@ -143,6 +145,8 @@ var protection=app.Services.GetRequiredService<IDataProtectionProvider>();
 PortalAdministration.Map(admin,store,protection);
 PortalSections.Initialize(store);
 PortalSections.Map(api,admin,app.MapGroup("/bridge"),store);
+PortalElectives.Initialize(store);
+PortalElectives.Map(api,app.MapGroup("/bridge"),store);
 PortalEnrollment.Map(app,api,admin,store,protection);
 PortalNotices.Map(api,app.MapGroup("/bridge"),store,app.Configuration,app.Environment);
 PortalTimetables.Map(api,app.MapGroup("/bridge"),store);
@@ -152,6 +156,7 @@ try{PortalGraduation.Run(store);}catch(Exception error){app.Logger.LogError("Gra
 app.Services.GetServices<IHostedService>().OfType<PortalMaintenance>().Single().Cleanup();
 BackendOperations.Map(app,store.Open);
 DeviceSessions.Map(app,store.Open);
+FeedbackReports.Map(app,store.Open,protection,"announcements");
 app.Run();
 
 record Login(string? Username,string? Password,bool RememberLogin=false);

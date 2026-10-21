@@ -22,12 +22,13 @@ public static class GraduationErasure
         {
             Execute("StudentCodes","INSERT OR IGNORE INTO RetiredStudentCodes SELECT Hash FROM StudentCodes WHERE StudentId=$id",id);
             foreach(var (table,predicate) in new[]{
+                ("ElectiveChoices","StudentId=$id"),("ElectiveReceipts","ActorId=$id"),("ElectiveApplications","StudentId=$id"),
                 ("CounselingBookings","StudentId=$id OR RequesterId=$id"),
                 ("Targets","UserId=$id OR StudentId=$id"),("NoticeSectionMembers","StudentId=$id"),
                 ("SectionMembers","StudentId=$id"),("Families","ParentId=$id OR StudentId=$id"),
                 ("GuardianRequests","ParentId=$id OR StudentId=$id"),("Invites","PersonId=$id"),
                 ("StudentApplications","PersonId=$id"),("StudentCodes","StudentId=$id"),
-                ("FamilyCodeAttempts","ParentId=$id"),("DeviceSessions","UserId=$id"),
+                ("FamilyCodeAttempts","ParentId=$id"),("DeviceSessions","UserId=$id"),("FeedbackMail","ReportId IN (SELECT Id FROM FeedbackReports WHERE OwnerId=$id)"),("FeedbackReports","OwnerId=$id"),
                 ("RegistrationAgreements","SubjectId=$id"),("TimetableNotices","UserId=$id"),
                 ("MessageEvents","RecipientId=$id"),("Graduations","StudentId=$id")})Execute(table,$"DELETE FROM {table} WHERE {predicate}",id);
             // Append-only events remain, but their link to a removed person is erased in this transaction.
@@ -91,7 +92,7 @@ public static class GraduationErasure
             foreach(var file in Directory.EnumerateFiles(directory,filter,SearchOption.TopDirectoryOnly))
             {
                 if((File.GetAttributes(file)&FileAttributes.ReparsePoint)!=0)throw new IOException("백업 링크는 학교의 파기 확인이 필요합니다.");
-                var staged=file+"."+Guid.NewGuid().ToString("N")+".tmp";
+                var staged=Path.Combine(directory,Guid.NewGuid().ToString("N")+".tmp");
                 var lastWrite=File.GetLastWriteTimeUtc(file);
                 try
                 {

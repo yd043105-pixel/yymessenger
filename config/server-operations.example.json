@@ -11,6 +11,8 @@
   "port": 8443,
   "tunnelOnly": true,
   "attachmentBackup": true,
+  "feedbackEmailEnabled": false,
+  "automaticBugReportsEnabled": false,
   "networkIsolationVerified": false,
   "upsInstalledAndTested": false,
   "backupDeviceAndEncryptionVerified": false,

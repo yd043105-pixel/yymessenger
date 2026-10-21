@@ -60,6 +60,7 @@ public sealed partial class ExternalAnnouncements : BackgroundService
     public static void Map(WebApplication app,ExternalAnnouncements service)
     {
         MapCounseling(app,service);
+        MapElectives(app,service);
         var api=app.MapGroup("/api/external-announcements").RequireAuthorization();
         api.MapGet("/setup",(HttpContext c)=>
         {

@@ -22,6 +22,8 @@ jobs:
         shell: powershell
         run: |
           $releaseVersion = $env:GITHUB_REF_NAME.Substring(1)
+          node tests/release-policy.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Release policy verification failed' }
           ./scripts/Build.ps1 -HeadlessTests -Version $releaseVersion
           if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
           node tests/smoke.mjs --features --package
@@ -33,17 +35,30 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
           ./tests/installer.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Installer verification failed' }
-      - name: Create release draft
-        shell: powershell
+      - name: Create release according to school policy
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $releaseVersion = $env:GITHUB_REF_NAME.Substring(1)
+          $policy = Get-Content config/maintenance-release.json -Raw | ConvertFrom-Json
+          $initialPath = Join-Path $env:RUNNER_TEMP 'yy-initial-release.json'
+          $modeArguments = @('scripts/Release-Policy.mjs', $releaseVersion)
+          if ($policy.firstReleaseApproved -eq $true -and $policy.automaticPublicReleasesAfterLaunch -eq $true) {
+            $initial = & gh release view v1.0.0 --repo $env:GITHUB_REPOSITORY --json tagName,isDraft,isPrerelease,publishedAt
+            if ($LASTEXITCODE -eq 0) {
+              Set-Content -LiteralPath $initialPath -Value $initial -Encoding utf8
+              $modeArguments += $initialPath
+            }
+          }
+          $releaseMode = & node @modeArguments
+          if ($LASTEXITCODE -ne 0 -or $releaseMode -notin @('draft','public')) { throw 'Release policy check failed' }
           $releaseArguments = @('release', 'create', $env:GITHUB_REF_NAME,
             "artifacts/yymessenger-$releaseVersion-win-x64.zip", 'artifacts/SHA256SUMS.txt',
             "artifacts/yymessenger-$releaseVersion-setup-win-x64.exe",
-            '--repo', $env:GITHUB_REPOSITORY, '--verify-tag', '--draft',
+            '--repo', $env:GITHUB_REPOSITORY, '--verify-tag',
             '--title', "yymessenger $releaseVersion", '--notes-file', 'docs/release-notes.md')
+          if ($releaseMode -eq 'draft') { $releaseArguments += '--draft' }
           if ($releaseVersion.Contains('-')) { $releaseArguments += '--prerelease' }
           & gh @releaseArguments
           if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }

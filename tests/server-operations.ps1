@@ -45,6 +45,19 @@ Assert ([string][Environment]::GetEnvironmentVariable('DOTNET_GCHeapHardLimit','
 Check 'Low-memory profile and 512MiB managed heap budget apply only to the launched process and restore afterward'
 Assert ([string][Environment]::GetEnvironmentVariable('Operations__MonitorKey','Process') -eq [string]$before) 'Secret environment left behind'
 Check 'DPAPI key storage and temporary secret environment restored'
+$mailConfig=$config|ConvertTo-Json -Depth 8|ConvertFrom-Json
+$mailConfig.feedbackEmailEnabled=$true;$mailConfig.automaticBugReportsEnabled=$true
+$mailConfig.alerts.sender='sender@example.invalid';$mailConfig.alerts.recipient='recipient@example.invalid'
+$oldCredential=$secrets.smtpCredential;$mailSecretBefore=[Environment]::GetEnvironmentVariable('FeedbackMail__Password','Process');$mailEnvironment=$null
+try{
+    $secrets.smtpCredential=[Management.Automation.PSCredential]::new('sender@example.invalid',(ConvertTo-SecureString 'SYNTHETIC-MAIL-PASSWORD' -AsPlainText -Force))
+    $mailEnvironment=Set-OperationsEnvironment $mailConfig $secrets
+    Assert ([Environment]::GetEnvironmentVariable('FeedbackMail__Recipient','Process') -eq 'recipient@example.invalid') 'Feedback recipient not configured'
+    Assert ([Environment]::GetEnvironmentVariable('FeedbackMail__Password','Process') -eq 'SYNTHETIC-MAIL-PASSWORD') 'Protected SMTP credential not passed to child runtime'
+    Assert ([Environment]::GetEnvironmentVariable('Feedback__AutomaticReportsEnabled','Process') -eq 'True') 'Automatic report flag not passed'
+}finally{if($null -ne $mailEnvironment){Restore-OperationsEnvironment $mailEnvironment};$secrets.smtpCredential=$oldCredential}
+Assert ([string][Environment]::GetEnvironmentVariable('FeedbackMail__Password','Process') -eq [string]$mailSecretBefore) 'SMTP password left in parent environment'
+Check 'Feedback mail uses protected SMTP credentials and restores parent process secrets'
 Add-Type -TypeDefinition @'
 using System;
 using System.IO;

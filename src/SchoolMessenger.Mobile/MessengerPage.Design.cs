@@ -91,7 +91,7 @@ public sealed partial class MessengerPage
         {
             var info=new VerticalStackLayout{Spacing=5};info.Add(Text(name,18,true));var status=Text(source.Office?"교직원 계정":role switch{"parent"=>"학부모 계정","student"=>"학생 계정","teacher"=>"교사 계정",_=>"관리자 계정"},12);status.TextColor=Muted;info.Add(status);body.Add(Card(info));
             if(!source.Office&&role is "parent" or "student")SettingRow(role=="parent"?"설정 · 자녀 연결":"설정 · 내 고유번호",AccountSettings);
-            SettingRow("약관·개인정보 안내",PolicyMenu);SettingRow("업데이트 내역",()=>ShowUpdates(true));
+            SettingRow("약관·개인정보 안내",PolicyMenu);SettingRow("업데이트 내역",()=>ShowUpdates(true));SettingRow("오류 신고 · 개선 의견",Feedback);
             SettingRow("로그아웃",async()=>{try{await source.Logout();}finally{source.Dispose();if(api==source)api=null;Login();}});return;
         }
         if(!source.Office&&role=="parent"&&user.TryGetProperty("membership",out var membership)&&membership.GetString()=="temporary")
@@ -111,6 +111,10 @@ public sealed partial class MessengerPage
         }
         if(homeTab=="home")
         {
+            if(!source.Office&&role=="student")
+            {
+                var electives=new VerticalStackLayout{Spacing=6};electives.Add(Text("나의 선택과목",17,true));electives.Add(Text("열린 신청 회차와 내 접수 내용을 확인하세요.",12));electives.Add(MakeAction("선택과목 신청 · 내 신청",Electives,true));body.Add(Card(electives));
+            }
             var today=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(9));
             var daily=new VerticalStackLayout{Spacing=3};var day=Text(today.ToString("M월 d일 dddd",CultureInfo.GetCultureInfo("ko-KR")),12);day.TextColor=Blue;daily.Add(day);
             var timetable=MakeAction("시간표 · 내 수업 / 학급",()=>Timetable());timetable.BackgroundColor=Colors.Transparent;timetable.TextColor=Navy;timetable.FontSize=17;timetable.FontAttributes=FontAttributes.Bold;timetable.HorizontalOptions=LayoutOptions.Fill;timetable.Padding=new Thickness(0,4);daily.Add(timetable);

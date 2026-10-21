@@ -61,8 +61,11 @@ public static class BackendDatabase
     }
     public static void Backup(SqliteConnection source, string destination)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(destination))!);
-        var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        var directory = Path.GetDirectoryName(Path.GetFullPath(destination))!;
+        Directory.CreateDirectory(directory);
+        // SQLite's native Windows path handling can reject long appended names.
+        // Keep the atomic replacement on the same volume without nesting GUID suffixes.
+        var temporary = Path.Combine(directory, Guid.NewGuid().ToString("N") + ".tmp");
         try
         {
             using (var target = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = temporary, Pooling = false }.ToString()))

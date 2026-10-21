@@ -26,8 +26,19 @@ try {
     if (-not $SkipTests) {
         node tests\counseling.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Counseling integration verification failed' }
+        if ($HeadlessTests) { node tests\electives.mjs }
+        else { node tests\electives.mjs --ui }
+        if ($LASTEXITCODE -ne 0) { throw 'Elective registration permissions and workflow verification failed' }
         node tests\server-resources.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Server resource control verification failed' }
+        node tests\feedback.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Feedback privacy and permissions verification failed' }
+        node tests\feedback-mail.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Feedback email verification failed' }
+        node tests\feedback-collection.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Feedback collection verification failed' }
+        node tests\release-policy.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Release policy verification failed' }
         if (-not $HeadlessTests) {
             node tests\administrator-ui.mjs
             if ($LASTEXITCODE -ne 0) { throw 'Native administrator interface verification failed' }
@@ -83,6 +94,12 @@ try {
     Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-operations.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\platform-deployment-guide.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\beginner-setup-guide.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\installation-and-test-order.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\elective-registration.md','docs\elective-registration-design.md','docs\elective-registration-verification-2026-10-20.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\policies' -Destination $packageDocs -Recurse -Force
+    Copy-Item -LiteralPath 'docs\daily-maintenance.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\feedback-email.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\home-letter-images.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\counseling-integration.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\school-day-and-administration.md' -Destination $packageDocs

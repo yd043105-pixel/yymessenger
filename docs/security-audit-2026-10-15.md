@@ -40,9 +40,9 @@ C:의 로컬 SDK를 10.0.402, Windows 서버·클라이언트 실행 런타임�
 
 ## 검증 자료
 
-`scripts/Build.ps1 -HeadlessTests`는 두 서버·Windows 프로그램을 빌드한 뒤 상담·부하 제한·운영 설정·변경 안내·원격 통신·메시지/보안/제출/예약·학교 공지·가입/동의·졸업·서버 연결·백엔드/복원·데이터 격리·시간표 시험을 순서대로 수행한다. 실제 결과는 `artifacts/security-final-full-build.log`와 각 `artifacts/*-results.json`에서 확인한다. 실행하지 않은 실제 OS 키보드 제어·운영망·실기기 시험을 이 명령의 통과 항목에 포함하지 않는다.
+`scripts/Build.ps1 -HeadlessTests`는 두 서버·Windows 프로그램을 빌드한 뒤 상담·부하 제한·운영 설정·변경 안내·원격 통신·메시지/보안/제출/예약·학교 공지·가입/동의·졸업·서버 연결·백엔드/복원·데이터 격리·시간표 시험을 순서대로 수행한다. 실제 결과는 `artifacts/logs/security-final-full-build.log`와 각 `artifacts/*-results.json`에서 확인한다. 실행하지 않은 실제 OS 키보드 제어·운영망·실기기 시험을 이 명령의 통과 항목에 포함하지 않는다.
 
-로컬 최종 결과: **주요 결과 파일 기준 305개 점검 항목 통과**, 전체 명령 종료 코드 0. 성공한 최종 전체 실행 로그는 `artifacts/security-final-complete.log`다. 별도로 실제 self-contained 배포 EXE의 메시지·보안 회귀 **72개**, 격리된 설치 ID를 사용하는 Windows 설치·덮어 설치·구버전 거부·실행 중 설치 거부·제거·재설치 **7개**가 통과했다. 개발 PC 전용 SDK 폴더가 없는 환경의 SDK 선택도 별도로 확인했다. Android 두 앱은 새 SDK/작업 패키지로 빌드했고 각각 경고 0·오류 0이다. APK는 Debug 시운행용이다.
+로컬 최종 결과: **주요 결과 파일 기준 305개 점검 항목 통과**, 전체 명령 종료 코드 0. 성공한 최종 전체 실행 로그는 `artifacts/logs/security-final-complete.log`다. 별도로 실제 self-contained 배포 EXE의 메시지·보안 회귀 **72개**, 격리된 설치 ID를 사용하는 Windows 설치·덮어 설치·구버전 거부·실행 중 설치 거부·제거·재설치 **7개**가 통과했다. 개발 PC 전용 SDK 폴더가 없는 환경의 SDK 선택도 별도로 확인했다. Android 두 앱은 새 SDK/작업 패키지로 빌드했고 각각 경고 0·오류 0이다. APK는 Debug 시운행용이다.
 
 | 주요 전체 실행 항목 | 통과 |
 | --- | ---: |

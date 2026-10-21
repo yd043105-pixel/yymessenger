@@ -4,6 +4,7 @@
 data/
 artifacts/
 .test-data/
+.maintenance/
 .dorms-check/
 **/registration-policy.local.json
 *.user
@@ -46,4 +47,8 @@ artifacts/
 **/server-operations*.local.json
 **/server-operations.secrets.xml
 **/server-operations-state.json
+01_설치파일/*.lnk
+02_설명서/*.lnk
+02_설명서/01_처음설치부터_Cloudflare까지.txt
+02_설명서/00_기기별_설치와_테스트순서.txt
 **/*.db.*.tmp

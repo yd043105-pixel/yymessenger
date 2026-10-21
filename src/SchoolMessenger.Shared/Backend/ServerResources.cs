@@ -88,7 +88,7 @@ public sealed class ServerResources
         app.Use(async(context,next)=>
         {
             var path=context.Request.Path.Value??"";
-            var upload=context.Request.Method=="POST"&&path.EndsWith("/attachments",StringComparison.Ordinal)&&(path.StartsWith("/api/",StringComparison.Ordinal)||path.StartsWith("/bridge/",StringComparison.Ordinal));
+            var upload=context.Request.Method=="POST"&&(path=="/api/timetable/import"||path.EndsWith("/attachments",StringComparison.Ordinal)&&(path.StartsWith("/api/",StringComparison.Ordinal)||path.StartsWith("/bridge/",StringComparison.Ordinal)));
             var zip=context.Request.Method=="GET"&&path.StartsWith("/api/submission-requests/",StringComparison.Ordinal)&&path.EndsWith("/zip",StringComparison.Ordinal);
             var download=zip||context.Request.Method=="GET"&&path.StartsWith("/api/attachments/",StringComparison.Ordinal)&&(path.EndsWith("/download",StringComparison.Ordinal)||path.EndsWith("/view",StringComparison.Ordinal));
             if(context.GetEndpoint() is null||!upload&&!download){await next();return;}

@@ -12,6 +12,8 @@
     <Compile Include="../SchoolMessenger.Contracts/Counseling.cs" Link="Contracts/Counseling.cs" />
     <Compile Include="../SchoolMessenger.Contracts/SchoolDay.cs" Link="Contracts/SchoolDay.cs" />
     <Compile Include="../SchoolMessenger.Contracts/Office.cs" Link="Contracts/Office.cs" />
+    <Compile Include="../SchoolMessenger.Contracts/Feedback.cs" Link="Contracts/Feedback.cs" />
+    <Compile Include="../SchoolMessenger.Contracts/Electives.cs" Link="Contracts/Electives.cs" />
     <Compile Include="../SchoolMessenger.Contracts/RegistrationPolicies.cs" Link="Contracts/RegistrationPolicies.cs" />
     <Compile Include="../SchoolMessenger.Shared/ReleaseNotice.cs" Link="ReleaseNotice.cs" />
     <Compile Include="../SchoolMessenger.Shared/FilePolicy.cs" Link="FilePolicy.cs" />

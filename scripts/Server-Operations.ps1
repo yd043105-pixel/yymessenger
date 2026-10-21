@@ -66,6 +66,16 @@ function Set-OperationsEnvironment($Config,$Secrets){
     $values[$prefix+'__BackupDirectory']=$Config.backupDirectory
     $values[$prefix+'__AttachmentBackup']=[string][bool]$Config.attachmentBackup
     $values[$prefix+'__CertificateThumbprint']=$Config.certificateThumbprint
+    $values['FeedbackMail__Enabled']=[string]($Config.feedbackEmailEnabled -eq $true)
+    $values['Feedback__AutomaticReportsEnabled']=[string]($Config.automaticBugReportsEnabled -eq $true)
+    if($Config.feedbackEmailEnabled -eq $true -and $Secrets.smtpCredential -is [Management.Automation.PSCredential]){
+        $values['FeedbackMail__Host']=$Config.alerts.smtpHost
+        $values['FeedbackMail__Port']=[string]$Config.alerts.smtpPort
+        $values['FeedbackMail__Sender']=$Config.alerts.sender
+        $values['FeedbackMail__Recipient']=$Config.alerts.recipient
+        $values['FeedbackMail__Username']=$Secrets.smtpCredential.UserName
+        $values['FeedbackMail__Password']=$Secrets.smtpCredential.GetNetworkCredential().Password
+    }
     if($Secrets.initialAdminPassword){$values[$prefix+'__AdminPassword']=Unprotect-OperationsValue $Secrets.initialAdminPassword}
     if($Config.service -eq 'announcements'){
         $values['Portal__AllowedHosts']=$Config.publicHost+',localhost,127.0.0.1'

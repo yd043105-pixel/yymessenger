@@ -36,7 +36,7 @@ public partial class MainWindow : Window
         Height = Math.Min(820, SystemParameters.WorkArea.Height - 30);
         Directory.CreateDirectory(LocalDirectory);
         savedLogin = new SavedLogin(LocalDirectory);
-        startup = new WindowsStartup(Environment.GetCommandLineArgs().Any(a=>a is "--verify-ui" or "--verify-admin" or "--verify-counseling")
+        startup = new WindowsStartup(Environment.GetCommandLineArgs().Any(a=>a is "--verify-ui" or "--verify-admin" or "--verify-counseling" or "--verify-electives")
             ? @"Software\YeoyangSchoolMessenger\StartupTests\" + Path.GetFileName(LocalDirectory.TrimEnd(Path.DirectorySeparatorChar)) + Guid.NewGuid().ToString("N")
             : @"Software\Microsoft\Windows\CurrentVersion\Run");
         AutoStartCheck.IsChecked = AutoStartMenu.IsChecked = startup.Enabled;
@@ -65,6 +65,7 @@ public partial class MainWindow : Window
         });
         Loaded += async (_, _) =>
         {
+            if(Environment.GetCommandLineArgs().Contains("--verify-electives")){await VerifyElectivesUi();return;}
             if(Environment.GetCommandLineArgs().Contains("--verify-admin")){await VerifyAdministratorUi();return;}
             if(Environment.GetCommandLineArgs().Contains("--verify-counseling")){await VerifyCounselingUi();return;}
             if (Environment.GetCommandLineArgs().Contains("--verify-ui")) { await VerifyUi(); return; }
