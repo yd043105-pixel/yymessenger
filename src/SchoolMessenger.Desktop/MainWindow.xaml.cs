@@ -436,7 +436,26 @@ public partial class MainWindow : Window
             if (OrganizationTree.Items.OfType<TreeViewItem>().SelectMany(r => r.Items.OfType<TreeViewItem>()).Any(r => !r.IsExpanded)) throw new InvalidOperationException("필터 변경 시 부서 펼침 상태 유지 실패");
             if (System.Windows.Shell.WindowChrome.GetWindowChrome(this)?.CaptionHeight != 44) throw new InvalidOperationException("제목줄 적용 실패");
             var output = Environment.GetEnvironmentVariable("SCHOOL_UI_OUTPUT") ?? "artifacts/client-preview.png";
-            var directory = Path.GetDirectoryName(Path.GetFullPath(output))!; Directory.CreateDirectory(directory); SavePreview(this, output);
+            var directory = Path.GetDirectoryName(Path.GetFullPath(output))!; Directory.CreateDirectory(directory);
+            static System.Collections.Generic.IEnumerable<DependencyObject> Descendants(DependencyObject parent)
+            {for(var i=0;i<VisualTreeHelper.GetChildrenCount(parent);i++){var child=VisualTreeHelper.GetChild(parent,i);yield return child;foreach(var nested in Descendants(child))yield return nested;}}
+            var navigationButtons=Descendants(Workspace).OfType<System.Windows.Controls.Button>().Where(b=>b.Style==(Style)FindResource("RailButton")).ToArray();
+            foreach(var size in new[]{(Width:380d,Height:580d),(Width:450d,Height:820d)})
+            {
+                Width=size.Width;Height=size.Height;UpdateLayout();
+                foreach(var button in navigationButtons)
+                {
+                    button.BringIntoView();await Dispatcher.InvokeAsync(()=>{},DispatcherPriority.Render);
+                    foreach(var label in Descendants(button).OfType<TextBlock>())
+                    {
+                        var bounds=label.TransformToAncestor(button).TransformBounds(new Rect(label.RenderSize));
+                        if(bounds.Left<button.Padding.Left-.5||bounds.Right>button.ActualWidth-button.Padding.Right+.5||bounds.Top<button.Padding.Top-.5||bounds.Bottom>button.ActualHeight-button.Padding.Bottom+.5)
+                            throw new InvalidOperationException($"왼쪽 메뉴 글씨 잘림: {label.Text} ({size.Width}×{size.Height})");
+                    }
+                }
+                NavigationScroll.ScrollToTop();SavePreview(this,Path.Combine(directory,$"navigation-{size.Width:0}x{size.Height:0}-preview.png"));
+            }
+            SavePreview(this, output);
             var originalTheme = Appearance.Selected; var originalGlass = Appearance.Glass;
             var themedInbox = OpenMailbox("received"); await themedInbox.Reload();
             var themeDialog = new AppearanceWindow(this); themeDialog.Show();
