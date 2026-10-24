@@ -62,6 +62,9 @@ try{
     Restore-OperationsEnvironment $blankEnvironment
     $policyConfig.registrationPolicyFile=Join-Path $FixtureRoot 'missing-policy.json';$policyConfig|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $configPath -Encoding UTF8
     $rejected=$false;try{Read-OperationsConfig $configPath|Out-Null}catch{$rejected=$true};Assert $rejected 'Missing policy path accepted'
+    Read-OperationsConfig $configPath $false $true|Out-Null
+    $policyConfig.service='announcements';$policyConfig.tunnelOnly=$true;$policyConfig|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $configPath -Encoding UTF8
+    Read-OperationsConfig $configPath $true|Out-Null
 }finally{[Environment]::SetEnvironmentVariable('Registration__PolicyFile',$policyBefore,'Process');$config|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $configPath -Encoding UTF8}
 Check 'School policy uses an existing explicit path; blank config prevents cross-school ambient inheritance and parent environment is restored'
 $mailConfig=$config|ConvertTo-Json -Depth 8|ConvertFrom-Json
