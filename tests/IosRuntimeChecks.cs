@@ -167,19 +167,27 @@ internal static class IosRuntimeChecks
                 entries=Controls.OfType<Entry>().ToArray();entries[0].Text=portal;entries[1].Text=fixture.GetProperty("student").GetString();entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("10월 현장체험학습 안내"));
                 Check(Has("선택과목 신청 · 내 신청"),"native student home offers elective registration");
                 Check(Controls.OfType<Button>().Count(b=>b.ClassId=="school-shortcut")==3,"student home keeps timetable, counseling and elective registration in a compact grid");
-                await Tap("선택과목 신청 · 내 신청");await Wait(()=>Has("가상 선택과목 신청"));await Tap("과목·내 신청 보기");await Wait(()=>Has("가상 탐구 선택"));
-                Check(Controls.OfType<CheckBox>().Count()==2&&Has("정원 제한 없이"),"native elective detail renders course choices and no-capacity guidance");
                 var electiveId=fixture.GetProperty("electiveId").GetString()!;
                 var courseIds=fixture.GetProperty("electiveCourseIds").EnumerateArray().Select(c=>c.GetString()!).ToArray();
-                Controls.OfType<CheckBox>().First().IsChecked=true;await Tap("선택 과목 신청");await Wait(()=>Has("접수됨"));
+                var round=await Page.VerificationApi.Get("api/electives/"+electiveId);
+                var courses=round.GetProperty("groups").EnumerateArray().SelectMany(g=>g.GetProperty("courses").EnumerateArray()).ToArray();
+                var mandatory=courses.Where(c=>c.GetProperty("type").GetString()=="common").Select(c=>c.GetProperty("id").GetString()!).ToArray();
+                CheckBox CourseCheck(string id)
+                {
+                    var course=courses.Single(c=>c.GetProperty("id").GetString()==id);var prefix=course.GetProperty("name").GetString()+" · ";
+                    return Controls.OfType<CheckBox>().Single(c=>SemanticProperties.GetDescription(c)?.StartsWith(prefix,StringComparison.Ordinal)==true);
+                }
+                await Tap("선택과목 신청 · 내 신청");await Wait(()=>Has(round.GetProperty("title").GetString()!));await Tap("과목·내 신청 보기");await Wait(()=>Has(round.GetProperty("groups")[0].GetProperty("name").GetString()!));
+                Check(Controls.OfType<CheckBox>().Count()==courses.Length&&Has("정원 제한 없이")&&mandatory.All(id=>CourseCheck(id).IsChecked&&!CourseCheck(id).IsEnabled),"native elective detail renders all course types, mandatory common courses and no-capacity guidance");
+                CourseCheck(courseIds[0]).IsChecked=true;await Tap("선택 과목 신청");await Wait(()=>Has("접수 완료"));
                 var application=(await Page.VerificationApi.Get("api/electives/"+electiveId)).GetProperty("application");
-                Check(application.GetProperty("submitted").GetBoolean()&&application.GetProperty("courseIds")[0].GetString()==courseIds[0],"native elective submission persists the selected course through AOT JSON metadata");
-                Controls.OfType<CheckBox>().First().IsChecked=false;Controls.OfType<CheckBox>().Last().IsChecked=true;await Tap("선택 과목 변경");await Wait(()=>Has("접수됨"));
+                Check(application.GetProperty("submitted").GetBoolean()&&application.GetProperty("courseIds").EnumerateArray().Select(c=>c.GetString()!).ToHashSet().SetEquals(mandatory.Append(courseIds[0])),"native elective submission persists the selected and mandatory courses through AOT JSON metadata");
+                CourseCheck(courseIds[0]).IsChecked=false;CourseCheck(courseIds[1]).IsChecked=true;await Tap("선택 과목 변경");await Wait(()=>Has("접수 완료"));
                 application=(await Page.VerificationApi.Get("api/electives/"+electiveId)).GetProperty("application");
-                Check(application.GetProperty("revision").GetInt32()==2&&application.GetProperty("courseIds")[0].GetString()==courseIds[1],"native elective change updates the authoritative application revision and course");
+                Check(application.GetProperty("revision").GetInt32()==2&&application.GetProperty("courseIds").EnumerateArray().Select(c=>c.GetString()!).ToHashSet().SetEquals(mandatory.Append(courseIds[1])),"native elective change updates the authoritative application revision while retaining mandatory courses");
                 await Page.VerificationApi.Send("api/electives/"+electiveId+"/cancel",new ElectiveCancellation(Guid.NewGuid().ToString("N"),application.GetProperty("revision").GetInt32()));
                 await Tap("내 신청 현황 다시 조회");await Wait(()=>Has("미신청"));
-                Check(Controls.OfType<CheckBox>().All(c=>!c.IsChecked),"native elective refresh reflects server cancellation and clears saved selections");
+                Check(Controls.OfType<CheckBox>().Where(c=>c.IsEnabled).All(c=>!c.IsChecked)&&mandatory.All(id=>CourseCheck(id).IsChecked),"native elective refresh reflects server cancellation and clears optional selections while keeping mandatory courses");
                 await Tap("신청 회차 목록");await Tap("홈으로");await Wait(()=>Has("10월 현장체험학습 안내"));
                 await TapAccount("설정 · 내 고유번호");await Wait(()=>CurrentPage.Title=="설정 · 내 고유번호");
                 Check(Controls.OfType<Entry>().Single(e=>e.IsReadOnly).Text==firstCode,"native student settings displays its own protected eight-character code");

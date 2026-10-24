@@ -10,7 +10,8 @@ const root=process.cwd(),observe=process.argv.includes('--observe');
 const packageRoot=process.argv.includes('--package')?path.join(root,'artifacts','여양고-교무메신저'):null;
 const output=path.resolve(process.env.YY_SECURITY_OUTPUT??path.join(root,'artifacts'));
 const work=path.join(process.env.YY_TEST_DATA_ROOT??path.join(root,'.test-data'),'logging-privacy-'+randomUUID());
-const dotnet=path.join(root,'.tools/dotnet/dotnet.exe'),results=[];
+const localDotnet=path.join(root,'.tools/dotnet/dotnet.exe');
+const dotnet=existsSync(localDotnet)?localDotnet:process.env.DOTNET_ROOT?path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet'):'dotnet',results=[];
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function address(){const server=net.createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const port=server.address().port;await new Promise(resolve=>server.close(resolve));return 'http://127.0.0.1:'+port;}
 for(const project of ['Server','AnnouncementServer']){
