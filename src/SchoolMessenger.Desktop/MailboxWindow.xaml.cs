@@ -21,6 +21,7 @@ public partial class MailboxWindow : Window
         Title = person is null ? "온라인 교무실 · 메시지함" : person.Name + " · 메시지 관리함";
         BoxTitle.Text = person is null ? box switch { "sent" => "보낸 메시지", "unread" => "미확인 메시지", _ => "받은 메시지" } : person.Name + " 관련 메시지"; UpdateTabs();
         Loaded += async (_, _) => await Reload();
+        Closed += (_, _) => ResetTaskPrompt();
     }
     public Task Reload() => Run(() => Refresh());
     public Task ShowMessage(string id) => Run(() => OpenDetail(id));
@@ -43,7 +44,7 @@ public partial class MailboxWindow : Window
             rendering = false;
             ListHint.Text = messages.Count == 0 ? "메시지가 없습니다. 검색 조건도 확인하세요." : $"{messages.Count}개 표시 · 한 번에 100개 조회";
             if (selected is not null && messages.Any(m=>m.Id==selected)) await OpenDetail(selected, markRead: false);
-            else if(!more){detail=null;DetailBody.Text="";DetailTitle.Text="";FileList.ItemsSource=null;ReceiptList.ItemsSource=null;DetailPanel.Visibility=Visibility.Collapsed;EmptyHint.Visibility=Visibility.Visible;}
+            else if(!more){detail=null;ResetTaskPrompt();DetailBody.Text="";DetailTitle.Text="";FileList.ItemsSource=null;ReceiptList.ItemsSource=null;DetailPanel.Visibility=Visibility.Collapsed;EmptyHint.Visibility=Visibility.Visible;}
             ConnectionLabel.Text = "첨부파일은 업로드 후 30일간 보관됩니다.";
             StatusLabel.Text = "";
         }
@@ -52,15 +53,21 @@ public partial class MailboxWindow : Window
     async Task OpenDetail(string id, bool markRead = true)
     {
         if (Api is null) return;
-        detail = await Api.Get<Detail>($"api/messages/{id}");
-        if (markRead && detail.Recipients.Any(r => r.Id == Api.Session!.User!.Id && r.ReadAt is null))
+        ResetTaskPrompt();
+        var version = taskPromptVersion;
+        var opened = await Api.Get<Detail>($"api/messages/{id}");
+        if (version != taskPromptVersion) return;
+        if (markRead && opened.Recipients.Any(r => r.Id == Api.Session!.User!.Id && r.ReadAt is null))
         {
             await Api.Send<JsonElement>(HttpMethod.Post, $"api/messages/{id}/read");
-            detail = await Api.Get<Detail>($"api/messages/{id}");
+            opened = await Api.Get<Detail>($"api/messages/{id}");
         }
-        DetailTitle.Text = detail.Message.Title;
+        if (version != taskPromptVersion) return;
+        detail = opened;
+        DetailTitle.Text = SchoolMessenger.Shared.MessageText.Excerpt(detail.Message.Title, 200);
+        DetailTitle.Visibility = detail.Message.Title == SchoolMessenger.Shared.MessageText.Excerpt(detail.Message.Body, 80) ? Visibility.Collapsed : Visibility.Visible;
         DetailMeta.Text = $"{detail.Message.SenderName}   ·   {DateTimeOffset.FromUnixTimeMilliseconds(detail.Message.CreatedAt).ToLocalTime():yyyy.MM.dd HH:mm}   ·   수신 {detail.Recipients.Length}명";
-        DetailBody.Text = detail.Message.Body;
+        DetailBody.SetFormattedText(detail.Message.Body, detail.Message.Format);
         try{main.Archive.Save(detail);}catch(Exception error)when(error is IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException){StatusLabel.Text="메시지는 서버에 보관됐지만 PC 암호화 사본을 저장하지 못했습니다.";}
         RecallButton.Visibility=detail.Message.SenderId==Api.Session!.User!.Id?Visibility.Visible:Visibility.Collapsed;
         RecallButton.IsEnabled=detail.Recipients.Any(r=>r.ReadAt is null);
@@ -75,8 +82,10 @@ public partial class MailboxWindow : Window
             rendering = false;
         }
         await main.UpdateUnread();
+        if (version != taskPromptVersion) return;
         FileList.ItemsSource = detail.Attachments; ReceiptList.ItemsSource = detail.Recipients;
         EmptyHint.Visibility = Visibility.Collapsed; DetailPanel.Visibility = Visibility.Visible;
+        await LoadTaskPrompt(id);
     }
     async Task Run(Func<Task> action)
     {
@@ -89,7 +98,7 @@ public partial class MailboxWindow : Window
     {
         box = (string)((System.Windows.Controls.Button)sender).Tag; UpdateTabs();
         BoxTitle.Text = box switch { "unread" => "미확인 메시지", "sent" => "보낸 메시지", _ => "받은 메시지" };
-        detail = null; DetailPanel.Visibility = Visibility.Collapsed; EmptyHint.Visibility = Visibility.Visible;
+        detail = null; ResetTaskPrompt(); DetailPanel.Visibility = Visibility.Collapsed; EmptyHint.Visibility = Visibility.Visible;
         await Run(() => Refresh());
     }
     void UpdateTabs()
@@ -106,7 +115,10 @@ public partial class MailboxWindow : Window
     async void LoadMore(object sender, RoutedEventArgs e) => await Run(() => Refresh(true));
     async void SearchKeyDown(object sender, System.Windows.Input.KeyEventArgs e) { if (e.Key == Key.Enter) await Run(() => Refresh()); }
 
-    async void Reply(object sender, RoutedEventArgs e) => await main.WriteMessage(detail?.Message.SenderId, detail is null ? null : "답장: " + detail.Message.Title);
+    async void Reply(object sender, RoutedEventArgs e)
+    {
+        if (detail is not null) await main.WriteMessage(detail.Message.SenderId, "답장: " + detail.Message.Title);
+    }
     async void Recall(object sender,RoutedEventArgs e)
     {
         if(Api is null||detail is null)return;

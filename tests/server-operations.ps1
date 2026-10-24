@@ -45,6 +45,25 @@ Assert ([string][Environment]::GetEnvironmentVariable('DOTNET_GCHeapHardLimit','
 Check 'Low-memory profile and 512MiB managed heap budget apply only to the launched process and restore afterward'
 Assert ([string][Environment]::GetEnvironmentVariable('Operations__MonitorKey','Process') -eq [string]$before) 'Secret environment left behind'
 Check 'DPAPI key storage and temporary secret environment restored'
+$policyFile=Join-Path $FixtureRoot 'registration-policy.local.json'
+$schoolPolicy=Get-Content -LiteralPath (Join-Path $root 'config\registration-policy.draft.json') -Raw -Encoding UTF8|ConvertFrom-Json
+$schoolPolicy.operator='Synthetic School A';$schoolPolicy.contact='Synthetic school office';$schoolPolicy|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $policyFile -Encoding UTF8
+$policyConfig=$config|ConvertTo-Json -Depth 8|ConvertFrom-Json;$policyConfig.registrationPolicyFile=$policyFile
+$policyConfig|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $configPath -Encoding UTF8
+$loadedPolicy=Read-OperationsConfig $configPath
+$policyBefore=[Environment]::GetEnvironmentVariable('Registration__PolicyFile','Process')
+try{
+    [Environment]::SetEnvironmentVariable('Registration__PolicyFile','OTHER-SCHOOL-SHOULD-NOT-LEAK','Process')
+    $policyEnvironment=Set-OperationsEnvironment $loadedPolicy $secrets
+    Assert ([Environment]::GetEnvironmentVariable('Registration__PolicyFile','Process') -eq $policyFile) 'Selected school policy not passed'
+    Restore-OperationsEnvironment $policyEnvironment
+    $blankEnvironment=Set-OperationsEnvironment $config $secrets
+    Assert ([string][Environment]::GetEnvironmentVariable('Registration__PolicyFile','Process') -eq '') 'Another school policy was inherited'
+    Restore-OperationsEnvironment $blankEnvironment
+    $policyConfig.registrationPolicyFile=Join-Path $FixtureRoot 'missing-policy.json';$policyConfig|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $configPath -Encoding UTF8
+    $rejected=$false;try{Read-OperationsConfig $configPath|Out-Null}catch{$rejected=$true};Assert $rejected 'Missing policy path accepted'
+}finally{[Environment]::SetEnvironmentVariable('Registration__PolicyFile',$policyBefore,'Process');$config|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $configPath -Encoding UTF8}
+Check 'School policy uses an existing explicit path; blank config prevents cross-school ambient inheritance and parent environment is restored'
 $mailConfig=$config|ConvertTo-Json -Depth 8|ConvertFrom-Json
 $mailConfig.feedbackEmailEnabled=$true;$mailConfig.automaticBugReportsEnabled=$true
 $mailConfig.alerts.sender='sender@example.invalid';$mailConfig.alerts.recipient='recipient@example.invalid'
@@ -161,4 +180,21 @@ foreach($kind in @('clean','escape','private')){
     Assert (-not(Test-Path -LiteralPath $stage)) 'Validation changed installation'
 }
 Check 'Update package traversal/private-data rejection and mutation-free validation'
+& {
+    $script:startupEnabled=0;$script:startupDisabled=0;$script:startupReady=$true;$script:fakeStartup=$null
+    function Get-ScheduledTask {param($TaskName) $script:fakeStartup}
+    function Enable-ScheduledTask {param($TaskName) $script:startupEnabled++}
+    function Disable-ScheduledTask {param($TaskName) $script:startupDisabled++}
+    function Test-OperationsReadiness {param($Config) [pscustomobject]@{ready=$script:startupReady}}
+    Assert (Set-OperationsStartup $config $configPath 'Enable') 'Missing startup task must require registration'
+    Assert (-not(Set-OperationsStartup $config $configPath 'Status')) 'Status must not register tasks'
+    $script:fakeStartup=[pscustomobject]@{State='Disabled';Principal=[pscustomobject]@{UserId=[Security.Principal.WindowsIdentity]::GetCurrent().Name;RunLevel='Limited'};Actions=@([pscustomobject]@{Execute=(Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe');Arguments=('-NoProfile -NonInteractive -File "'+(Join-Path $root 'scripts\Server-Operations.ps1')+'" -Mode Start -ConfigurationPath "'+[IO.Path]::GetFullPath($configPath)+'"')})}
+    Set-OperationsStartup $config $configPath 'Enable' | Out-Null
+    Set-OperationsStartup $config $configPath 'Disable' | Out-Null
+    Assert ($script:startupEnabled -eq 1 -and $script:startupDisabled -eq 1) 'Owned task enable/disable failed'
+    $script:startupReady=$false;$rejected=$false;try{Set-OperationsStartup $config $configPath 'Enable'|Out-Null}catch{$rejected=$true};Assert $rejected 'Readiness bypassed'
+    $script:fakeStartup.Actions[0].Arguments='-Command untrusted';$rejected=$false;try{Set-OperationsStartup $config $configPath 'Disable'|Out-Null}catch{$rejected=$true};Assert $rejected 'Unrelated command accepted'
+    Assert ($script:startupEnabled -eq 1 -and $script:startupDisabled -eq 1) 'Rejected changes still mutated tasks'
+}
+Check 'Mocked startup tasks enforce ownership, exact command, readiness and explicit enable/disable without registering real tasks'
 [pscustomobject]@{checks=$checks.ToArray();realEmailSent=$false;tasksRegistered=$false;systemSettingsChanged=$false}|ConvertTo-Json -Depth 5

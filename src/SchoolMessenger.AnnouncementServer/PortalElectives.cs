@@ -24,21 +24,25 @@ public static class PortalElectives
         CREATE TABLE IF NOT EXISTS ElectiveChoices(RoundId TEXT NOT NULL,StudentId TEXT NOT NULL,CourseId TEXT NOT NULL,PRIMARY KEY(RoundId,StudentId,CourseId),FOREIGN KEY(RoundId,StudentId) REFERENCES ElectiveApplications(RoundId,StudentId) ON DELETE CASCADE);
         CREATE TABLE IF NOT EXISTS ElectiveReceipts(RoundId TEXT NOT NULL REFERENCES ElectiveRounds(Id),ActorId TEXT NOT NULL,ClientId TEXT NOT NULL,Fingerprint TEXT NOT NULL,Response TEXT NOT NULL,PRIMARY KEY(RoundId,ActorId,ClientId));
         CREATE TABLE IF NOT EXISTS ElectiveCourseSections(RoundId TEXT NOT NULL REFERENCES ElectiveRounds(Id),CourseId TEXT NOT NULL,SectionId TEXT NOT NULL REFERENCES Sections(Id),PRIMARY KEY(RoundId,CourseId),UNIQUE(SectionId));
+        UPDATE ElectiveRounds SET Payload=json_set(json_remove(Payload,'$.classIds'),'$.grades',json((
+            SELECT json_group_array(Grade) FROM (SELECT DISTINCT c.Grade FROM Classes c
+            JOIN json_each(ElectiveRounds.Payload,'$.classIds') scope ON scope.value=c.Id WHERE c.Grade IN (1,2) ORDER BY c.Grade)
+        ))) WHERE json_type(Payload,'$.grades') IS NULL OR json_type(Payload,'$.grades')='null';
         """);
     public static void Map(RouteGroupBuilder api,RouteGroupBuilder bridge,PortalStore store)
     {
         api.MapGet("/electives",(HttpContext c)=>Safe(()=>
         {
             var person=Student(store,Id(c));using var db=store.Open();
-            return Results.Ok(Rounds(db,person.ClassId).Select(r=>View(db,r,person.Id)).ToArray());
+            return Results.Ok(Rounds(db,Grade(db,person.ClassId!)).Select(r=>View(db,r,person.Id)).ToArray());
         }));
         api.MapGet("/electives/{id}",(string id,HttpContext c)=>Safe(()=>
-        {var person=Student(store,Id(c));using var db=store.Open();var round=Read(db,id);Eligible(round,person);return Results.Ok(View(db,round,person.Id));}));
+        {var person=Student(store,Id(c));using var db=store.Open();var round=Read(db,id);Eligible(db,round,person);return Results.Ok(View(db,round,person.Id));}));
         api.MapPost("/electives/{id}/application",(string id,ElectiveApplicationRequest request,HttpContext c)=>Safe(()=>Apply(store,id,Id(c),request,false)));
         api.MapPost("/electives/{id}/cancel",(string id,ElectiveCancellation request,HttpContext c)=>Safe(()=>Apply(store,id,Id(c),new(request.ClientId,request.Revision,[]),true)));
         bridge.MapGet("/electives/setup",()=>Results.Ok(new
         {
-            classes=store.Query("SELECT Id,Name,Grade FROM Classes ORDER BY Grade,Name",r=>new PortalClass(r.GetString(0),r.GetString(1),r.GetInt32(2))),
+            grades=new[]{1,2},
             teachers=store.Query("SELECT Id,Name FROM People WHERE Active=1 AND Role='teacher' AND InternalUserId IS NOT NULL ORDER BY Name",r=>new{id=r.GetString(0),name=r.GetString(1)})
         }));
         bridge.MapGet("/electives",()=>{using var db=store.Open();return Results.Ok(Rounds(db).Select(r=>View(db,r)).ToArray());});
@@ -54,12 +58,17 @@ public static class PortalElectives
         Require(GuidId(id),"신청 회차를 찾을 수 없습니다.",404);using var c=Cmd(db,"SELECT Payload,State,Revision FROM ElectiveRounds WHERE Id=$id",tx,("$id",id));using var r=c.ExecuteReader();Require(r.Read(),"신청 회차를 찾을 수 없습니다.",404);
         return new(id,JsonSerializer.Deserialize<ElectiveRoundRequest>(r.GetString(0),Json)!,r.GetString(1),r.GetInt32(2));
     }
-    static Stored[] Rounds(SqliteConnection db,string? classId=null)
+    static Stored[] Rounds(SqliteConnection db,int? grade=null)
     {
-        using var c=Cmd(db,"SELECT Id,Payload,State,Revision FROM ElectiveRounds WHERE $class IS NULL OR (State!='draft' AND EXISTS(SELECT 1 FROM json_each(Payload,'$.classIds') WHERE value=$class)) ORDER BY CASE WHEN $class IS NOT NULL AND State='open' THEN 0 ELSE 1 END,CreatedAt DESC,Id LIMIT 100",null,("$class",classId));using var r=c.ExecuteReader();var rows=new List<Stored>();
+        using var c=Cmd(db,"SELECT Id,Payload,State,Revision FROM ElectiveRounds WHERE $grade IS NULL OR (State!='draft' AND EXISTS(SELECT 1 FROM json_each(Payload,'$.grades') WHERE value=$grade)) ORDER BY CASE WHEN $grade IS NOT NULL AND State='open' THEN 0 ELSE 1 END,CreatedAt DESC,Id LIMIT 100",null,("$grade",grade));using var r=c.ExecuteReader();var rows=new List<Stored>();
         while(r.Read())rows.Add(new(r.GetString(0),JsonSerializer.Deserialize<ElectiveRoundRequest>(r.GetString(1),Json)!,r.GetString(2),r.GetInt32(3)));return rows.ToArray();
     }
-    static void Eligible(Stored round,Account person)=>Require(round.State!="draft"&&round.Request.ClassIds.Contains(person.ClassId!),"신청 대상 회차가 아닙니다.",404);
+    static int Grade(SqliteConnection db,string classId,SqliteTransaction? tx=null)
+    {
+        using var c=Cmd(db,"SELECT Grade FROM Classes WHERE Id=$id",tx,("$id",classId));var grade=c.ExecuteScalar();
+        Require(grade is not null,"재학생의 학년 정보를 확인하세요.",403);return Convert.ToInt32(grade);
+    }
+    static void Eligible(SqliteConnection db,Stored round,Account person,SqliteTransaction? tx=null)=>Require(round.State!="draft"&&round.Request.Grades.Contains(Grade(db,person.ClassId!,tx)),"신청 대상 학년이 아닙니다.",404);
     static ElectiveApplication Application(SqliteConnection db,string round,string student,SqliteTransaction? tx=null)
     {
         int revision=0;bool submitted=false;long? at=null;
@@ -69,14 +78,14 @@ public static class PortalElectives
     }
     static ElectiveRound View(SqliteConnection db,Stored stored,string? student=null,SqliteTransaction? tx=null)
     {
-        var r=stored.Request;return new(stored.Id,r.Title,r.Term,r.ClassIds,r.StartsAt,r.EndsAt,stored.State,stored.Revision,r.Groups,stored.State=="open"&&r.StartsAt<=Now&&Now<r.EndsAt,student is null?null:Application(db,stored.Id,student,tx));
+        var r=stored.Request;return new(stored.Id,r.Title,r.Term,r.Grades,r.StartsAt,r.EndsAt,stored.State,stored.Revision,r.Groups,stored.State=="open"&&r.StartsAt<=Now&&Now<r.EndsAt,student is null?null:Application(db,stored.Id,student,tx),r.MinCredits,r.MaxCredits);
     }
     static ElectiveReport Report(SqliteConnection db,Stored stored)
     {
         using var tx=db.BeginTransaction(deferred:true);stored=Read(db,stored.Id,tx);
         var students=new List<ElectiveStudent>();
-        using(var c=Cmd(db,"SELECT p.Id,p.Name,p.ClassId,c.Name FROM People p JOIN Classes c ON c.Id=p.ClassId WHERE p.Active=1 AND p.Role='student' ORDER BY c.Grade,c.Name,p.Name,p.Id",tx))
-        using(var r=c.ExecuteReader())while(r.Read())if(stored.Request.ClassIds.Contains(r.GetString(2)))students.Add(new(r.GetString(0),r.GetString(1),r.GetString(2),r.GetString(3),false,0,[],null));
+        using(var c=Cmd(db,"SELECT p.Id,p.Name,p.ClassId,c.Name,c.Grade FROM People p JOIN Classes c ON c.Id=p.ClassId WHERE p.Active=1 AND p.Role='student' ORDER BY c.Grade,c.Name,p.Name,p.Id",tx))
+        using(var r=c.ExecuteReader())while(r.Read())if(stored.Request.Grades.Contains(r.GetInt32(4)))students.Add(new(r.GetString(0),r.GetString(1),r.GetString(2),r.GetString(3),false,0,[],null));
         for(var i=0;i<students.Count;i++){var s=students[i];var a=Application(db,stored.Id,s.Id,tx);students[i]=s with{Submitted=a.Submitted,Revision=a.Revision,CourseIds=a.CourseIds,UpdatedAt=a.UpdatedAt};}
         var sections=new List<ElectiveSection>();using(var c=Cmd(db,"SELECT CourseId,SectionId FROM ElectiveCourseSections WHERE RoundId=$id",tx,("$id",stored.Id)))using(var r=c.ExecuteReader())while(r.Read())sections.Add(new(r.GetString(0),r.GetString(1)));
         using var count=Cmd(db,"SELECT StudentId FROM ElectiveApplications WHERE RoundId=$id AND Submitted=1",tx,("$id",stored.Id));using var read=count.ExecuteReader();var eligible=students.Select(s=>s.Id).ToHashSet();var excluded=0;while(read.Read())if(!eligible.Contains(read.GetString(0)))excluded++;
@@ -86,10 +95,12 @@ public static class PortalElectives
     {
         Require(GuidId(r.ClientId)&&r.Revision>=0&&Label(r.Title,100)&&Label(r.Term,40),"회차명·학기·요청 번호를 확인하세요.");
         Require(r.StartsAt>0&&r.EndsAt>r.StartsAt&&r.EndsAt-r.StartsAt<=366L*86_400_000&&r.EndsAt<=Now+5*366L*86_400_000,"신청 시작·종료 시각을 확인하세요.");
-        Require(r.ClassIds is{Length:>=1 and <=100}&&r.ClassIds.All(GuidId)&&r.ClassIds.Distinct().Count()==r.ClassIds.Length,"대상 학급을 선택하세요.");
-        Require(r.Groups is{Length:>=1 and <=10}&&r.Groups.All(g=>g is not null&&GuidId(g.Id)&&Label(g.Name,60)&&g.Courses is{Length:>=1 and <=100}&&g.Required>=1&&g.Required<=g.Courses.Length),"선택 묶음·필수 선택 개수·과목을 확인하세요.");
+        Require(r.Grades is{Length:>=1 and <=2}&&r.Grades.All(g=>g is 1 or 2)&&r.Grades.Distinct().Count()==r.Grades.Length,"대상 학년을 1·2학년 중 선택하세요. 3학년은 수강신청 대상이 아닙니다.");
+        Require(r.Groups is{Length:>=1 and <=10}&&r.Groups.All(g=>g is not null&&GuidId(g.Id)&&Label(g.Name,60)&&g.Courses is{Length:>=1 and <=100}&&g.Courses.All(c=>c is not null)&&g.Required>=0&&g.Required<=g.Courses.Count(c=>c.Type!="common")&&(g.Required>0||g.Courses.All(c=>c.Type=="common"))),"선택 묶음·선택과목 개수·공통과목을 확인하세요. 공통과목만 있는 묶음은 선택 개수 0입니다.");
         var courses=r.Groups.SelectMany(g=>g.Courses).ToArray();Require(courses.Length<=100&&r.Groups.Select(g=>g.Id).Distinct().Count()==r.Groups.Length&&courses.All(c=>c is not null&&GuidId(c.Id)&&Label(c.Name,100)&&c.TeacherIds is{Length:>=1 and <=20}&&c.TeacherIds.All(GuidId)&&c.TeacherIds.Distinct().Count()==c.TeacherIds.Length)&&courses.Select(c=>c.Id).Distinct().Count()==courses.Length,"과목 이름·담당 교사·과목 식별자를 확인하세요.");
-        foreach(var id in r.ClassIds){using var c=Cmd(db,"SELECT 1 FROM Classes WHERE Id=$id",tx,("$id",id));Require(c.ExecuteScalar() is not null,"등록된 학급을 선택하세요.");}
+        Require(courses.All(c=>ElectiveRules.Types.Contains(c.Type)&&c.Credits is >=1 and <=20&&c.Area is not null&&c.Area.Length<=30&&!c.Area.Any(char.IsControl)),"과목 유형과 1~20 범위의 학점을 입력하세요. 교과 이름은 30자 이내입니다.");
+        Require(r.MinCredits is >=0 and <=2000&&r.MaxCredits is >=0 and <=2000&&(r.MaxCredits==0||r.MaxCredits>=r.MinCredits),"신청 학점의 최소·최대 조건을 확인하세요. 0은 제한 없음입니다.");
+        Require(ElectiveRules.Feasible(r.Groups,r.MinCredits,r.MaxCredits),"현재 과목과 선택 개수로 신청 학점 조건을 충족할 수 없습니다.");
         Teachers(db,r.Groups,tx);
     }
     static void Teachers(SqliteConnection db,ElectiveGroup[] groups,SqliteTransaction tx)
@@ -139,8 +150,8 @@ public static class PortalElectives
                 var section=Guid.NewGuid().ToString("N");var name=group.Name+" · "+course.Name;if(name.Length>100)name=name[..100];
                 using(var add=Cmd(db,"INSERT INTO Sections(Id,Name,Term) VALUES($id,$name,$term);INSERT INTO ElectiveCourseSections VALUES($round,$course,$id)",tx,("$id",section),("$name",name),("$term",round.Request.Term),("$round",id),("$course",course.Id)))add.ExecuteNonQuery();
                 foreach(var teacher in course.TeacherIds){using var add=Cmd(db,"INSERT INTO SectionTeachers VALUES($id,$teacher)",tx,("$id",section),("$teacher",teacher));add.ExecuteNonQuery();}
-                using var members=Cmd(db,"SELECT p.Id,p.ClassId FROM ElectiveChoices c JOIN ElectiveApplications a ON a.RoundId=c.RoundId AND a.StudentId=c.StudentId JOIN People p ON p.Id=c.StudentId WHERE c.RoundId=$round AND c.CourseId=$course AND a.Submitted=1 AND p.Active=1 AND p.Role='student'",tx,("$round",id),("$course",course.Id));
-                var ids=new List<string>();using(var r=members.ExecuteReader())while(r.Read())if(!r.IsDBNull(1)&&round.Request.ClassIds.Contains(r.GetString(1)))ids.Add(r.GetString(0));
+                using var members=Cmd(db,"SELECT p.Id,room.Grade FROM ElectiveChoices c JOIN ElectiveApplications a ON a.RoundId=c.RoundId AND a.StudentId=c.StudentId JOIN People p ON p.Id=c.StudentId JOIN Classes room ON room.Id=p.ClassId WHERE c.RoundId=$round AND c.CourseId=$course AND a.Submitted=1 AND p.Active=1 AND p.Role='student'",tx,("$round",id),("$course",course.Id));
+                var ids=new List<string>();using(var r=members.ExecuteReader())while(r.Read())if(round.Request.Grades.Contains(r.GetInt32(1)))ids.Add(r.GetString(0));
                 foreach(var student in ids){using var add=Cmd(db,"INSERT INTO SectionMembers VALUES($id,$student,$stamp)",tx,("$id",section),("$student",student),("$stamp",Guid.NewGuid().ToString("N")));add.ExecuteNonQuery();}
             }
             state="finalized";
@@ -154,14 +165,14 @@ public static class PortalElectives
         using var db=store.Open();using var tx=db.BeginTransaction(deferred:false);var round=Read(db,id,tx);
         // Re-read current membership under the same write transaction as the application.
         using(var current=Cmd(db,"SELECT ClassId FROM People WHERE Id=$id AND Active=1 AND Role='student'",tx,("$id",student))){var room=current.ExecuteScalar() as string;Require(room is not null,"재학생 계정을 확인하세요.",403);person=person with{ClassId=room};}
-        Eligible(round,person);var hash=Fingerprint(cancel?"cancel":"apply",request);var prior=Receipt(db,tx,id,student,request.ClientId,hash);if(prior is not null)return prior;
+        Eligible(db,round,person,tx);var hash=Fingerprint(cancel?"cancel":"apply",request);var prior=Receipt(db,tx,id,student,request.ClientId,hash);if(prior is not null)return prior;
         Require(round.State=="open"&&round.Request.StartsAt<=Now&&Now<round.Request.EndsAt,"현재는 신청·변경·취소 기간이 아닙니다.",409);
         var previous=Application(db,id,student,tx);Require(previous.Revision==request.Revision,"다른 기기에서 신청이 바뀌었습니다. 다시 조회하세요.",409);
         if(cancel)Require(previous.Submitted,"취소할 신청이 없습니다.",409);
         else
         {
-            var all=round.Request.Groups.SelectMany(g=>g.Courses).Select(c=>c.Id).ToHashSet();Require(request.CourseIds.All(all.Contains),"이 회차의 과목만 선택하세요.");
-            foreach(var group in round.Request.Groups)Require(group.Courses.Count(c=>request.CourseIds.Contains(c.Id))==group.Required,group.Name+"에서 "+group.Required+"개를 선택하세요.");
+            var selectionError=ElectiveRules.SelectionError(round.Request.Groups,request.CourseIds,round.Request.MinCredits,round.Request.MaxCredits);
+            Require(selectionError is null,selectionError??"");
         }
         var at=Now;using(var update=Cmd(db,"INSERT INTO ElectiveApplications VALUES($round,$student,$revision,$submitted,$now) ON CONFLICT(RoundId,StudentId) DO UPDATE SET Revision=excluded.Revision,Submitted=excluded.Submitted,UpdatedAt=excluded.UpdatedAt;DELETE FROM ElectiveChoices WHERE RoundId=$round AND StudentId=$student",tx,("$round",id),("$student",student),("$revision",previous.Revision+1),("$submitted",!cancel),("$now",at)))update.ExecuteNonQuery();
         if(!cancel)foreach(var course in request.CourseIds){using var add=Cmd(db,"INSERT INTO ElectiveChoices VALUES($round,$student,$course)",tx,("$round",id),("$student",student),("$course",course));add.ExecuteNonQuery();}

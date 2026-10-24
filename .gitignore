@@ -48,7 +48,16 @@ artifacts/
 **/server-operations.secrets.xml
 **/server-operations-state.json
 01_설치파일/*.lnk
+01_설치파일/01_서버PC/
+01_설치파일/02_교사PC/
+01_설치파일/03_안드로이드/
+01_설치파일/04_iOS/
+01_설치파일/전달파일목록.json
+01_설치파일/00_설치순서.txt
 02_설명서/*.lnk
 02_설명서/01_처음설치부터_Cloudflare까지.txt
 02_설명서/00_기기별_설치와_테스트순서.txt
 **/*.db.*.tmp
+03_에듀집_등록준비/
+output/
+tmp/pdfs/

@@ -72,4 +72,28 @@ export async function officeChecks({Client,admin,password,address,data,check,sta
  await teacher.request('/api/activate','POST',{code:reset.activationCode,newPassword:personal,agreement});await teacher.login(request.loginName,false,personal);
  const ledger=new DatabaseSync(path.join(data,'school.db'));assert.equal(ledger.prepare('SELECT COUNT(*) AS count FROM StaffActivationAgreements WHERE UserId=?').get(registered.id).count,2);ledger.close();
  check('seat reassignment preserves identity; reset revokes all sessions and old proof; repeated activation preserves separate agreement history');
+
+ const sharedRequest={loginName:'김초기',name:'김초기',department:'검증부',seatIp:null,temporaryPassword:'12345678',useSharedPassword:true};
+ const shared=await admin.request('/api/admin/staff','POST',sharedRequest);const common=new Client();await common.login('김초기',true,'12345678');assert.equal(common.user.sharedPassword,true);assert.equal(common.user.activationRequired,true);
+ assert.ok(!common.loginCookieHeaders.some(h=>h.startsWith('SchoolMessenger.Session=')&&/expires=/i.test(h)));
+ await common.request('/api/messages','GET',undefined,403);await common.request('/api/activate','POST',{code:shared.activationCode,newPassword:'',agreement},400);await common.request('/api/activate','POST',{code:shared.activationCode,newPassword:'12345678',agreement},400);
+ await admin.request('/api/admin/users/'+shared.id,'PATCH',{name:'김초기',department:'검증부',password:'',isAdmin:true,canBroadcast:false,active:true},400);
+ const original=new Client();original.cookies=new Map(common.cookies);original.csrf=common.csrf;
+ await common.request('/api/activate','POST',{code:shared.activationCode,newPassword:personal,agreement});await original.request('/api/messages','GET',undefined,401);
+ common.csrf=(await common.request('/api/session')).csrfToken;await common.request('/api/login','POST',{username:'김초기',password:'12345678'},401);await common.login('김초기',true,personal);
+ assert.equal(common.user.sharedPassword,false);assert.equal(common.user.passwordChangeRequired,false);assert.equal(common.user.activationRequired,false);assert.ok(common.loginCookieHeaders.some(h=>h.startsWith('SchoolMessenger.Session=')&&/expires=/i.test(h)));
+ await common.request('/api/messages');await common.request('/api/admin/staff','GET',undefined,403);
+ const changedPersonal=personal+'-changed';await common.request('/api/password','POST',{currentPassword:personal,newPassword:changedPersonal});await common.login('김초기',true,changedPersonal);
+ await admin.request('/api/admin/staff','POST',{...sharedRequest,temporaryPassword:'87654321'},400);await admin.request('/api/admin/users','POST',{username:'weak.admin',name:'검증관리자',department:'검증',password:'12345678',isAdmin:true,canBroadcast:false},400);
+ check('Name IDs start with 12345678, require individual activation and a personal password, revoke initial sessions and enable persistent login only afterward; later password changes stay available');
+ const renamed=await admin.request('/api/admin/staff/'+other.id+'/reset','POST',{...sharedRequest,loginName:'다른교사',name:'다른교사'});assert.equal(renamed.activationCode.length,20);await peer.request('/api/messages','GET',undefined,401);await peer.login('다른교사',false,'12345678');assert.equal(peer.user.id,other.id);assert.equal(peer.user.activationRequired,true);
+ check('Administrator name-ID reset preserves identity, revokes sessions and requires a fresh personal password');
+ // Reconstruct an already activated account from the previous common-password policy.
+ const legacyCreated=await admin.request('/api/admin/staff','POST',{...sharedRequest,loginName:'김기존',name:'김기존'});const legacyDb=new DatabaseSync(path.join(data,'school.db'));legacyDb.prepare('UPDATE StaffProfiles SET NeedsActivation=0,ActivationHash=NULL WHERE UserId=?').run(legacyCreated.id);legacyDb.close();
+ const legacy=new Client();await legacy.login('김기존',true,'12345678');assert.equal(legacy.user.passwordChangeRequired,true);assert.equal(legacy.user.activationRequired,false);assert.ok(!legacy.loginCookieHeaders.some(h=>h.startsWith('SchoolMessenger.Session=')&&/expires=/i.test(h)));
+ for(const route of ['/api/messages','/api/attachments/missing/download','/api/chats','/api/surveys','/hub/negotiate?negotiateVersion=1','/remote/negotiate?negotiateVersion=1'])await legacy.request(route,route.includes('negotiate')?'POST':'GET',route.includes('negotiate')?{}:undefined,403);
+ await legacy.request('/api/password','POST',{currentPassword:'12345678',newPassword:'12345678'},400);await legacy.request('/api/password','POST',{currentPassword:'wrong',newPassword:personal},400);
+ const legacyOld=new Client();legacyOld.cookies=new Map(legacy.cookies);legacyOld.csrf=legacy.csrf;await legacy.request('/api/password','POST',{currentPassword:'12345678',newPassword:personal});await legacyOld.request('/api/messages','GET',undefined,401);
+ await legacy.login('김기존',true,personal);assert.equal(legacy.user.passwordChangeRequired,false);assert.equal(legacy.user.sharedPassword,false);await legacy.request('/api/messages');
+ check('Previously activated common-password accounts cannot use APIs or realtime transports until changing password; change clears the legacy flag atomically and invalidates copied sessions');
 }

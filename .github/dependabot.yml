@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directories:
+      - /src/SchoolMessenger.Server
+      - /src/SchoolMessenger.AnnouncementServer
+      - /src/SchoolMessenger.Desktop
+      - /src/SchoolMessenger.Contracts
+      - /src/SchoolMessenger.Mobile
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      compatible-package-updates:
+        update-types:
+          - minor
+          - patch
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

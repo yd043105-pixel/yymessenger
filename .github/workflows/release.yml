@@ -35,6 +35,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
           ./tests/installer.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Installer verification failed' }
+          ./scripts/Build-ServerInstaller.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Server installer build failed' }
+          ./tests/server-installer.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Server installer verification failed' }
       - name: Create release according to school policy
         shell: pwsh
         env:
@@ -55,6 +59,8 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $releaseMode -notin @('draft','public')) { throw 'Release policy check failed' }
           $releaseArguments = @('release', 'create', $env:GITHUB_REF_NAME,
             "artifacts/yymessenger-$releaseVersion-win-x64.zip", 'artifacts/SHA256SUMS.txt',
+            "artifacts/yymessenger-$releaseVersion-servers-win-x64.zip",
+            "artifacts/yymessenger-$releaseVersion-server-setup-win-x64.exe",
             "artifacts/yymessenger-$releaseVersion-setup-win-x64.exe",
             '--repo', $env:GITHUB_REPOSITORY, '--verify-tag',
             '--title', "yymessenger $releaseVersion", '--notes-file', 'docs/release-notes.md')

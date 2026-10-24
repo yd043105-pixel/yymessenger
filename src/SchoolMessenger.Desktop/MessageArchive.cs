@@ -37,7 +37,7 @@ public sealed class MessageArchive(string root,Api api)
     {
         var bytes=File.ReadAllBytes(FilePath(value.Message.Id));
         var restored=JsonSerializer.Deserialize<Detail>(ProtectedData.Unprotect(bytes,null,DataProtectionScope.CurrentUser));
-        if(restored?.Message!=value.Message||bytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(value.Message.Body))>=0)throw new InvalidOperationException("메시지 사본 암호화·복원 검증 실패");
+        if(JsonSerializer.Serialize(restored?.Message)!=JsonSerializer.Serialize(value.Message)||bytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(value.Message.Body))>=0)throw new InvalidOperationException("메시지 사본 암호화·복원 검증 실패");
         Remove(value.Message.Id);
         Save(value);
         if(File.Exists(FilePath(value.Message.Id)))throw new InvalidOperationException("회수된 메시지 사본이 다시 저장되었습니다.");

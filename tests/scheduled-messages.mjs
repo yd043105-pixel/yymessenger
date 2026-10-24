@@ -40,6 +40,11 @@ export async function scheduledChecks({Client,admin,owner,recipient,observer,dat
  await pause(1800);d=db();assert.equal(d.prepare('SELECT State FROM ScheduledMessages WHERE Id=?').get(roleQueue.id).State,'failed');d.prepare('UPDATE Users SET Active=1 WHERE Id=?').run(owner.user.id);d.close();
  await owner.login('work.owner');
  check('sender deactivation stops queued delivery instead of preserving former authority');
+ const initialQueue=await owner.request('/api/messages','POST',make({title:'초기 비밀번호 계정 예약'}));
+ d=db();d.prepare('INSERT OR IGNORE INTO StaffProfiles(UserId,NeedsActivation,ExpiresAt) VALUES(?,0,0)').run(owner.user.id);d.prepare('UPDATE StaffProfiles SET SharedPassword=1 WHERE UserId=?').run(owner.user.id);d.close();force(initialQueue.id);
+ let blockedState;for(let n=0;n<150;n++){d=db();blockedState=d.prepare('SELECT State FROM ScheduledMessages WHERE Id=?').get(initialQueue.id).State;d.close();if(blockedState==='failed')break;await pause(100);}assert.equal(blockedState,'failed');
+ d=db();d.prepare('UPDATE StaffProfiles SET SharedPassword=0 WHERE UserId=?').run(owner.user.id);d.close();
+ check('background scheduled delivery also rejects an account still using the initial password');
  const time=Date.now()+1600,short=make({title:'예약 응답 재시도',scheduledAt:time});const shortQueue=await owner.request('/api/messages','POST',short);await waitFor(shortQueue.id,'delivered');assert.equal((await owner.request('/api/messages','POST',short)).id,shortQueue.id);
  check('retry after scheduled time and actual delivery still returns original reservation instead of sending twice');
  const collect=make({title:'예약 제출 요청',submissionDeadline:Date.now()+86400000});const collection=await owner.request('/api/messages','POST',collect);

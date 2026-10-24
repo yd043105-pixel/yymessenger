@@ -63,6 +63,8 @@ public sealed class Store : IDisposable
             CREATE TABLE IF NOT EXISTS Recipients(
               MessageId TEXT NOT NULL REFERENCES Messages(Id), UserId TEXT NOT NULL REFERENCES Users(Id),
               ReadAt INTEGER, PRIMARY KEY(MessageId,UserId));
+            CREATE TABLE IF NOT EXISTS MessageFormats(
+              MessageId TEXT PRIMARY KEY REFERENCES Messages(Id) ON DELETE CASCADE,Payload TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS IX_Recipients_User ON Recipients(UserId,MessageId);
             CREATE INDEX IF NOT EXISTS IX_Messages_Date ON Messages(CreatedAt);
             CREATE TABLE IF NOT EXISTS MessageRecalls(

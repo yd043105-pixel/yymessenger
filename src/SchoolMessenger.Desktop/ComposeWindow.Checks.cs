@@ -18,6 +18,7 @@ public partial class ComposeWindow
         DraftButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         if(!File.Exists(draftPath)||File.ReadAllBytes(draftPath).AsSpan().IndexOf(System.Text.Encoding.UTF8.GetBytes(BodyBox.Text))>=0)throw new InvalidOperationException("임시저장 암호화 검증 실패");
         var restored=new ComposeWindow(main,people,null,null);restored.Show();
+        restored.LoadDraft(draftPath);
         if(restored.TitleBox.Text!=TitleBox.Text||restored.BodyBox.Text!=BodyBox.Text||restored.ScheduleSend.IsChecked!=true||restored.ScheduleTime.Text!="14:")throw new InvalidOperationException("미완성 예약을 포함한 임시저장 복원 실패");
         restored.sent=true;restored.Close();ScheduleTime.Text="09:00";ScheduleSend.IsChecked=false;
     }

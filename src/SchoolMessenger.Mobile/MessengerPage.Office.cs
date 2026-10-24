@@ -6,6 +6,21 @@ namespace SchoolMessenger.Mobile;
 
 public sealed partial class MessengerPage
 {
+    void OfficePasswordChange(bool required=false)
+    {
+        var source=api!;Header("개인 비밀번호 설정",required?"첫 로그인 · 비밀번호 변경":"비밀번호 변경");tabs.IsVisible=false;
+        body.Add(Text(required?"초기 비밀번호를 변경해야 업무 자료를 열 수 있습니다.":"변경 후 모든 기기에서 다시 로그인해야 합니다.",14));
+        var current=Input("현재 비밀번호",true);var next=Input("새 비밀번호 · 12~128자",true);var confirm=Input("새 비밀번호 확인",true);
+        Action("변경 후 다시 로그인",async()=>
+        {
+            if(next.Text!=confirm.Text)throw new InvalidOperationException("새 비밀번호 확인이 일치하지 않습니다.");
+            try{await source.Send("api/password",new MobilePasswordChange(current.Text??"",next.Text??""));}
+            finally{current.Text=next.Text=confirm.Text="";}
+            source.Remember=false;await source.Refresh();source.Dispose();api=null;Login();feedback.Text="비밀번호를 변경했습니다. 개인 비밀번호로 로그인하세요.";
+        },true);
+        if(!required)Action("내 정보로 돌아가기",Home);
+        Action("로그아웃",async()=>{try{await source.Logout();}finally{source.Dispose();api=null;Login();}});
+    }
     async Task ActivateStaff()
     {
         var source=api!;Header("개인 계정의 첫 설정","교직원 계정 활성화");tabs.IsVisible=false;

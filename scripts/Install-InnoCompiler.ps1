@@ -3,9 +3,14 @@ $ErrorActionPreference = 'Stop'
 $Destination = [IO.Path]::GetFullPath($Destination)
 $compiler = Join-Path $Destination 'ISCC.exe'
 if (Test-Path -LiteralPath $compiler) {
-    if ((Get-Item -LiteralPath $compiler).VersionInfo.FileVersion -notlike '6.7.3*') { throw 'Inno Setup compiler version mismatch.' }
-    Write-Output $compiler
-    exit 0
+    # Some official builds report 0.0.0.0. Reinstall from the pinned, signed
+    # download when metadata cannot identify the cache; never bypass verification.
+    if ((Get-Item -LiteralPath $compiler).VersionInfo.FileVersion -like '6.7.3*') {
+        $cachedSignature = Get-AuthenticodeSignature -LiteralPath $compiler
+        if ($cachedSignature.Status -ne 'Valid' -or $cachedSignature.SignerCertificate.Subject -notmatch 'Pyrsys B\.V\.') { throw 'Cached Inno Setup publisher signature invalid.' }
+        Write-Output $compiler
+        exit 0
+    }
 }
 New-Item -ItemType Directory -Force -Path $Destination | Out-Null
 $download = Join-Path $Destination 'innosetup-6.7.3.exe'

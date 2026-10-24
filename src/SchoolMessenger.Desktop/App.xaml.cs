@@ -21,5 +21,5 @@ public partial class App : System.Windows.Application
         if (window.WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(window);
         else SystemCommands.MaximizeWindow(window);
     }
-    void CloseWindow(object sender, RoutedEventArgs e) => SystemCommands.CloseWindow(Window.GetWindow((DependencyObject)sender));
+    void CloseWindow(object sender, RoutedEventArgs e) => Window.GetWindow((DependencyObject)sender).Close();
 }

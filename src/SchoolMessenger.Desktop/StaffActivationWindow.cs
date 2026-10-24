@@ -17,8 +17,8 @@ public sealed class StaffActivationWindow:Window
         var stack=new StackPanel{Margin=new Thickness(24)};Content=new ScrollViewer{Content=stack};
         stack.Children.Add(new TextBlock{Text="관리자가 개별 전달한 활성화 번호와 개인 비밀번호를 설정하세요. 완료 전에는 업무 자료를 열 수 없습니다.",TextWrapping=TextWrapping.Wrap});
         stack.Children.Add(new TextBlock{Text="개별 활성화 번호",Margin=new Thickness(0,16,0,5)});var code=new TextBox();stack.Children.Add(code);
-        stack.Children.Add(new TextBlock{Text="새 개인 비밀번호 · 12~128자",Margin=new Thickness(0,16,0,5)});var password=new PasswordBox();stack.Children.Add(password);
-        stack.Children.Add(new TextBlock{Text="비밀번호 확인",Margin=new Thickness(0,12,0,5)});var confirm=new PasswordBox();stack.Children.Add(confirm);
+        var password=new PasswordBox();var confirm=new PasswordBox();
+        {stack.Children.Add(new TextBlock{Text="새 개인 비밀번호 · 12~128자",Margin=new Thickness(0,16,0,5)});stack.Children.Add(password);stack.Children.Add(new TextBlock{Text="비밀번호 확인",Margin=new Thickness(0,12,0,5)});stack.Children.Add(confirm);}
         var feedback=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,12,0,12)};var save=new Button{Content="계정 활성화",IsEnabled=false};bool busy=false;
         Closed+=(_,_)=>{password.Clear();confirm.Clear();};
         Loaded+=async(_,_)=>

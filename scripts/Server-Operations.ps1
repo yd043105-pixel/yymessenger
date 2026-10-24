@@ -8,6 +8,13 @@ function Read-OperationsConfig([string]$Path,[bool]$ExternalOnly=$false,[bool]$M
     $config=Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
     if($config.PSObject.Properties['resourceProfile'] -and $config.resourceProfile -notin @('low-memory','balanced')){throw '부하 설정은 low-memory 또는 balanced입니다.'}
     if($config.schema -ne 1 -or $config.service -notin @('office','announcements')){throw '운영 설정의 형식과 서버 종류를 확인하세요.'}
+    if($config.PSObject.Properties['registrationPolicyFile'] -and $config.registrationPolicyFile){
+        $policyPath=[string]$config.registrationPolicyFile
+        if(-not [IO.Path]::IsPathRooted($policyPath) -or $policyPath -ne [IO.Path]::GetFullPath($policyPath) -or -not(Test-Path -LiteralPath $policyPath -PathType Leaf)){throw '학교별 약관 파일에는 존재하는 파일의 절대 경로가 필요합니다.'}
+        if((Get-Item -LiteralPath $policyPath).Length -gt 131072){throw '학교별 약관 파일은 128KB 이하여야 합니다.'}
+        $policy=Get-Content -LiteralPath $policyPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if($policy.approvedForProduction -isnot [bool] -or -not $policy.operator -or -not $policy.contact){throw '학교별 약관의 운영 주체·문의처·확정 상태를 확인하세요.'}
+    }
     foreach($name in @('tunnelOnly','attachmentBackup','networkIsolationVerified','upsInstalledAndTested','backupDeviceAndEncryptionVerified')){if($config.$name -isnot [bool]){throw '운영 확인 항목은 true/false로 입력하세요.'}}
     if($config.alerts.enabled -isnot [bool]){throw '메일 활성화 항목은 true/false로 입력하세요.'}
     if($config.alerts.deliveryVerified -isnot [bool]){throw '메일 수신 확인 항목은 true/false로 입력하세요.'}
@@ -26,6 +33,28 @@ function Read-OperationsConfig([string]$Path,[bool]$ExternalOnly=$false,[bool]$M
     if(-not $MailOnly -and $config.service -eq 'announcements' -and ($config.publicHost -notmatch '^[a-zA-Z0-9.-]+$' -or $config.publicHost.EndsWith('.invalid') -or $config.publicHost -notmatch '\.')){throw '실제 학교 앱 도메인이 필요합니다.'}
     if(-not $MailOnly -and $config.service -eq 'office' -and (-not $config.allowedNetworks -or $config.tunnelOnly)){throw '교내 서버는 학교 허용 대역을 지정하고 외부 터널에 연결하지 마세요.'}
     return $config
+}
+function Set-OperationsStartup($config,[string]$Path,[ValidateSet('Status','Enable','Disable')][string]$Action){
+    $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
+    $name='YeoyangMessenger-'+$config.service+'-Start'
+    $task=Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+    if($task){
+        $owner=[Security.Principal.NTAccount]::new($task.Principal.UserId).Translate([Security.Principal.SecurityIdentifier])
+        if($owner -ne $identity.User){throw '해당 작업을 등록한 Windows 운영 계정으로 설정하세요.'}
+        $script=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'Server-Operations.ps1'))
+        $expected='-NoProfile -NonInteractive -File "'+$script+'" -Mode Start -ConfigurationPath "'+[IO.Path]::GetFullPath($Path)+'"'
+        $powershell=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        if(@($task.Actions).Count -ne 1 -or $task.Actions[0].Execute -ne $powershell -or $task.Actions[0].Arguments -ne $expected -or $task.Principal.RunLevel -ne 'Limited'){throw '기존 작업의 실행 경로·설정·권한이 다릅니다. 운영 담당자가 확인하세요.'}
+        if($Action -eq 'Status'){Write-Host ('자동 구동 작업: '+$task.State);return $false}
+        if($Action -eq 'Enable'){
+            if(-not(Test-OperationsReadiness $config).ready){throw '운영 준비 점검을 완료한 후 자동 구동을 켜세요.'}
+            Enable-ScheduledTask -TaskName $name | Out-Null;Write-Host '자동 구동을 켰습니다. 다음 Windows 시작 시 적용됩니다.'
+        }else{Disable-ScheduledTask -TaskName $name | Out-Null;Write-Host '자동 구동을 껐습니다. 현재 실행 중인 서버와 장애 감시는 종료하지 않습니다.'}
+        return $false
+    }
+    if($Action -eq 'Status'){Write-Host '자동 구동 작업: 미등록';return $false}
+    if($Action -eq 'Disable'){Write-Host '등록된 자동 구동 작업이 없습니다.';return $false}
+    return $true
 }
 function Read-OperationsSecrets([string]$Path){
     $secrets=Import-Clixml -LiteralPath (Join-Path (Split-Path $Path -Parent) 'server-operations.secrets.xml')
@@ -58,6 +87,8 @@ function Test-OperationsReadiness($Config){
 function Set-OperationsEnvironment($Config,$Secrets){
     $prefix=if($Config.service -eq 'office'){'School'}else{'Portal'}
     $values=@{ASPNETCORE_ENVIRONMENT='Production';Operations__MonitorKey=(Unprotect-OperationsValue $Secrets.monitorKey);ASPNETCORE_FORWARDEDHEADERS_ENABLED='false';DOTNET_FORWARDEDHEADERS_ENABLED='false'}
+    # Explicitly override the operator's ambient setting, including when no school policy is selected.
+    $values['Registration__PolicyFile']=if($Config.PSObject.Properties['registrationPolicyFile']){[string]$Config.registrationPolicyFile}else{''}
     if($Config.PSObject.Properties['resourceProfile']){
         $values['Operations__ResourceProfile']=$Config.resourceProfile
         if($Config.resourceProfile -eq 'low-memory'){$values['DOTNET_GCHeapHardLimit']='20000000'}

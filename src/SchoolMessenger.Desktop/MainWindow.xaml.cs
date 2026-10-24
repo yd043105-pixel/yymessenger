@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     readonly HashSet<string> collapsedGroups = new();
     readonly HashSet<long> knownTimetables = new();
     Person[] people = [];
+    string schoolName="학교";
     bool favoritesOnly, onlineOnly, awayOnly, onlineFirst = true, schoolExpanded = true, refreshing, exiting;
     int unreadCount, peopleRefreshVersion;
     HubConnection? hub;
@@ -51,7 +52,7 @@ public partial class MainWindow : Window
         }
         catch (Exception error) when (error is IOException or JsonException) { LoginError.Text = "설정을 읽지 못했습니다. 서버 주소를 확인하세요."; }
         loginOptionsReady = true;
-        tray = new System.Windows.Forms.NotifyIcon { Icon = System.Drawing.SystemIcons.Information, Text = "여양고 온라인 교무실", Visible = true };
+        tray = new System.Windows.Forms.NotifyIcon { Icon = System.Drawing.SystemIcons.Information, Text = "여양메신저 · 온라인 교무실", Visible = true };
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("교무실 열기", null, (_, _) => Dispatcher.Invoke(ShowWindow));
         menu.Items.Add("종료", null, (_, _) => Dispatcher.Invoke(CloseApp)); tray.ContextMenuStrip = menu;
@@ -71,6 +72,7 @@ public partial class MainWindow : Window
             if(Environment.GetCommandLineArgs().Contains("--verify-admin")){await VerifyAdministratorUi();return;}
             if(Environment.GetCommandLineArgs().Contains("--verify-counseling")){await VerifyCounselingUi();return;}
             if (Environment.GetCommandLineArgs().Contains("--verify-ui")) { await VerifyUi(); return; }
+            if(string.IsNullOrWhiteSpace(ServerAddress.Text))await FindSchoolServer();
             if (startup.Enabled) { try { startup.SetEnabled(true); } catch (Exception error) { LoginError.Text = "자동 실행 설정을 갱신하지 못했습니다: " + error.Message; } }
             if (RememberLogin.IsChecked == true) { await TryAutomaticLogin(); if (savedLogin.Exists) timer.Start(); }
         };
@@ -118,7 +120,7 @@ public partial class MainWindow : Window
     }
     async void LoginClick(object sender, RoutedEventArgs e)
     {
-        if (signingIn) return; signingIn = true;
+        if (signingIn||findingServer) return; signingIn = true;
         LoginButton.IsEnabled = false; LoginError.Text = "연결 중…";
         try { await SignIn(); } catch (Exception error) { LoginError.Text = error.Message; }
         finally { LoginButton.IsEnabled = true; signingIn = false; }
@@ -126,15 +128,18 @@ public partial class MainWindow : Window
     async Task SignIn()
     {
         if (hub is not null) await hub.DisposeAsync(); Api?.Dispose(); Api = new Api(ServerAddress.Text);
-        await Api.Login(UsernameBox.Text.Trim(), PasswordBox.Password, RememberLogin.IsChecked == true); PasswordBox.Clear(); SavePreferences();
-        if(Api.Session!.User!.ActivationRequired){savedLogin.Clear();new StaffActivationWindow(Api){Owner=this}.ShowDialog();await Api.RefreshSession();throw new InvalidOperationException("개인 비밀번호로 다시 로그인하세요.");}
+        await Api.Login(UsernameBox.Text.Trim(), PasswordBox.Password, RememberLogin.IsChecked == true); PasswordBox.Clear(); UsernameBox.Text=Api.Session!.User!.Username; SavePreferences();
+        if(Api.Session!.User!.ActivationRequired){savedLogin.Clear();new StaffActivationWindow(Api){Owner=this}.ShowDialog();await Api.RefreshSession();throw new InvalidOperationException("계정 활성화 후 다시 로그인하세요.");}
+        if(Api.Session.User.PasswordChangeRequired){savedLogin.Clear();ShowPasswordChange(true);throw new InvalidOperationException("개인 비밀번호로 변경한 뒤 다시 로그인하세요.");}
         if (RememberLogin.IsChecked == true) savedLogin.Save(Api); else savedLogin.Clear();
         await EnterWorkspace();
     }
     async Task EnterWorkspace()
     {
-        if(Api?.Session?.User?.ActivationRequired==true){savedLogin.Clear();new StaffActivationWindow(Api){Owner=this}.ShowDialog();throw new InvalidOperationException("개인 비밀번호로 다시 로그인하세요.");}
+        if(Api?.Session?.User?.ActivationRequired==true){savedLogin.Clear();new StaffActivationWindow(Api){Owner=this}.ShowDialog();throw new InvalidOperationException("계정 활성화 후 다시 로그인하세요.");}
+        if(Api?.Session?.User?.PasswordChangeRequired==true){savedLogin.Clear();ShowPasswordChange(true);throw new InvalidOperationException("개인 비밀번호로 변경한 뒤 다시 로그인하세요.");}
         var user = Api!.Session!.User!; IdentityLabel.Text = user.Name + " 선생님"; IdentityDepartment.Text = string.Join(" · ",new[]{user.Department,user.Position}.Where(s=>s.Length>0)); archive=null;
+        schoolName=(await Api.Get<SchoolMessenger.Contracts.RegistrationPolicySet>("api/registration/policy")).Operator;Title=schoolName+" · 온라인 교무실";
         AdminButton.Visibility = user.IsAdmin ? Visibility.Visible : Visibility.Collapsed;
         Workspace.Visibility = Visibility.Visible; LoginPanel.Visibility = Visibility.Collapsed;
         knownTimetables.Clear();
@@ -241,7 +246,7 @@ public partial class MainWindow : Window
         Remember(OrganizationTree);
         OrganizationTree.Items.Clear();
         var filtered = people.Where(p => p.Label.Contains(PeopleSearch.Text.Trim(), StringComparison.OrdinalIgnoreCase) && (!favoritesOnly || Favorites.Contains(p.Id)) && (!onlineOnly || p.Available)&&(!awayOnly||p.Online&&p.Away)).ToArray();
-        var school = GroupRow("여양고등학교", "school", filtered.Select(p => p.Id).ToArray(), schoolExpanded || PeopleSearch.Text.Length > 0); OrganizationTree.Items.Add(school);
+        var school = GroupRow(schoolName, "school", filtered.Select(p => p.Id).ToArray(), schoolExpanded || PeopleSearch.Text.Length > 0); OrganizationTree.Items.Add(school);
         if (filtered.Length == 0) school.Items.Add(new TreeViewItem { Header = favoritesOnly ? "즐겨찾기를 추가하세요." : "검색 결과가 없습니다.", IsEnabled = false });
         foreach (var group in filtered.GroupBy(p => p.Department).OrderBy(g => g.Key))
         {
@@ -344,20 +349,26 @@ public partial class MainWindow : Window
             var policy=await Api.Get<SchoolMessenger.Contracts.RegistrationPolicySet>("api/registration/policy");
             var panel=new StackPanel{Margin=new Thickness(20)};panel.Children.Add(new TextBlock{Text=policy.Message,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,14)});
             var window=new Window{Owner=this,Title="약관·개인정보 안내",Width=420,Height=300,WindowStartupLocation=WindowStartupLocation.CenterOwner,Content=new ScrollViewer{Content=panel}};
+            panel.Children.Add(new TextBlock{Text="처리 주체: "+policy.Operator+"\n문의: "+policy.Contact,TextWrapping=TextWrapping.Wrap});
             foreach(var document in policy.Documents){var button=new System.Windows.Controls.Button{Content=document.Title,Margin=new Thickness(0,4,0,4)};button.Click+=(_,_)=>RegistrationWindow.ShowDocument(window,policy,document);panel.Children.Add(button);}window.ShowDialog();
         }
         catch(Exception error){MessageBox.Show(this,error.Message,"약관 안내");}
     }
-    async void ChangePassword(object sender, RoutedEventArgs e)
+    void ChangePassword(object sender, RoutedEventArgs e)=>ShowPasswordChange();
+    void ShowPasswordChange(bool required=false)
     {
         if (Api is null) return;
         var old = new System.Windows.Controls.PasswordBox { Margin = new Thickness(0, 5, 0, 14) };
         var next = new System.Windows.Controls.PasswordBox { Margin = new Thickness(0, 5, 0, 14) };
-        var panel = new StackPanel { Margin = new Thickness(24) }; panel.Children.Add(new TextBlock { Text = "현재 비밀번호" }); panel.Children.Add(old);
+        var panel = new StackPanel { Margin = new Thickness(24) };
+        if(required)panel.Children.Add(new TextBlock{Text="초기 비밀번호 12345678을 개인 비밀번호로 변경해야 업무 자료를 열 수 있습니다.",TextWrapping=TextWrapping.Wrap});
+        panel.Children.Add(new TextBlock { Text = "현재 비밀번호" }); panel.Children.Add(old);
         panel.Children.Add(new TextBlock { Text = "새 비밀번호 · 12~128자" }); panel.Children.Add(next);
+        var confirm=new System.Windows.Controls.PasswordBox{Margin=new Thickness(0,5,0,14)};panel.Children.Add(new TextBlock{Text="새 비밀번호 확인"});panel.Children.Add(confirm);
         var save = new System.Windows.Controls.Button { Content = "변경 후 다시 로그인" }; panel.Children.Add(save);
-        var dialog = new Window { Title = "비밀번호 변경", Owner = this, Width = 350, Height = 300, Content = panel, Resources = Resources, WindowStartupLocation = WindowStartupLocation.CenterOwner };
-        save.Click += async (_, _) => { save.IsEnabled = false; try { await Api.Send<JsonElement>(HttpMethod.Post, "api/password", new { currentPassword = old.Password, newPassword = next.Password }); dialog.Close(); await Disconnect(); } catch (Exception error) { System.Windows.MessageBox.Show(dialog, error.Message); } finally { save.IsEnabled = true; } };
+        var dialog = new Window { Title = "비밀번호 변경", Owner = this, Width = 380, Height = required?440:390, Content = panel, Resources = Resources, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        save.Click += async (_, _) => { save.IsEnabled = false; try {if(next.Password!=confirm.Password)throw new InvalidOperationException("새 비밀번호 확인이 일치하지 않습니다.");await Api.Send<JsonElement>(HttpMethod.Post, "api/password", new { currentPassword = old.Password, newPassword = next.Password }); dialog.Close(); await Disconnect(); } catch (Exception error) { System.Windows.MessageBox.Show(dialog, error.Message); } finally { save.IsEnabled = true; } };
+        dialog.Closed+=(_,_)=>{old.Clear();next.Clear();confirm.Clear();};
         dialog.ShowDialog();
     }
     async void Logout(object sender, RoutedEventArgs e)
@@ -366,6 +377,7 @@ public partial class MainWindow : Window
     { try { if (Api is not null) await Api.Send<JsonElement>(HttpMethod.Post, "api/logout"); } catch (Exception error) { LoginError.Text = error.Message; } finally { RememberLogin.IsChecked = false; await Disconnect(); } }
     async Task Disconnect()
     {
+        schoolName="학교";Title="여양메신저 · 온라인 교무실";
         savedLogin.Clear();
         ElectivesButton.Visibility=Visibility.Collapsed;
         if (remote is not null) { await remote.DisposeAsync(); remote = null; }

@@ -32,11 +32,11 @@ public sealed partial class OfficeWindow
         body.Children.Add(Text(user.GetProperty("name").GetString()+" · "+user.GetProperty("username").GetString(),20));
         var ip=Field("좌석 IPv4 · 비우면 연결 해제",user.TryGetProperty("seatIp",out var seat)&&seat.ValueKind==JsonValueKind.String?seat.GetString()!:"");
         Button("좌석 변경 · 계정과 업무 기록 유지",async()=>{await api.Send<JsonElement>(HttpMethod.Post,"api/admin/staff/"+id+"/seat",new StaffSeatRequest(ip.Text));await StaffList();});
-        body.Children.Add(Text("계정 초기화는 모든 기기의 세션을 회수합니다. 새 번호는 교사 본인에게 개별 전달하세요."));body.Children.Add(Text("공통 임시 비밀번호 · 12~128자"));var password=new PasswordBox();body.Children.Add(password);
+        body.Children.Add(Text("계정 초기화는 모든 기기의 세션을 회수합니다. 새 번호는 교사 본인에게 개별 전달하세요."));var login=Field("로그인 아이디 · 본인 이름, 동명이인은 이름.2",user.GetProperty("name").GetString()!);body.Children.Add(Text("이름 아이디와 초기 비밀번호 12345678로 초기화합니다. 새 활성화 번호 확인과 개인 비밀번호 설정이 필요합니다."));
         Button("계정 초기화 · 활성화 번호 재발급",async()=>
         {
-            if(MessageBox.Show(this,"현재 로그인 세션을 회수하고 개인 비밀번호 재설정을 요구할까요?","교직원 계정 초기화",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;
-            JsonElement result;try{result=await api.Send<JsonElement>(HttpMethod.Post,"api/admin/staff/"+id+"/reset",new StaffAccountRequest(user.GetProperty("username").GetString()!,user.GetProperty("name").GetString()!,user.GetProperty("department").GetString()!,null,password.Password));}finally{password.Clear();}
+            if(MessageBox.Show(this,"로그인 이름과 초기 비밀번호를 적용하고, 모든 기기의 세션을 회수한 뒤 활성화를 다시 요구할까요?","교직원 계정 초기화",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;
+            var result=await api.Send<JsonElement>(HttpMethod.Post,"api/admin/staff/"+id+"/reset",new StaffAccountRequest(login.Text.Trim(),user.GetProperty("name").GetString()!,user.GetProperty("department").GetString()!,null,"12345678",UseSharedPassword:true));
             MessageBox.Show(this,"개별 전달할 활성화 번호:\n"+result.GetProperty("activationCode").GetString()+"\n유효 기간: 7일.","계정 초기화");await StaffList();
         });return Task.CompletedTask;
     }

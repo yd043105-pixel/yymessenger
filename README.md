@@ -1,6 +1,8 @@
 # 여양고 온라인 교무실
 
-**처음 사용하는 분:** 루트의 `00_처음보세요.txt` → `02_설명서/01_처음설치부터_Cloudflare까지.txt` 순서로 읽으세요. [처음 설치·Cloudflare 상세 안내](docs/beginner-setup-guide.md)와 [문서 목차](docs/README.md)도 제공합니다. 설치 원본은 `01_설치파일`의 바로가기로 찾습니다. 소스만 내려받았다면 빌드 후 `scripts/Organize-Workspace.ps1`을 실행하세요. 실제 학교 서버를 자동 공개하거나 설치하는 명령이 아닙니다.
+서버 PC도 [서버 EXE 설치 마법사](docs/server-installer.md)로 설치한다. `01_설치파일/01_서버PC/yymessenger-1.0.0-server-setup-win-x64.exe`에서 역할을 선택한다. 일반 교사 PC는 기존 `setup-win-x64.exe`를 사용한다.
+
+**처음 사용하는 분:** [최신 설치·사용 순서](docs/operation-order.md)를 먼저 읽으세요. `01_설치파일`의 서버·교사 PC·Android·iOS 폴더에는 실제 전달 파일이 있습니다. [최종 연결 점검](docs/final-review-2026-10-24.md), [Cloudflare 상세 안내](docs/beginner-setup-guide.md), [문서 목차](docs/README.md)도 제공합니다. 자동업데이트는 추후 작업이며 현재는 수동 설치입니다. 버전은 정식 출시 전 **1.0.0**입니다. 소스만 내려받았다면 빌드 후 `scripts/Organize-Workspace.ps1`을 실행하세요. 학교 서버 설치·공개 릴리즈를 실행하는 명령은 아닙니다.
 
 Windows·Android·iOS 설치와 출시 준비는 [최신 플랫폼 운영 안내](docs/platform-deployment-guide.md)를 따릅니다. 교직원 앱과 학생·학부모 앱은 별도 제품이며, 배포 전 버전은 1.0.0입니다.
 

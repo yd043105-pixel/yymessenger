@@ -6,6 +6,8 @@ import net from 'node:net';
 import path from 'node:path';
 import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 import {bridgeFetch,bridgeHeaders} from './bridge-client.mjs';
+import dgram from 'node:dgram';
+import {discoveryChecks} from './server-discovery.mjs';
 const root=process.cwd(),fixture=path.resolve(process.env.YY_TEST_DATA_ROOT??'.test-data','server-resources-'+randomUUID());mkdirSync(fixture,{recursive:true});
 const dotnet=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):process.env.DOTNET_ROOT?path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet'):'dotnet';
 const packageRoot=process.env.YY_PACKAGE_ROOT;
@@ -30,6 +32,7 @@ class Client{
 for(const role of ['Server','AnnouncementServer']){
  const portal=role==='AnnouncementServer',prefix=portal?'Portal':'School',data=path.join(fixture,role),base=await address();let child,logs='';
  const env={...process.env,ASPNETCORE_ENVIRONMENT:'Development',[prefix+'__DataDirectory']:data,[prefix+'__AdminPassword']:password,Portal__BridgeKey:'Synthetic-'+randomUUID(),Announcements__Address:'',Operations__ResourceProfile:'balanced'};
+ if(!portal){const probe=dgram.createSocket('udp4');await new Promise(r=>probe.bind(0,'127.0.0.1',r));env.School__DiscoveryPort=String(probe.address().port);probe.close();}
  async function start(){logs='';child=spawn(packageRoot?path.join(packageRoot,portal?'announcement-server':'server','SchoolMessenger.'+role+'.exe'):dotnet,packageRoot?['--urls',base]:[path.join(root,'src/SchoolMessenger.'+role+'/bin/Debug/net10.0/SchoolMessenger.'+role+'.dll'),'--urls',base],{env,windowsHide:true});child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);for(let n=0;n<100;n++){if(child.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok)return;}catch{}await delay(100);}throw Error('Startup timeout '+logs);}
  async function stop(){if(child?.exitCode===null){child.kill();await new Promise(r=>child.once('exit',r));}}
  try{
@@ -98,7 +101,9 @@ for(const role of ['Server','AnnouncementServer']){
    assert.equal((await admin.req('admin/server-resources')).active.uploads,0);await admin.req('attachments','POST',other);
    check('Server: one in-flight upload blocks attachments and timetable imports before reading their body; cancellation releases capacity');
   }
+  if(!portal)await discoveryChecks({admin,ordinary,base,check});
   await stop();await start();await admin.login('admin');assert.equal((await admin.req('admin/server-resources')).profile,'low-memory');
+  if(!portal)assert.deepEqual((await admin.req('admin/server-discovery')).settings,{enabled:false,address:'https://10.0.0.1:7443/'});
   const copied=new Client(base);copied.cookies=new Map(admin.cookies);await admin.req('logout','POST');await copied.req('admin/server-resources','GET',undefined,401);
   check(role+': resource policy survives restart and logout revokes copied administrator session');
  }finally{await stop();}

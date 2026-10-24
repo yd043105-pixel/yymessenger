@@ -35,6 +35,6 @@ if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
 $setup = Join-Path $OutputDirectory "yymessenger-$version-setup-win-x64.exe"
 $hash = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
 $hashes = Join-Path $OutputDirectory 'SHA256SUMS.txt'
-$lines = @(); if (Test-Path -LiteralPath $hashes) { $lines = @(Get-Content -LiteralPath $hashes | Where-Object { $_ -notmatch '  yymessenger-.*-setup-win-x64\.exe$' }) }
+$lines = @(); if (Test-Path -LiteralPath $hashes) { $lines = @(Get-Content -LiteralPath $hashes | Where-Object { -not $_.EndsWith("  yymessenger-$version-setup-win-x64.exe") }) }
 Set-Content -LiteralPath $hashes -Value @($lines + "$hash  $(Split-Path $setup -Leaf)") -Encoding ASCII
 Write-Host "Installer: $setup"

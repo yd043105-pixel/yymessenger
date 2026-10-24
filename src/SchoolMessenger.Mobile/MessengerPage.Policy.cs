@@ -60,6 +60,7 @@ public sealed partial class MessengerPage
     {
         var policy=await api!.Get("api/registration/policy");var page=new ContentPage{Title="약관·개인정보 안내",BackgroundColor=BackgroundColor};var stack=new VerticalStackLayout{Padding=24,Spacing=16};page.Content=new ScrollView{Content=stack};
         stack.Add(Text(policy.GetProperty("message").GetString()!,14));
+        stack.Add(Text("처리 주체: "+policy.GetProperty("operator").GetString()+"\n문의: "+policy.GetProperty("contact").GetString(),14));
         foreach(var document in policy.GetProperty("documents").EnumerateArray()){var open=new Button{Text=document.GetProperty("title").GetString()};open.Clicked+=async(_,_)=>await ShowPolicy(policy,document);stack.Add(open);}
         await Navigation.PushAsync(page);
     }

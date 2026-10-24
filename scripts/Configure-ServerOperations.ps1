@@ -3,11 +3,17 @@
     [switch]$InitializeSecrets,
     [switch]$RegisterTasks,
     [switch]$ExternalMonitorOnly,
+    [ValidateSet('','Status','Enable','Disable')][string]$StartupAction='',
     [switch]$Apply
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Server-Operations.ps1') -ConfigurationPath $ConfigurationPath
 $config=Read-OperationsConfig $ConfigurationPath ([bool]$ExternalMonitorOnly)
+if($StartupAction){
+    if($ExternalMonitorOnly){throw '서버 자동 구동은 서버 운영 설정을 선택하세요.'}
+    if(-not(Set-OperationsStartup $config $ConfigurationPath $StartupAction)){return}
+    $RegisterTasks=$true;$Apply=$true
+}
 if(-not $Apply){if(-not $ExternalMonitorOnly){Test-OperationsReadiness $config | ConvertTo-Json};Write-Host '점검만 수행했습니다. 적용은 운영 서버에서 -Apply로 실행하세요.';return}
 function Protect-OperationsDirectory([string]$Path){
     New-Item -ItemType Directory -Path $Path -Force | Out-Null

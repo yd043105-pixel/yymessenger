@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Data.Sqlite;
 using SchoolMessenger.Server;
 using SchoolMessenger.Shared;
+using SchoolMessenger.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
 if(OperationsCommand.TryRun(builder.Configuration,"School","school.db"))return;
@@ -29,6 +30,8 @@ if (builder.Configuration["School:CertificateThumbprint"] is { Length: > 0 } thu
 }
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => o.MultipartBodyLengthLimit = 105L * 1024 * 1024);
 builder.Services.AddSingleton<Store>();
+builder.Services.AddSingleton<ServerDiscovery>();
+builder.Services.AddHostedService(s=>s.GetRequiredService<ServerDiscovery>());
 builder.Services.AddSingleton(s=>new FeedbackMail(s.GetRequiredService<Store>().Open,"office",s.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),builder.Configuration));
 builder.Services.AddHostedService(s=>s.GetRequiredService<FeedbackMail>());
 builder.Services.AddSingleton<ExternalAnnouncements>();
@@ -151,6 +154,8 @@ app.Use(async (context, next) =>
 });
 app.UseExceptionHandler(error => error.Run(async context =>
 {
+    var failure=context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+    app.Logger.LogError("Request processing failed ({ErrorCode}, {TraceId})",failure?.GetType().Name??"Unknown",context.TraceIdentifier);
     context.Response.StatusCode = 500;
     await context.Response.WriteAsJsonAsync(new { error = "서버 처리 실패. 저장 공간과 서버 기록을 확인하세요. 전송 재시도 시 같은 요청 번호를 사용하세요." });
 }));
@@ -166,10 +171,15 @@ app.UseAuthorization();
 RecoveryGuard.Use(app,store.Open);
 app.Use(async (context, next) =>
 {
-    if(context.User.Identity?.IsAuthenticated==true && StaffAccounts.Pending(store,UserId(context)) &&
+    var profile=context.User.Identity?.IsAuthenticated==true?StaffAccounts.Get(store,UserId(context)):null;
+    if(profile?.NeedsActivation==true &&
        (context.Request.Path.StartsWithSegments("/api")||context.Request.Path.StartsWithSegments("/hub")||context.Request.Path.StartsWithSegments("/remote")) &&
        context.Request.Path.Value is not("/api/session" or "/api/activate" or "/api/logout" or "/api/registration/policy"))
-    { context.Response.StatusCode=403;context.Response.Headers.CacheControl="no-store";await context.Response.WriteAsJsonAsync(new{error="개별 활성화 번호와 개인 비밀번호 설정을 먼저 완료하세요.",activationRequired=true});return; }
+    { context.Response.StatusCode=403;context.Response.Headers.CacheControl="no-store";await context.Response.WriteAsJsonAsync(new{error="관리자가 개별 전달한 활성화 번호로 최초 설정을 완료하세요.",activationRequired=true});return; }
+    if(profile is{SharedPassword:true,NeedsActivation:false}&&
+       (context.Request.Path.StartsWithSegments("/api")||context.Request.Path.StartsWithSegments("/hub")||context.Request.Path.StartsWithSegments("/remote"))&&
+       context.Request.Path.Value is not("/api/session" or "/api/password" or "/api/logout" or "/api/registration/policy"))
+    {context.Response.StatusCode=403;context.Response.Headers.CacheControl="no-store";await context.Response.WriteAsJsonAsync(new{error="초기 비밀번호를 개인 비밀번호로 변경한 뒤 사용하세요.",passwordChangeRequired=true});return;}
     await next();
 });
 app.Use(async (context, next) =>
@@ -189,6 +199,7 @@ app.Use(async (context, next) =>
 });
 
 resources.Use(app);resources.Map(app);
+ServerDiscovery.Map(app);
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 OperationalHealth.Map(app, store.Open, store.Root, "School");
 app.MapGet("/api/session", (HttpContext c, IAntiforgery antiforgery) => Results.Ok(new
@@ -222,10 +233,11 @@ app.MapPost("/api/login", async Task<IResult> (Login request, HttpContext c) =>
     store.Execute("UPDATE Users SET FailedAttempts=0,LockedUntil=0 WHERE Id=$id", ("$id", user.Id));
     var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, user.Id), new(ClaimTypes.Name, user.Name), new("version", user.SessionVersion.ToString()) };
     if (user.IsAdmin) claims.Add(new(ClaimTypes.Role, "Admin"));
-    var expires=DateTimeOffset.UtcNow.Add(initialProfile?.NeedsActivation==true?TimeSpan.FromMinutes(15):request.RememberLogin?TimeSpan.FromDays(30):TimeSpan.FromHours(8));
+    var initial=initialProfile is{NeedsActivation:true}or{SharedPassword:true};
+    var expires=DateTimeOffset.UtcNow.Add(initial?TimeSpan.FromMinutes(15):request.RememberLogin?TimeSpan.FromDays(30):TimeSpan.FromHours(8));
     using(var sessionDb=store.Open()) claims.Add(new("sid",DeviceSessions.Create(sessionDb,user.Id,user.SessionVersion.ToString(),expires)));
     await c.SignInAsync(new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)),
-        new AuthenticationProperties { IsPersistent = request.RememberLogin && initialProfile?.NeedsActivation!=true, ExpiresUtc = expires });
+        new AuthenticationProperties { IsPersistent = request.RememberLogin && !initial, ExpiresUtc = expires });
     return Results.Ok(PublicUser(user));
 }).RequireRateLimiting("login");
 app.MapGet("/api/registration/policy",()=>registrationPolicy.Current).RequireRateLimiting("login");
@@ -261,9 +273,13 @@ app.MapPost("/api/password", async Task<IResult> (PasswordChange request, HttpCo
         return Error("현재 비밀번호가 일치하지 않습니다.");
     // A reset, deactivation or other password change may finish during password verification.
     // Never let that earlier request overwrite the newer account state.
-    var changed = store.Execute("UPDATE Users SET PasswordHash=$hash,SessionVersion=SessionVersion+1 WHERE Id=$id AND Active=1 AND SessionVersion=$version AND PasswordHash=$old",
-        ("$hash", hasher.HashPassword(user, request.NewPassword!)), ("$id", user.Id), ("$version", c.User.FindFirstValue("version")), ("$old", user.PasswordHash));
+    var hash=hasher.HashPassword(user,request.NewPassword!);
+    using var passwordDb=store.Open();using var passwordTx=passwordDb.BeginTransaction(deferred:false);
+    using var update=Store.Command(passwordDb,"UPDATE Users SET PasswordHash=$hash,SessionVersion=SessionVersion+1 WHERE Id=$id AND Active=1 AND SessionVersion=$version AND PasswordHash=$old",passwordTx,
+        ("$hash",hash),("$id",user.Id),("$version",c.User.FindFirstValue("version")),("$old",user.PasswordHash));var changed=update.ExecuteNonQuery();
     if (changed != 1) return Error("계정 상태가 변경되었습니다. 다시 로그인하세요.", 409);
+    using(var finish=Store.Command(passwordDb,"UPDATE StaffProfiles SET SharedPassword=0 WHERE UserId=$id",passwordTx,("$id",user.Id)))finish.ExecuteNonQuery();
+    passwordTx.Commit();
     await c.SignOutAsync();
     return Results.Ok();
 }).RequireAuthorization().RequireRateLimiting("credentials");
@@ -353,11 +369,14 @@ IResult SendStoredMessage(SendMessage request, HttpContext c, IHubContext<Messag
         request = request with { Title = room, RecipientIds = members.ToArray(), All = false, Department = null };
         if (string.IsNullOrWhiteSpace(request.Body) && request.AttachmentIds is { Length: > 0 }) request = request with { Body = "첨부파일" };
     }
+    if ((request.Title?.Length ?? 0) <= 200 && string.IsNullOrWhiteSpace(request.Title) && request.Body is { Length: <= 20_000 })
+        request = request with { Title = MessageText.Excerpt(request.Body, 80) };
     if (!Guid.TryParse(request.ClientId, out _) || string.IsNullOrWhiteSpace(request.Title) || request.Title.Length > 200 ||
         string.IsNullOrWhiteSpace(request.Body) || request.Body.Length > 20_000 || request.RecipientIds is null || request.AttachmentIds is null ||
         request.RecipientIds.Length > 1000 || request.AttachmentIds.Length > 10 || (request.Department?.Length ?? 0) > 50)
         return Error("제목·본문·수신자를 확인하세요. 첨부는 최대 10개입니다.");
     var sender = store.GetUser(UserId(c))!;
+    if (!MessageFormatRules.Valid(request.Format, request.Body!)) return Error("본문 서식과 내용을 확인하세요.");
     if(request.ScheduledAt is not null)return roomId is null?scheduled.Add(request,c):Error("채팅에는 예약 발송을 사용할 수 없습니다.");
     if(!scheduledDelivery&&scheduled.Exists(sender.Id,request.ClientId!))return Error("예약에 사용한 요청 번호로 즉시 전송할 수 없습니다.",409);
     // Preserve fingerprints for ordinary messages queued by an older desktop version.
@@ -365,6 +384,7 @@ IResult SendStoredMessage(SendMessage request, HttpContext c, IHubContext<Messag
     { request.Title, request.Body, request.All, request.Department, recipients = request.RecipientIds.Distinct().Order(), attachments = request.AttachmentIds.Distinct().Order() }) : JsonSerializer.Serialize(new
     { request.Title, request.Body, request.All, request.Department, request.SubmissionDeadline, recipients = request.RecipientIds.Distinct().Order(), attachments = request.AttachmentIds.Distinct().Order() }) : JsonSerializer.Serialize(new
     { request.Title, request.Body, request.All, request.Department, roomId, recipients = request.RecipientIds.Distinct().Order(), attachments = request.AttachmentIds.Distinct().Order() });
+    if (request.Format is not null) fingerprintJson += JsonSerializer.Serialize(request.Format);
     var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(fingerprintJson)));
     string id;
     List<string> recipients;
@@ -401,6 +421,11 @@ IResult SendStoredMessage(SendMessage request, HttpContext c, IHubContext<Messag
         var now = Maintenance.Now;
         using (var insert = Store.Command(connection, "INSERT INTO Messages VALUES($id,$sender,$client,$fingerprint,$title,$body,$now)", transaction,
             ("$id", id), ("$sender", sender.Id), ("$client", request.ClientId), ("$fingerprint", fingerprint), ("$title", request.Title.Trim()), ("$body", request.Body), ("$now", now))) insert.ExecuteNonQuery();
+        if (request.Format is not null)
+        {
+            using var format = Store.Command(connection, "INSERT INTO MessageFormats VALUES($id,$payload)", transaction, ("$id", id), ("$payload", JsonSerializer.Serialize(request.Format)));
+            format.ExecuteNonQuery();
+        }
         foreach (var recipient in recipients)
         {
             using var insert = Store.Command(connection, "INSERT INTO Recipients(MessageId,UserId) VALUES($message,$user)", transaction, ("$message", id), ("$user", recipient));
@@ -449,7 +474,7 @@ api.MapGet("/messages", (HttpContext c, string? box, string? q, string? person, 
         " AND ($q='' OR instr(m.Title,$q)>0 OR instr(m.Body,$q)>0 OR instr(u.Name,$q)>0) AND m.CreatedAt>=$from AND m.CreatedAt<=$to ORDER BY m.CreatedAt DESC,m.Id DESC LIMIT 100 OFFSET $offset";
     var rows = store.Query(sql, r => new
     {
-        id = r.GetString(0), title = r.GetString(1), preview = r.GetString(2)[..Math.Min(100, r.GetString(2).Length)],
+        id = r.GetString(0), title = r.GetString(1), preview = MessageText.Excerpt(r.GetString(2)),
         createdAt = r.GetInt64(3), senderName = r.GetString(4), readAt = r.IsDBNull(5) ? (long?)null : r.GetInt64(5),
         recipientCount = r.GetInt32(6), readCount = r.GetInt32(7), attachmentCount = r.GetInt32(8), senderId = r.GetString(9)
     }, ("$user", UserId(c)), ("$q", q ?? ""), ("$person", person ?? ""), ("$from", from ?? 0), ("$to", to ?? long.MaxValue), ("$offset", Math.Clamp(offset ?? 0, 0, 1_000_000)));
@@ -459,9 +484,9 @@ api.MapGet("/messages/{id}", (string id, HttpContext c) =>
 {
     using(var opened=store.Open())using(var tx=opened.BeginTransaction()){if(!MessageRecall.Read(opened,tx,id,UserId(c)))return Results.NotFound();tx.Commit();}
     var messages = store.Query("""
-        SELECT m.Id,m.SenderId,u.Name,m.Title,m.Body,m.CreatedAt FROM Messages m JOIN Users u ON u.Id=m.SenderId
+        SELECT m.Id,m.SenderId,u.Name,m.Title,m.Body,m.CreatedAt,f.Payload FROM Messages m JOIN Users u ON u.Id=m.SenderId LEFT JOIN MessageFormats f ON f.MessageId=m.Id
         WHERE m.Id=$id AND (m.SenderId=$user OR EXISTS(SELECT 1 FROM Recipients WHERE MessageId=m.Id AND UserId=$user))
-        """, r => new { id = r.GetString(0), senderId = r.GetString(1), senderName = r.GetString(2), title = r.GetString(3), body = r.GetString(4), createdAt = r.GetInt64(5) }, ("$id", id), ("$user", UserId(c)));
+        """, r => new { id = r.GetString(0), senderId = r.GetString(1), senderName = r.GetString(2), title = r.GetString(3), body = r.GetString(4), createdAt = r.GetInt64(5), format = r.IsDBNull(6) ? null : JsonSerializer.Deserialize<MessageFormat>(r.GetString(6)) }, ("$id", id), ("$user", UserId(c)));
     if (messages.Count == 0) return Results.NotFound();
     var attachments = store.Query("SELECT Id,Name,Size,ExpiresAt,DeletedAt FROM Attachments WHERE MessageId=$id", r => new
     { id = r.GetString(0), name = r.GetString(1), size = r.GetInt64(2), expiresAt = r.GetInt64(3), expired = r.GetInt64(3) <= Maintenance.Now || !r.IsDBNull(4) }, ("$id", id));
@@ -547,6 +572,7 @@ adminApi.MapPatch("/users/{id}", IResult (string id, UpdateUser request, HttpCon
     var user = store.GetUser(id);
     if (user is null) return Results.NotFound();
     if(!Root(c)&&(user.IsAdmin||request.IsAdmin!=user.IsAdmin))return Error("관리자 계정 변경은 최고관리자만 할 수 있습니다.",403);
+    if(request.IsAdmin&&StaffAccounts.Get(store,id)?.SharedPassword==true)return Error("초기 비밀번호 상태인 계정에는 관리자 권한을 부여할 수 없습니다. 별도의 관리자 계정을 사용하세요.");
     if(store.Query("SELECT 1 FROM BackendRoot WHERE UserId=$id",r=>r.GetInt32(0),("$id",id)).Count==1&&(!request.Active||!request.IsAdmin))return Error("최고관리자 계정을 비활성화하거나 권한을 해제할 수 없습니다.",403);
     if(!string.IsNullOrEmpty(request.Password)&&StaffAccounts.Get(store,id) is not null)return Error("사전 등록된 교사는 계정 초기화에서 임시 비밀번호와 새 활성화 번호를 발급하세요.");
     if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 50 || string.IsNullOrWhiteSpace(request.Department) || request.Department.Length > 50 ||
@@ -578,7 +604,8 @@ FeedbackReports.Map(app,store.Open,app.Services.GetRequiredService<Microsoft.Asp
 app.Run();
 
 static string UserId(HttpContext c) => c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-object PublicUser(User u) => new { u.Id, u.Username, u.Name, u.Department,u.Position, u.IsAdmin, u.CanBroadcast, u.Active, activationRequired=StaffAccounts.Pending(store,u.Id), seatIp=StaffAccounts.Get(store,u.Id)?.SeatIp };
+object PublicUser(User u)
+{var profile=StaffAccounts.Get(store,u.Id);return new { u.Id, u.Username, u.Name, u.Department,u.Position, u.IsAdmin, u.CanBroadcast, u.Active, activationRequired=profile?.NeedsActivation==true,seatIp=profile?.SeatIp,sharedPassword=profile?.SharedPassword==true,passwordChangeRequired=profile is{SharedPassword:true,NeedsActivation:false} };}
 static IResult Error(string message, int status = 400) => Results.Json(new { error = message }, statusCode: status);
 static bool ValidPassword(string? password) => password is { Length: >= 12 and <= 128 } && !string.IsNullOrWhiteSpace(password);
 static bool ValidProfile(string? username, string? name, string? department) => username is not null && Regex.IsMatch(username, "^[A-Za-z0-9._-]{3,32}$") &&
@@ -600,6 +627,6 @@ static bool FileSignatureMatches(string path, string extension)
 record Login(string? Username, string? Password, bool RememberLogin = false);
 record RegistrationRequest(string? Username, string? Name, string? Department, string? Password,SchoolMessenger.Contracts.RegistrationAcceptance? Agreement=null);
 record PasswordChange(string? CurrentPassword, string? NewPassword);
-record SendMessage(string? ClientId, string? Title, string? Body, string[]? RecipientIds, string[]? AttachmentIds, bool All, string? Department, long? SubmissionDeadline = null,long? ScheduledAt=null);
+record SendMessage(string? ClientId, string? Title, string? Body, string[]? RecipientIds, string[]? AttachmentIds, bool All, string? Department, long? SubmissionDeadline = null,long? ScheduledAt=null,[property: System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] MessageFormat? Format=null);
 record CreateUser(string? Username, string? Name, string? Department, string? Password, bool IsAdmin, bool CanBroadcast);
 record UpdateUser(string? Name, string? Department, string? Password, bool IsAdmin, bool CanBroadcast, bool Active,string? Position=null);

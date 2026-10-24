@@ -72,3 +72,7 @@ $env:Registration__PolicyFile = 'D:\YyMessengerConfig\registration-policy.local.
 iOS 시뮬레이터 시험은 필수 미체크 거부, 앱 내부 전문과 버전 표시, 문서에서 돌아온 후 체크·가입까지 포함한다. Android/iOS 실제 기기와 스토어 심사 확인은 별도다.
 
 선택과목 신청의 계정·학급·과목 선택·처리 시각과 확정 분반을 검토안에 추가했다. 학생 본인 신청과 지정 담당자 조회, 정원 없는 접수, 재학 중 보유 및 졸업 시 관리 백업을 포함한 파기를 안내한다. 외부로 내보낸 CSV는 학교가 별도로 관리해야 한다. 학교 승인 전 운영 가입 차단은 유지한다.
+
+## 학교별 운영 후속 보완 (2026-10-24)
+
+관리자 화면에서 학교별 약관 초안을 만들고, 운영 JSON의 registrationPolicyFile에 파일의 절대 경로를 지정할 수 있습니다. 작업 스케줄러가 이 값을 자식 서버의 Registration__PolicyFile로 전달합니다. 개발자와 각 학교의 개인정보 보호책임자는 구별하며, 일반 사용자가 학교별 운영 정보를 변경하지 않습니다. 상세한 절차는 [학교별 설정·에듀집 등록](edzip-registration-guide.md)을 참고하세요. 앱/PC의 권리 요청 기능은 [접수·회신 안내](privacy-rights-operations.md)를 따릅니다.

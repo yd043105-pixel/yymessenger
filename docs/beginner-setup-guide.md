@@ -44,7 +44,7 @@
 | `artifacts/yymessenger-1.0.0-servers-win-x64.zip` | 담당자에게 전달할 두 서버 패키지 |
 | `artifacts/SHA256SUMS.txt`, `artifacts/mobile/SHA256SUMS.txt` | 파일 내용이 바뀌지 않았는지 비교하는 체크섬 |
 
-아이폰 설치용 IPA는 아직 없습니다. Android APK는 **Debug 시운행용**이고, Windows 설치 파일의 학교 배포 서명도 아직 준비 전입니다. 이전 ZIP과 이름이 비슷한 단일 서버 ZIP은 `artifacts/previous-packages`에 보관했습니다. 현재 설치에 사용하지 마세요.
+아이폰 설치용 IPA는 아직 없습니다. Android APK는 **Debug 시운행용**이고, Windows 설치 파일의 학교 배포 서명도 아직 준비 전입니다. 최신 전달 파일은 `01_설치파일`의 기기별 폴더에서 복사하세요. 예전 단일 서버 ZIP과 중간 빌드는 사용하지 않습니다.
 
 ## 3. 가장 먼저 할 일: 준비 담당자를 정하세요
 

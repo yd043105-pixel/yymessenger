@@ -12,6 +12,8 @@ public sealed partial class MessengerPage : ContentPage
     readonly Label feedback=new(){TextColor=Color.FromArgb("#a53a38"),FontSize=13,IsVisible=false};
     string homeTab="home";
     MessengerApi? api;
+    MessengerApi? schoolIdentitySource;
+    string schoolName="여양메신저";
     bool busy,covered,restored,resuming,preserveComposerOnResume;
     ContentPage? composer;
     bool updateNoticeOpen,updateNoticeOffered;
@@ -82,6 +84,26 @@ public sealed partial class MessengerPage : ContentPage
     {
         var source=api!;var version=epoch;var value=await source.Get("api/messages/"+id);if(!Current(source,version))return;
         var page=Detail(value.GetProperty("message").GetProperty("title").GetString()!,value.GetProperty("message").GetProperty("body").GetString()!,value.GetProperty("attachments"),source);
+        var message=value.GetProperty("message");
+        if(message.TryGetProperty("format",out var raw)&&raw.ValueKind==JsonValueKind.Object)
+        {
+            var format=raw.Deserialize(MobileJson.Default.MessageFormat);
+            var body=message.GetProperty("body").GetString()!;
+            if(SchoolMessenger.Contracts.MessageFormatRules.Valid(format,body)&&format is not null)
+            {
+                var content=(VerticalStackLayout)((ScrollView)page.Content).Content;
+                var label=(Label)content.Children[1];var styled=new FormattedString();
+                foreach(var run in format.Runs)
+                {
+                    var span=new Span{Text=run.Text,FontSize=run.Size*96/72,FontAttributes=(run.Bold?FontAttributes.Bold:FontAttributes.None)|(run.Italic?FontAttributes.Italic:FontAttributes.None),TextDecorations=(run.Underline?TextDecorations.Underline:TextDecorations.None)|(run.Strike?TextDecorations.Strikethrough:TextDecorations.None)};
+                    // Windows fonts are not bundled; mobile uses its readable system font.
+                    if(run.Color is not null)span.TextColor=Color.FromArgb(run.Color);
+                    if(run.Highlight is not null)span.BackgroundColor=Color.FromArgb(run.Highlight);
+                    styled.Spans.Add(span);
+                }
+                label.FormattedText=styled;
+            }
+        }
         var userId=source.Session.GetProperty("user").GetProperty("id").GetString();
         if(value.GetProperty("recipients").EnumerateArray().Any(r=>r.GetProperty("id").GetString()==userId))await source.Send("api/messages/"+id+"/read");if(Current(source,version))await Navigation.PushAsync(page);
     }

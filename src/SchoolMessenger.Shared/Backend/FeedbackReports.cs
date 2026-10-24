@@ -20,6 +20,7 @@ public static class FeedbackReports
     static readonly JsonSerializerOptions Json=new(JsonSerializerDefaults.Web);
     static readonly string[] Products=["windows","teacher-android","teacher-ios","school-android","school-ios"];
     static readonly string[] Areas=["login","messages","notices","timetable","counseling","rooms","files","other"];
+    static readonly string[] PrivacyAreas=["privacy-access","privacy-rectify","privacy-erase","privacy-restrict"];
     static long Now=>DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     static SqliteCommand Command(SqliteConnection db,string sql,SqliteTransaction? tx=null,params (string,object?)[] values)
     {var command=db.CreateCommand();command.CommandText=sql;command.Transaction=tx;foreach(var(key,value) in values)command.Parameters.AddWithValue(key,value??DBNull.Value);return command;}
@@ -80,7 +81,8 @@ public static class FeedbackReports
 
         app.MapPost("/api/feedback",IResult(FeedbackRequest request,HttpContext c)=>
         {
-            if(!Guid.TryParseExact(request.ClientId,"N",out _)||request.Kind is not ("bug" or "suggestion")||!Products.Contains(request.Product)||!Areas.Contains(request.Area)
+            if(!Guid.TryParseExact(request.ClientId,"N",out _)||request.Kind is not ("bug" or "suggestion" or "privacy")||!Products.Contains(request.Product)
+                ||!(request.Kind=="privacy"?PrivacyAreas.Contains(request.Area):Areas.Contains(request.Area))
                 ||!Text(request.Title,3,100)||!Text(request.Details,10,4000)||!Text(request.Version,1,40)||request.ErrorCode is not null)return Error("분류·제목(3~100자)·재현 설명(10~4000자)을 확인하세요.");
             var payload=JsonSerializer.Serialize(request,Json);var fingerprint=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
             using var db=open();using var tx=db.BeginTransaction();
@@ -98,9 +100,9 @@ public static class FeedbackReports
 
         object[] Read(string? owner)
         {
-            using var db=open();using var command=Command(db,"SELECT f.Id,f.Payload,f.Status,f.Revision,f.Summary,f.Approved,f.CreatedAt,f.UpdatedAt,m.SentAt,m.Attempts FROM FeedbackReports f LEFT JOIN FeedbackMail m ON m.ReportId=f.Id WHERE ($owner IS NULL OR f.OwnerId=$owner) ORDER BY f.CreatedAt DESC,f.Id LIMIT 100",null,("$owner",owner));
+            using var db=open();using var command=Command(db,"SELECT f.Id,f.Payload,f.Status,f.Revision,f.Summary,f.Approved,f.CreatedAt,f.UpdatedAt,m.SentAt,m.Attempts,f.OwnerId FROM FeedbackReports f LEFT JOIN FeedbackMail m ON m.ReportId=f.Id WHERE ($owner IS NULL OR f.OwnerId=$owner) ORDER BY f.CreatedAt DESC,f.Id LIMIT 100",null,("$owner",owner));
             using var reader=command.ExecuteReader();var rows=new List<object>();
-            while(reader.Read())rows.Add(new{id=reader.GetString(0),report=JsonSerializer.Deserialize<FeedbackRequest>(protector.Unprotect(reader.GetString(1)),Json),status=reader.GetString(2),revision=reader.GetInt32(3),developmentSummary=reader.IsDBNull(4)?"":protector.Unprotect(reader.GetString(4)),approvedForDevelopment=reader.GetInt32(5)==1,createdAt=reader.GetInt64(6),updatedAt=reader.GetInt64(7),mailStatus=reader.IsDBNull(9)?"none":!reader.IsDBNull(8)?"sent":reader.GetInt32(9)>=8?"failed":"pending"});
+            while(reader.Read())rows.Add(new{id=reader.GetString(0),ownerId=owner is null?reader.GetString(10):null,report=JsonSerializer.Deserialize<FeedbackRequest>(protector.Unprotect(reader.GetString(1)),Json),status=reader.GetString(2),revision=reader.GetInt32(3),developmentSummary=reader.IsDBNull(4)?"":protector.Unprotect(reader.GetString(4)),approvedForDevelopment=reader.GetInt32(5)==1,createdAt=reader.GetInt64(6),updatedAt=reader.GetInt64(7),mailStatus=reader.IsDBNull(9)?"none":!reader.IsDBNull(8)?"sent":reader.GetInt32(9)>=8?"failed":"pending"});
             return rows.ToArray();
         }
         app.MapGet("/api/feedback",(HttpContext c)=>Read(User(c))).RequireAuthorization();
@@ -116,15 +118,27 @@ public static class FeedbackReports
         {
             if(!Guid.TryParseExact(id,"N",out _)||request.Revision<1||request.Status is not ("received" or "investigating" or "verified" or "deferred" or "resolved")
                 ||request.DevelopmentSummary is null||request.DevelopmentSummary.Length>2000||request.ApproveForDevelopment&&!Text(request.DevelopmentSummary,10,2000))return Error("상태와 개인정보를 제거한 개발용 재현 설명을 확인하세요.");
-            using var db=open();using var command=Command(db,"UPDATE FeedbackReports SET Status=$status,Summary=$summary,Approved=$approved,Revision=Revision+1,UpdatedAt=$now WHERE Id=$id AND Revision=$revision",null,
+            using var db=open();using var tx=db.BeginTransaction();
+            using(var lookup=Command(db,"SELECT Payload FROM FeedbackReports WHERE Id=$id",tx,("$id",id)))
+            {
+                if(lookup.ExecuteScalar() is not string stored)return Error("접수가 없습니다.",404);
+                if(JsonSerializer.Deserialize<FeedbackRequest>(protector.Unprotect(stored),Json)?.Kind=="privacy"&&request.ApproveForDevelopment)
+                    return Error("개인정보 권리 요청은 개발 자료로 승인하거나 내보낼 수 없습니다.");
+            }
+            using var command=Command(db,"UPDATE FeedbackReports SET Status=$status,Summary=$summary,Approved=$approved,Revision=Revision+1,UpdatedAt=$now WHERE Id=$id AND Revision=$revision",tx,
                 ("$status",request.Status),("$summary",protector.Protect(request.DevelopmentSummary)),("$approved",request.ApproveForDevelopment?1:0),("$now",Now),("$id",id),("$revision",request.Revision));
-            return command.ExecuteNonQuery()==1?Results.Ok(new{saved=true}):Error("다른 관리자가 수정했거나 접수가 없습니다. 다시 조회하세요.",409);
+            if(command.ExecuteNonQuery()!=1)return Error("다른 관리자가 수정했거나 접수가 없습니다. 다시 조회하세요.",409);
+            tx.Commit();return Results.Ok(new{saved=true});
         }).RequireAuthorization("Admin").WithMetadata(new RequestSizeLimitAttribute(24_576));
         app.MapGet("/api/admin/feedback/development-export",()=>
         {
-            using var db=open();using var command=Command(db,"SELECT Id,Revision,Summary,UpdatedAt FROM FeedbackReports WHERE Approved=1 AND Status NOT IN ('resolved','deferred') ORDER BY UpdatedAt,Id LIMIT 100");
+            using var db=open();using var command=Command(db,"SELECT Id,Revision,Summary,UpdatedAt,Payload FROM FeedbackReports WHERE Approved=1 AND Status NOT IN ('resolved','deferred') ORDER BY UpdatedAt,Id LIMIT 100");
             using var reader=command.ExecuteReader();var reports=new List<object>();
-            while(reader.Read())reports.Add(new{id=service+"-"+reader.GetString(0),revision=reader.GetInt32(1),summary=protector.Unprotect(reader.GetString(2)),updatedAt=reader.GetInt64(3)});
+            while(reader.Read())
+            {
+                if(JsonSerializer.Deserialize<FeedbackRequest>(protector.Unprotect(reader.GetString(4)),Json)?.Kind=="privacy")continue;
+                reports.Add(new{id=service+"-"+reader.GetString(0),revision=reader.GetInt32(1),summary=protector.Unprotect(reader.GetString(2)),updatedAt=reader.GetInt64(3)});
+            }
             return Results.Ok(new{schema=1,service,exportedAt=Now,reports});
         }).RequireAuthorization("Admin");
     }

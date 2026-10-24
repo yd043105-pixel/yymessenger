@@ -71,7 +71,14 @@ if(store.Query("SELECT Id FROM People WHERE Role='admin'",r=>r.GetString(0)).Cou
 File.WriteAllText(Path.Combine(store.Root,".initialized"),"initialized");
 var hosts=(builder.Configuration["Portal:AllowedHosts"]??"localhost,127.0.0.1").Split(',',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries);
 if(!app.Environment.IsDevelopment() && hosts.All(h=>h is "localhost" or "127.0.0.1")) app.Logger.LogWarning("외부 공개 전 Portal__AllowedHosts에 학교 도메인을 설정하세요.");
-app.UseExceptionHandler(error=>error.Run(async c=>{var failure=c.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;c.Response.StatusCode=failure is BadHttpRequestException{StatusCode:413}?413:500;await c.Response.WriteAsJsonAsync(new{error=c.Response.StatusCode==413?"공지 업로드 요청이 너무 큽니다. 이미지는 한 장당 200KB까지입니다.":"서버 처리 실패. 같은 요청 번호로 다시 시도하거나 관리자에게 문의하세요."});}));
+app.UseExceptionHandler(error=>error.Run(async c=>
+{
+    var failure=c.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+    c.Response.StatusCode=failure is BadHttpRequestException{StatusCode:413}?413:500;
+    if(c.Response.StatusCode>=500)app.Logger.LogError("Request processing failed ({ErrorCode}, {TraceId})",failure?.GetType().Name??"Unknown",c.TraceIdentifier);
+    else app.Logger.LogWarning("Request rejected ({ErrorCode}, {TraceId})",failure?.GetType().Name??"Unknown",c.TraceIdentifier);
+    await c.Response.WriteAsJsonAsync(new{error=c.Response.StatusCode==413?"공지 업로드 요청이 너무 큽니다. 이미지는 한 장당 200KB까지입니다.":"서버 처리 실패. 같은 요청 번호로 다시 시도하거나 관리자에게 문의하세요."});
+}));
 app.Use(async(c,next)=>
 {
     if(!hosts.Contains(c.Request.Host.Host,StringComparer.OrdinalIgnoreCase)){c.Response.StatusCode=400;return;}

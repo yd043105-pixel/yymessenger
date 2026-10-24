@@ -90,7 +90,7 @@ public sealed class Api : IDisposable
 }
 internal sealed class ApiRequestException(HttpStatusCode status,string message):InvalidOperationException(message)
 {public HttpStatusCode StatusCode{get;}=status;}
-public record UserInfo(string Id, string Username, string Name, string Department, bool IsAdmin, bool CanBroadcast, bool Active, bool ActivationRequired=false, string? SeatIp=null,string Position="");
+public record UserInfo(string Id, string Username, string Name, string Department, bool IsAdmin, bool CanBroadcast, bool Active, bool ActivationRequired=false, string? SeatIp=null,string Position="",bool SharedPassword=false,bool PasswordChangeRequired=false);
 public record Session(string SchoolName, string CsrfToken, UserInfo? User);
 public record Person(string Id, string Name, string Department, bool Online,string Position="",bool Away=false,bool Mobile=false)
 {
@@ -107,10 +107,10 @@ public record MessageItem(string Id, string Title, string Preview, long CreatedA
     public string Summary => $"{SenderName}   ·   {Date}";
     public bool IsSent { get; init; }
     public string ReadLabel => IsSent ? $"{ReadCount}/{RecipientCount}명 확인" : ReadAt is null ? "미확인" : "확인";
-    public string ShortPreview => Preview.Replace('\r', ' ').Replace('\n', ' ');
+    public string DisplayTitle => SchoolMessenger.Shared.MessageText.Excerpt(string.IsNullOrWhiteSpace(Title) ? Preview : Title, 200);
     public string FilesLabel => AttachmentCount > 0 ? $"첨부 {AttachmentCount}" : "";
 }
-public record MessageContent(string Id, string SenderId, string SenderName, string Title, string Body, long CreatedAt);
+public record MessageContent(string Id, string SenderId, string SenderName, string Title, string Body, long CreatedAt, SchoolMessenger.Contracts.MessageFormat? Format = null);
 public record Attachment(string Id, string Name, long Size, long ExpiresAt = 0, bool Expired = false)
 {
     public bool Available => !Expired;

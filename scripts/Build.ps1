@@ -68,22 +68,41 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Announcement bridge verification failed' }
         node tests\backend-hardening.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Backend hardening verification failed' }
+        node tests\security-logging.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Privacy-safe request logging verification failed' }
         node tests\data-boundaries.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Server data isolation verification failed' }
         & $dotnetExecutable build tests\TimetableChecks -p:RestoreLockedMode=true --nologo -v quiet
         if ($LASTEXITCODE -ne 0) { throw 'Timetable checks build failed' }
+        & $dotnetExecutable run --project tests\DiscoveryChecks -p:RestoreLockedMode=true --nologo
+        if ($LASTEXITCODE -ne 0) { throw 'Server discovery certificate and packet checks failed' }
         node tests\timetable.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Timetable import and replica verification failed' }
     }
     $packageDirectory = Join-Path $projectRoot 'artifacts\여양고-교무메신저'
     New-Item -ItemType Directory -Force -Path $packageDirectory | Out-Null
     if (Test-Path -LiteralPath (Join-Path $packageDirectory 'data')) { throw '배포 폴더에 운영 데이터가 있습니다. 데이터를 별도 경로로 옮긴 뒤 빌드하세요.' }
+    # Publish does not remove old assets. Clean only these owned build folders,
+    # after rejecting links and private files, so deleted UI assets cannot ship again.
+    $packageEntries=@(Get-ChildItem -LiteralPath $packageDirectory -Recurse -Force)
+    if((Get-Item -LiteralPath $packageDirectory).Attributes -band [IO.FileAttributes]::ReparsePoint -or
+       @($packageEntries | Where-Object {$_.Attributes -band [IO.FileAttributes]::ReparsePoint}).Count){throw '배포 폴더의 링크를 제거한 뒤 빌드하세요.'}
+    if(@($packageEntries | Where-Object {$_.Name -match '(?i)(\.db($|-)|\.sqlite3?($|-)|\.dpapi$|\.pfx$|\.pem$|\.key$|^login\.dat$|^\.env|^appsettings\.Production\.json$|^server-operations\.secrets\.xml$|^server-operations.*\.local\.json$|^preferences\.json$|^draft.*\.json$)'}).Count){throw '배포 폴더에 운영 데이터 또는 비밀 파일이 있습니다. 정리를 중단합니다.'}
+    foreach($folder in @('server','client','announcement-server','scripts','config','docs')){
+        $generated=[IO.Path]::GetFullPath((Join-Path $packageDirectory $folder))
+        if(-not $generated.StartsWith([IO.Path]::GetFullPath($packageDirectory)+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){throw '배포 정리 경로 오류'}
+        if(Test-Path -LiteralPath $generated){Remove-Item -LiteralPath $generated -Recurse -Force}
+    }
     & $dotnetExecutable publish src\SchoolMessenger.Server -c Release -r win-x64 --self-contained true "-p:Version=$Version" -p:RestoreLockedMode=true -o (Join-Path $packageDirectory 'server') --nologo -v quiet
     if ($LASTEXITCODE -ne 0) { throw '서버 배포 파일 생성 실패' }
     & $dotnetExecutable publish src\SchoolMessenger.Desktop -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true "-p:Version=$Version" -p:RestoreLockedMode=true -o (Join-Path $packageDirectory 'client') --nologo -v quiet
     if ($LASTEXITCODE -ne 0) { throw '교사용 배포 파일 생성 실패' }
     & $dotnetExecutable publish src\SchoolMessenger.AnnouncementServer -c Release -r win-x64 --self-contained true "-p:Version=$Version" -p:RestoreLockedMode=true -o (Join-Path $packageDirectory 'announcement-server') --nologo -v quiet
     if ($LASTEXITCODE -ne 0) { throw 'External announcement package failed' }
+    if(-not $SkipTests){
+        node tests\security-logging.mjs --package
+        if($LASTEXITCODE -ne 0){throw 'Packaged privacy-safe logging verification failed'}
+    }
     New-Item -ItemType Directory -Force -Path (Join-Path $packageDirectory 'scripts') | Out-Null
     Copy-Item -LiteralPath 'scripts\Start-Server.ps1','scripts\Start-AnnouncementServer.ps1','scripts\Configure-RemoteFirewall.ps1' -Destination (Join-Path $packageDirectory 'scripts')
     Copy-Item -LiteralPath 'scripts\Server-Operations.ps1','scripts\Configure-ServerOperations.ps1','scripts\Inspect-ServerComputer.ps1','scripts\Stage-ServerUpdate.ps1' -Destination (Join-Path $packageDirectory 'scripts')
@@ -93,11 +112,18 @@ try {
     Copy-Item -Path 'docs\security-audit-*.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\web-tasks-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\server-setup-school-tunnel.md','docs\server-administration.md','docs\server-administration-verification-2026-10-14.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\server-connection-and-autostart.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-operations.md','docs\ui-design-presence.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\platform-deployment-guide.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\beginner-setup-guide.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\installation-and-test-order.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\final-test-runbook.md','docs\final-review-2026-10-24.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\server-installer.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\operation-order.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\security-checklist-2026-10-24.md','docs\committee-security-evidence-2026-10-24.md','docs\security-incident-response.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\edzip-registration-guide.md','docs\edzip-checklist.draft.md','docs\privacy-policy.draft.md','docs\privacy-rights-operations.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\server-installer-verification-2026-10-24.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\elective-registration.md','docs\elective-registration-design.md','docs\elective-registration-verification-2026-10-20.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\policies' -Destination $packageDocs -Recurse -Force
     Copy-Item -LiteralPath 'docs\daily-maintenance.md' -Destination $packageDocs
@@ -117,12 +143,22 @@ try {
     Copy-Item -LiteralPath 'docs\releases.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\timetable-import-design.md','docs\timetable-operations.md' -Destination $packageDocs
     Set-Content -LiteralPath (Join-Path $packageDirectory 'VERSION.txt') -Value $Version -Encoding ASCII
-    $privateFiles = Get-ChildItem -LiteralPath $packageDirectory -Recurse -File | Where-Object { $_.Name -match '(?i)(\.db($|-)|\.sqlite3?($|-)|\.pfx$|\.pem$|\.key$|^login\.dat$|^\.env|^appsettings\.Production\.json$)' }
+    $privateFiles = Get-ChildItem -LiteralPath $packageDirectory -Recurse -File | Where-Object { $_.Name -match '(?i)(\.db($|-)|\.sqlite3?($|-)|\.dpapi$|\.pfx$|\.pem$|\.key$|^login\.dat$|^\.env|^appsettings\.Production\.json$|^server-operations\.secrets\.xml$|^server-operations.*\.local\.json$|^preferences\.json$|^draft.*\.json$)' }
     if ($privateFiles) { throw '배포 폴더에 데이터 또는 비밀 파일이 있습니다. 압축을 중단합니다.' }
     Compress-Archive -LiteralPath $packageDirectory -DestinationPath 'artifacts\여양고-교무메신저.zip' -Force
     $releaseZip = Join-Path $projectRoot "artifacts\yymessenger-$Version-win-x64.zip"
     Copy-Item -LiteralPath 'artifacts\여양고-교무메신저.zip' -Destination $releaseZip -Force
+    # Server-only ZIP has server/, announcement-server/, scripts/, config/, docs/ at its root.
+    $serverZip=Join-Path $projectRoot "artifacts\yymessenger-$Version-servers-win-x64.zip"
+    $serverEntries=@('server','announcement-server','scripts','config','docs','VERSION.txt') | ForEach-Object {Join-Path $packageDirectory $_}
+    Compress-Archive -LiteralPath $serverEntries -DestinationPath $serverZip -Force
     $hash = (Get-FileHash -LiteralPath $releaseZip -Algorithm SHA256).Hash.ToLowerInvariant()
-    Set-Content -LiteralPath 'artifacts\SHA256SUMS.txt' -Value "$hash  yymessenger-$Version-win-x64.zip" -Encoding ASCII
+    $serverHash=(Get-FileHash -LiteralPath $serverZip -Algorithm SHA256).Hash.ToLowerInvariant()
+    $checksums=@("$hash  yymessenger-$Version-win-x64.zip","$serverHash  yymessenger-$Version-servers-win-x64.zip")
+    $installer=Join-Path $projectRoot "artifacts\yymessenger-$Version-setup-win-x64.exe"
+    if(Test-Path -LiteralPath $installer){$checksums+=((Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()+"  yymessenger-$Version-setup-win-x64.exe")}
+    $serverInstaller=Join-Path $projectRoot "artifacts\yymessenger-$Version-server-setup-win-x64.exe"
+    if(Test-Path -LiteralPath $serverInstaller){$checksums+=((Get-FileHash -LiteralPath $serverInstaller -Algorithm SHA256).Hash.ToLowerInvariant()+"  yymessenger-$Version-server-setup-win-x64.exe")}
+    Set-Content -LiteralPath 'artifacts\SHA256SUMS.txt' -Value $checksums -Encoding ASCII
     Write-Host '완료: artifacts\여양고-교무메신저.zip'
 } finally { Pop-Location }

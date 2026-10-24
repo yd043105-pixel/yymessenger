@@ -62,7 +62,7 @@ for(const project of ['Server','AnnouncementServer']){
     d=db();d.prepare('INSERT INTO Graduations VALUES(?,?)').run(waitingStudent,Date.now()-1000);d.close();await fetch(base+'/health');
     d=db();assert.equal(d.prepare('SELECT PublicDone FROM PrivacyErasure WHERE Id=?').get(waitingStudent).PublicDone,0);d.close();
     const old=new DatabaseSync(path.join(disconnected,path.basename(snapshot)),{readOnly:true});assert.ok(old.prepare('SELECT 1 FROM People WHERE Id=?').get(waitingStudent));old.close();
-   }finally{renameSync(disconnected,backup);}
+   }finally{await stop();renameSync(disconnected,backup);}
    await stop();env.Portal__CleanupSeconds='1';await start();
    await wait(async()=>{const state=db();try{return state.prepare('SELECT PublicDone FROM PrivacyErasure WHERE Id=?').get(waitingStudent).PublicDone===1;}finally{state.close();}});
    const erased=new DatabaseSync(snapshot,{readOnly:true});assert.ok(!erased.prepare('SELECT 1 FROM People WHERE Id=?').get(waitingStudent));erased.close();

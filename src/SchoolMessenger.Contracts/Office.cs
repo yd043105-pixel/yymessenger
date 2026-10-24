@@ -1,6 +1,6 @@
 namespace SchoolMessenger.Contracts;
 
-public record StaffAccountRequest(string LoginName, string Name, string Department, string? SeatIp, string TemporaryPassword,string Position="");
+public record StaffAccountRequest(string LoginName, string Name, string Department, string? SeatIp, string TemporaryPassword,string Position="",bool UseSharedPassword=false);
 public record StaffSeatRequest(string? SeatIp);
 public record StaffActivation(string Code, string NewPassword, RegistrationAcceptance? Agreement = null);
 public record OfficePermissionRequest(string UserId, bool CalendarManager, bool RoomManager);

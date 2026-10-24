@@ -55,8 +55,12 @@ public sealed class MessengerApi : IDisposable
     }
     async Task Persist()
     {
-        if(!Remember){SecureStorage.Default.Remove(key);return;}
-        var list=cookies.GetCookies(Address).Cast<Cookie>().Where(c=>!c.Expired).Select(c=>new MobileCookie(c.Name,c.Value,c.Expires==DateTime.MinValue?DateTime.UtcNow.AddDays(30):c.Expires)).ToArray();
+        if(!Remember||Session.ValueKind!=JsonValueKind.Object||!Session.TryGetProperty("user",out var user)||user.ValueKind!=JsonValueKind.Object||
+           user.TryGetProperty("activationRequired",out var activation)&&activation.GetBoolean()||user.TryGetProperty("passwordChangeRequired",out var change)&&change.GetBoolean())
+        {SecureStorage.Default.Remove(key);return;}
+        var name=Office?"SchoolMessenger.Session":"YyAnnouncements.Session";
+        var list=cookies.GetCookies(Address).Cast<Cookie>().Where(c=>!c.Expired&&c.Expires>DateTime.Now&&c.Name.StartsWith(name,StringComparison.Ordinal)).Select(c=>new MobileCookie(c.Name,c.Value,c.Expires.ToUniversalTime())).ToArray();
+        if(list.Length==0){SecureStorage.Default.Remove(key);return;}
         await SecureStorage.Default.SetAsync(key,JsonSerializer.Serialize(list,MobileJson.Default.MobileCookieArray));
     }
     public async Task Refresh()
@@ -66,6 +70,7 @@ public sealed class MessengerApi : IDisposable
         Session=await Get("api/session");csrf=Session.GetProperty("csrfToken").GetString()!;
         if(Session.GetProperty("user").ValueKind==JsonValueKind.Null){DeleteShares(previousShares);SecureStorage.Default.Remove(key);if(previouslyAuthenticated)Invalidated?.Invoke();}
         else if(Session.GetProperty("user").TryGetProperty("activationRequired",out var initial)&&initial.GetBoolean())SecureStorage.Default.Remove(key);
+        else if(Session.GetProperty("user").TryGetProperty("passwordChangeRequired",out var change)&&change.GetBoolean())SecureStorage.Default.Remove(key);
         else await Persist();
         if(Office&&Session.GetProperty("user").ValueKind==JsonValueKind.Object&&!Session.GetProperty("user").TryGetProperty("department",out _)){await Logout();throw new InvalidOperationException("교사 앱에는 교직원 교무실 서버 주소와 교직원 계정을 사용하세요.");}
 #if FAMILY_APP
@@ -146,6 +151,7 @@ public sealed class MessengerApi : IDisposable
 }
 internal record MobileCookie(string Name,string Value,DateTime Expires);
 internal record MobileLogin(string Username,string Password,bool RememberLogin);
+internal record MobilePasswordChange(string CurrentPassword,string NewPassword);
 internal record MobileRegistration(string? Code,string? Username,string? Password,RegistrationAcceptance? Agreement=null);
 internal record MobileSignup(string? Name,string? Username,string? Password,string Role,string? ClassId,int? StudentNumber,RegistrationAcceptance? Agreement=null);
 internal record MobileFamilyCode(string? Code);
@@ -153,6 +159,7 @@ internal record MobileEmpty;
 [JsonSourceGenerationOptions(PropertyNamingPolicy=JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(MobileCookie[]))]
 [JsonSerializable(typeof(MobileLogin))]
+[JsonSerializable(typeof(MobilePasswordChange))]
 [JsonSerializable(typeof(MobileRegistration))]
 [JsonSerializable(typeof(MobileSignup))]
 [JsonSerializable(typeof(MobileFamilyCode))]
@@ -167,6 +174,7 @@ internal record MobileEmpty;
 [JsonSerializable(typeof(CounselingReserve))]
 [JsonSerializable(typeof(CounselingView))]
 [JsonSerializable(typeof(JsonElement))]
+[JsonSerializable(typeof(MessageFormat))]
 [JsonSerializable(typeof(SchoolMessenger.Contracts.FeedbackRequest))]
 [JsonSerializable(typeof(ElectiveRound))]
 [JsonSerializable(typeof(ElectiveRound[]))]

@@ -11,7 +11,7 @@ using System.Windows.Threading;
 
 namespace SchoolMessenger.Desktop;
 
-public sealed class ServerManagementWindow:Window
+public sealed partial class ServerManagementWindow:Window
 {
     readonly Api api;readonly StackPanel body=new(){Margin=new Thickness(22)};
     readonly TextBlock hardware=Label("서버 정보 확인 중"),traffic=Label(""),storage=Label(""),settings=Label(""),feedback=Label("");
@@ -32,6 +32,9 @@ public sealed class ServerManagementWindow:Window
         AddCard(cards,0,"PC 전체 CPU",cpu,cpuBar);AddCard(cards,1,"PC 전체 RAM",memory,memoryBar,memoryNote);AddCard(cards,2,"이 서버 프로그램 RAM",process,null,processNote);body.Children.Add(cards);
         body.Children.Add(hardware);body.Children.Add(traffic);body.Children.Add(storage);
         body.Children.Add(Label("부하 설정",19));body.Children.Add(profile);body.Children.Add(settings);body.Children.Add(apply);
+        var discovery=new Button{Content="교내 서버 자동검색 설정",Margin=new Thickness(0,14,0,0)};discovery.Click+=async(_,_)=>await OpenDiscovery();body.Children.Add(discovery);
+        var boot=new Button{Content="서버 PC 재시작 후 자동 구동 설정",Margin=new Thickness(0,8,0,0)};boot.Click+=(_,_)=>OpenServerStartup();body.Children.Add(boot);
+        var policy=new Button{Content="학교별 약관 · 개인정보 설정 초안",Margin=new Thickness(0,8,0,0)};policy.Click+=(_,_)=>new SchoolPolicyWindow(this,api).ShowDialog();body.Children.Add(policy);
         body.Children.Add(Label("기존 작업을 강제로 종료하지 않고 새 파일 작업의 동시 실행과 전송 속도를 조정합니다. 서버가 사용하는 RAM 전체의 강제 상한은 아닙니다.",12));
         var refresh=new Button{Content="상태 새로고침",Margin=new Thickness(0,12,0,8)};refresh.Click+=async(_,_)=>await Refresh(true);body.Children.Add(refresh);
         if(owner is MainWindow main)

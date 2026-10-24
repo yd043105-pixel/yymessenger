@@ -30,6 +30,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
           ./tests/installer.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Installer verification failed' }
+          ./scripts/Build-ServerInstaller.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Server installer build failed' }
+          ./tests/server-installer.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Server installer verification failed' }
   android:
     runs-on: windows-latest
     timeout-minutes: 35

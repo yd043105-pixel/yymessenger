@@ -30,7 +30,10 @@ class Client{
  async refresh(){this.csrf=(await this.request('session')).csrfToken;return this;}
  async login(username='admin'){await this.refresh();await this.request('login','POST',{username,password,rememberLogin:true});return this.refresh();}
 }
-const publicDb=()=>new DatabaseSync(path.join(portalData,'announcements.db')),privateDb=()=>new DatabaseSync(path.join(officeData,'school.db'));
+// Live cleanup writes concurrently. Match the server's wait policy rather than
+// mistaking a transient SQLITE_BUSY for the audit trigger under test.
+function openFixtureDb(file){const db=new DatabaseSync(file);db.exec('PRAGMA busy_timeout=30000');return db;}
+const publicDb=()=>openFixtureDb(path.join(portalData,'announcements.db')),privateDb=()=>openFixtureDb(path.join(officeData,'school.db'));
 async function until(test){for(let i=0;i<150;i++){if(test())return;await pause(100);}throw Error('Graduation processing timeout');}
 function backup(db,data){const files=[];for(const folder of ['backups','migration-backups','recovery-backups']){mkdirSync(path.join(data,folder),{recursive:true});const file=path.join(data,folder,'synthetic.db');db.prepare('VACUUM INTO ?').run(file);const time=new Date(Date.now()-3*86400000);utimesSync(file,time,time);files.push({file,time:statSync(file).mtimeMs});}return files;}
 function count(db,table,column,id){return db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE ${column}=?`).get(id).n;}

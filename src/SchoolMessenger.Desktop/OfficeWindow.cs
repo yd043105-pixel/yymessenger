@@ -85,10 +85,10 @@ public sealed partial class OfficeWindow:Window
     }
     async Task Administration()
     {
-        body.Children.Clear();Button("학교 운영으로",()=>Load(false));Button("특별실 목록 설정",async()=>{setup=await api.Get<JsonElement>("api/office/setup");await Rooms();});Button("분반 · 수강 명부 관리",Sections);Button("학생·학부모 가입 · 학교 명부 관리",()=>{new PortalAdministrationWindow(this).Show();return Task.CompletedTask;});Button("계정 상태 · 좌석 · 초기화",StaffList);Button("운영 변경 기록",Audit);body.Children.Add(Text("교직원 사전 등록",22));var login=Field("로그인 이름 · 동명이인은 구분");var name=Field("교사 이름");var department=Field("부서");var position=Field("직책 · 예: 교무부장, 담임");position.MaxLength=50;var ip=Field("좌석 IPv4 · 휴대폰 로그인에는 사용하지 않음");body.Children.Add(Text("공통 임시 비밀번호 · 12~128자"));var password=new PasswordBox();body.Children.Add(password);
+        body.Children.Clear();Button("학교 운영으로",()=>Load(false));Button("특별실 목록 설정",async()=>{setup=await api.Get<JsonElement>("api/office/setup");await Rooms();});Button("분반 · 수강 명부 관리",Sections);Button("학생·학부모 가입 · 학교 명부 관리",()=>{new PortalAdministrationWindow(this).Show();return Task.CompletedTask;});Button("계정 상태 · 좌석 · 초기화",StaffList);Button("운영 변경 기록",Audit);body.Children.Add(Text("교직원 사전 등록",22));var name=Field("교사 이름 · 로그인 아이디");var login=Field("로그인 이름 · 기본은 본인 이름, 동명이인은 이름.2");name.TextChanged+=(_,_)=>login.Text=name.Text.Trim();var department=Field("부서");var position=Field("직책 · 예: 교무부장, 담임");position.MaxLength=50;var ip=Field("좌석 IPv4 · 휴대폰 로그인에는 사용하지 않음");body.Children.Add(Text("최초 비밀번호는 12345678입니다. 첫 로그인에서 개별 활성화 번호와 개인 비밀번호를 설정해야 합니다. 좌석 IP는 로그인 아이디가 아닙니다."));
         Button("계정 등록 · 활성화 번호 발급",async()=>
         {
-            JsonElement value;try{value=await api.Send<JsonElement>(HttpMethod.Post,"api/admin/staff",new StaffAccountRequest(login.Text,name.Text,department.Text,ip.Text,password.Password,position.Text));}finally{password.Clear();}
+            var value=await api.Send<JsonElement>(HttpMethod.Post,"api/admin/staff",new StaffAccountRequest(login.Text.Trim(),name.Text,department.Text,ip.Text,"12345678",position.Text,true));
             MessageBox.Show(this,"개별 전달할 활성화 번호:\n"+value.GetProperty("activationCode").GetString()+"\n유효 기간: 7일. 번호는 이 응답에서만 표시됩니다.","교직원 등록");await Administration();
         });
         await RecoveryReview.Add(body,api,this,Administration);

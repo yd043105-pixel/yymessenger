@@ -11,10 +11,10 @@ public sealed partial class MessengerPage
         Content=content,Padding=padding,BackgroundColor=color??Colors.White,
         Stroke=Line,StrokeThickness=1,StrokeShape=new RoundRectangle{CornerRadius=14}
     };
-    static View Brand(string subtitle="학교와 일상을 잇다")
+    View Brand(string subtitle="학교와 일상을 잇다")
     {
         var name=new VerticalStackLayout{Spacing=2,VerticalOptions=LayoutOptions.Center};
-        name.Add(Text("여양고등학교",12,true));var caption=Text(subtitle,10);caption.TextColor=Muted;name.Add(caption);
+        name.Add(Text(schoolName,12,true));var caption=Text(subtitle,10);caption.TextColor=Muted;name.Add(caption);
         var logo=Text("여",16,true);logo.TextColor=Colors.White;logo.HorizontalTextAlignment=TextAlignment.Center;logo.VerticalTextAlignment=TextAlignment.Center;
         var grid=new Grid{ColumnDefinitions={new(GridLength.Auto),new(GridLength.Star)},ColumnSpacing=9,Margin=new Thickness(0,0,0,2)};
         grid.Add(new Border{Content=logo,WidthRequest=30,HeightRequest=30,BackgroundColor=Blue,StrokeThickness=0,StrokeShape=new RoundRectangle{CornerRadius=10}});
@@ -41,7 +41,7 @@ public sealed partial class MessengerPage
     }
     void Login()
     {
-        StopPhonePresence();homeTab="home";tabs.IsVisible=false;updateNoticeOffered=false;
+        StopPhonePresence();schoolName="여양메신저";schoolIdentitySource=null;Title="여양메신저 · 학교 앱";homeTab="home";tabs.IsVisible=false;updateNoticeOffered=false;
 #if TEACHER_APP
         Header("교직원을 위한 우리 학교 공간","온라인 교무실");
 #else
@@ -83,6 +83,12 @@ public sealed partial class MessengerPage
     {
         var source=api!;var user=source.Session.GetProperty("user");var version=++epoch;
         if(source.Office&&user.TryGetProperty("activationRequired",out var initial)&&initial.GetBoolean()){await ActivateStaff();return;}
+        if(source.Office&&user.TryGetProperty("passwordChangeRequired",out var passwordResetRequired)&&passwordResetRequired.GetBoolean()){OfficePasswordChange(true);return;}
+        if(schoolIdentitySource!=source)
+        {
+            var policy=await source.Get("api/registration/policy");if(!Current(source,version))return;
+            schoolName=policy.GetProperty("operator").GetString()!;schoolIdentitySource=source;Title=schoolName+(source.Office?" · 교무실":" · 학교 소식");
+        }
         await StartPhonePresence();if(!Current(source,version))return;
         var name=user.GetProperty("name").GetString()!;var role=source.Office?"teacher":user.GetProperty("role").GetString();
         Header(name+"님, 안녕하세요",homeTab=="account"?"내 정보":source.Office?"온라인 교무실":"학교 소식",true);NavigationTabs(source.Office);
@@ -91,7 +97,8 @@ public sealed partial class MessengerPage
         {
             var info=new VerticalStackLayout{Spacing=5};info.Add(Text(name,18,true));var status=Text(source.Office?"교직원 계정":role switch{"parent"=>"학부모 계정","student"=>"학생 계정","teacher"=>"교사 계정",_=>"관리자 계정"},12);status.TextColor=Muted;info.Add(status);body.Add(Card(info));
             if(!source.Office&&role is "parent" or "student")SettingRow(role=="parent"?"설정 · 자녀 연결":"설정 · 내 고유번호",AccountSettings);
-            SettingRow("약관·개인정보 안내",PolicyMenu);SettingRow("업데이트 내역",()=>ShowUpdates(true));SettingRow("오류 신고 · 개선 의견",Feedback);
+            if(source.Office)SettingRow("비밀번호 변경",()=>{OfficePasswordChange();return Task.CompletedTask;});
+            SettingRow("약관·개인정보 안내",PolicyMenu);SettingRow("개인정보 열람·정정·삭제 요청",PrivacyRequests);SettingRow("업데이트 내역",()=>ShowUpdates(true));SettingRow("오류 신고 · 개선 의견",Feedback);
             SettingRow("로그아웃",async()=>{try{await source.Logout();}finally{source.Dispose();if(api==source)api=null;Login();}});return;
         }
         if(!source.Office&&role=="parent"&&user.TryGetProperty("membership",out var membership)&&membership.GetString()=="temporary")
