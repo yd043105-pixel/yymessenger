@@ -59,7 +59,7 @@ Name: "custom"; Description: "사용자 지정 · 시험 환경"; Flags: iscusto
 [Components]
 Name: "office"; Description: "교내 업무 서버 · 교직원 메시지·업무"; Types: office
 Name: "announcements"; Description: "학교 소식 서버 · 학생·학부모 앱"; Types: announcements
-Name: "admin"; Description: "서버 관리 프로그램 · 시작·중지·관리자 로그인"; Types: office announcements; Flags: fixed
+Name: "admin"; Description: "서버 관리 프로그램 · 시작·중지·관리자 로그인"; Types: office announcements custom; Flags: fixed
 
 [Tasks]
 Name: "desktopicon"; Description: "바탕화면에 서버 관리 바로가기 만들기"; GroupDescription: "바로가기:"; Flags: unchecked
