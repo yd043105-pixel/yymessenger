@@ -50,6 +50,7 @@ public sealed partial class LocalServerWindow
             {
                 c.Password.Password=password;c.Confirm.Password=password;await Start(c);await Ready(c.Service=="office"?5080:5081);
                 Check(c.Host.Running&&c.Password.Password.Length==0&&c.Confirm.Password.Length==0,c.Service+" starts without a console and clears password controls");
+                Check(!c.Data.IsEnabled&&!c.Mode.IsEnabled&&!c.ProductionFields.IsEnabled,c.Service+" locks data paths and execution configuration while its server is running");
                 using var api=new Api(c.Service=="office"?"http://127.0.0.1:5080":"http://127.0.0.1:5081");await api.Login("admin",password);
                 Check((await api.Get<JsonElement>("api/session")).GetProperty("user").ValueKind==JsonValueKind.Object,c.Service+" initializes an administrator and accepts the GUI-supplied password");
                 if(c.Service=="office")

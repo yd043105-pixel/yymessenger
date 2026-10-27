@@ -68,7 +68,7 @@ public sealed partial class LocalServerWindow:Window
             c.NavigationStatus.Text=c.Status.Text;c.Status.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty,running?"Blue":"Muted");
             c.TrialFields.Visibility=trial?Visibility.Visible:Visibility.Collapsed;c.ProductionFields.Visibility=trial?Visibility.Collapsed:Visibility.Visible;
             c.PasswordFields.Visibility=trial&&!File.Exists(Path.Combine(c.Data.Text,".initialized"))?Visibility.Visible:Visibility.Collapsed;
-            c.TrialFields.IsEnabled=c.ProductionFields.IsEnabled=c.Mode.IsEnabled=!running&&!c.Busy;
+            c.Data.IsEnabled=c.TrialFields.IsEnabled=c.ProductionFields.IsEnabled=c.Mode.IsEnabled=!running&&!c.Busy;
             c.Start.IsEnabled=c.Host.Installed&&!running&&!c.Busy;c.Stop.IsEnabled=running&&!c.Busy;c.Admin.IsEnabled=running&&!c.Busy;
             c.Auto.IsEnabled=!c.Busy&&(!trial||File.Exists(Path.Combine(c.Data.Text,".initialized")));c.Log.Text=c.Host.Output;c.Details.Visibility=string.IsNullOrEmpty(c.Log.Text)?Visibility.Collapsed:Visibility.Visible;
             c.Address.Text=trial?(c.Service=="office"?"이 PC 접속 주소: http://localhost:5080":"이 PC 학교 소식 주소: http://localhost:5081"):"학교 운영 설정의 HTTPS 주소로 접속합니다. 실행 후 관리자 로그인으로 연결을 확인하세요.";
