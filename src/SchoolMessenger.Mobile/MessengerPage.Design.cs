@@ -11,18 +11,24 @@ public sealed partial class MessengerPage
         Content=content,Padding=padding,BackgroundColor=color??Colors.White,
         Stroke=Line,StrokeThickness=1,StrokeShape=new RoundRectangle{CornerRadius=14}
     };
-    View Brand(string subtitle="학교와 일상을 잇다")
+    View Brand(string subtitle="학교와 일상을 잇다",bool signedIn=false)
     {
         var name=new VerticalStackLayout{Spacing=2,VerticalOptions=LayoutOptions.Center};
-        name.Add(Text(schoolName,12,true));var caption=Text(subtitle,10);caption.TextColor=Muted;name.Add(caption);
+        var school=Text(schoolName,17,true);school.MaxLines=1;school.LineBreakMode=LineBreakMode.TailTruncation;name.Add(school);var caption=Text(subtitle,11);caption.TextColor=Muted;name.Add(caption);
         var logo=Text("여",16,true);logo.TextColor=Colors.White;logo.HorizontalTextAlignment=TextAlignment.Center;logo.VerticalTextAlignment=TextAlignment.Center;
-        var grid=new Grid{ColumnDefinitions={new(GridLength.Auto),new(GridLength.Star)},ColumnSpacing=9,Margin=new Thickness(0,0,0,2)};
+        var grid=new Grid{ColumnDefinitions={new(GridLength.Auto),new(GridLength.Star),new(GridLength.Auto)},ColumnSpacing=9,MinimumHeightRequest=48};
         grid.Add(new Border{Content=logo,WidthRequest=30,HeightRequest=30,BackgroundColor=Blue,StrokeThickness=0,StrokeShape=new RoundRectangle{CornerRadius=10}});
-        grid.Add(name,1);return grid;
+        grid.Add(name,1);
+        if(signedIn)
+        {
+            var account=new ImageButton{Source="nav_profile.png",WidthRequest=44,HeightRequest=44,Padding=12,BackgroundColor=Colors.Transparent,CornerRadius=10};
+            SemanticProperties.SetDescription(account,"내 정보 열기");account.Clicked+=async(_,_)=>await Run(async()=>{homeTab="account";await Home();});grid.Add(account,2);
+        }
+        return grid;
     }
     Button MakeAction(string label,Func<Task> action,bool primary=false)
     {
-        var button=new Button{Text=label,BackgroundColor=primary?Blue:Colors.White,TextColor=primary?Colors.White:Navy,CornerRadius=10,Padding=new Thickness(12,9),FontSize=14,MinimumHeightRequest=48,LineBreakMode=LineBreakMode.WordWrap};
+        var button=new Button{Text=label,BackgroundColor=primary?Blue:Colors.White,TextColor=primary?Colors.White:Navy,BorderColor=primary?Blue:Line,BorderWidth=1,CornerRadius=10,Padding=new Thickness(16,10),FontSize=14,MinimumHeightRequest=48,LineBreakMode=LineBreakMode.WordWrap};
         button.Clicked+=async(_,_)=>await Run(action);return button;
     }
     void NavigationTabs(bool office)
@@ -35,7 +41,7 @@ public sealed partial class MessengerPage
             var item=new Grid{MinimumHeightRequest=54,BackgroundColor=selected?Pale:Colors.Transparent};
             item.Add(new Image{Source=icon,HeightRequest=20,WidthRequest=20,VerticalOptions=LayoutOptions.Start,HorizontalOptions=LayoutOptions.Center,Margin=new Thickness(0,7,0,0)});
             var button=MakeAction(label,async()=>{homeTab=key;offset=0;await Home();});
-            button.BackgroundColor=Colors.Transparent;button.TextColor=selected?Blue:Muted;button.FontSize=11;button.FontAttributes=selected?FontAttributes.Bold:FontAttributes.None;button.Padding=new Thickness(2,26,2,2);item.Add(button);
+            button.BackgroundColor=Colors.Transparent;button.BorderWidth=0;button.TextColor=selected?Blue:Muted;button.FontSize=11;button.FontAttributes=selected?FontAttributes.Bold:FontAttributes.None;button.Padding=new Thickness(2,26,2,2);item.Add(button);
             tabs.Add(new Border{Content=item,StrokeThickness=0,StrokeShape=new RoundRectangle{CornerRadius=12}},index);
         }
     }
@@ -141,8 +147,8 @@ public sealed partial class MessengerPage
             var change=Action("시간표 변경 · "+notice.GetProperty("title").GetString()+" · "+day,async()=>{if(await Timetable(day,room)&&Current(source,version))await source.Send($"api/timetable/notices/{revision}/read");});change.BackgroundColor=Pale;change.TextColor=Blue;change.FontSize=12;
         }
         var heading=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Auto)},Margin=new Thickness(0,8,0,0)};
-        var section=Text(source.Office?"업무 메시지":homeTab=="home"?"최근 학교 소식":"받은 학교 소식",17,true);section.VerticalOptions=LayoutOptions.Center;heading.Add(section);
-        var refresh=MakeAction("새로고침",async()=>{await source.Refresh();await Home();});refresh.BackgroundColor=Colors.Transparent;refresh.TextColor=Muted;refresh.FontSize=12;refresh.Padding=0;heading.Add(refresh,1);body.Add(heading);
+        var section=Text(source.Office?"업무 메시지":homeTab=="home"?"최근 학교 소식":"받은 학교 소식",16,true);section.VerticalOptions=LayoutOptions.Center;heading.Add(section);
+        var refresh=MakeAction("새로고침",async()=>{await source.Refresh();await Home();});refresh.BackgroundColor=Colors.Transparent;refresh.BorderWidth=0;refresh.TextColor=Blue;refresh.FontSize=12;refresh.Padding=0;heading.Add(refresh,1);body.Add(heading);
         if(source.Office)
         {
             if(homeTab=="notices")
@@ -175,12 +181,12 @@ public sealed partial class MessengerPage
     }
     View QuickActions(List<(string Label,string Icon,Func<Task> Action)> actions)
     {
-        var grid=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Star)},ColumnSpacing=8,RowSpacing=8};
+        var grid=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Star)},ColumnSpacing=10,RowSpacing=10};
         for(var index=0;index<actions.Count;index++)
         {
             if(index%2==0)grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             var item=actions[index];var button=MakeAction(item.Label,item.Action);button.ClassId="school-shortcut";button.ImageSource=item.Icon;button.ContentLayout=new Button.ButtonContentLayout(Button.ButtonContentLayout.ImagePosition.Left,7);button.FontSize=12;button.Padding=new Thickness(8,10);button.MinimumHeightRequest=64;button.FontAttributes=FontAttributes.Bold;
-            grid.Add(Card(button,0),index%2,index/2);
+            button.CornerRadius=12;grid.Add(button,index%2,index/2);
         }
         return grid;
     }
@@ -190,13 +196,13 @@ public sealed partial class MessengerPage
     }
     void Story(string title,string sender,string date,bool fresh,Func<Task> action)
     {
-        var content=new VerticalStackLayout{Spacing=4};
+        var content=new VerticalStackLayout{Spacing=8};
         var metadata=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Auto)},ColumnSpacing=8};
         var tag=Text(api?.Office==true?(fresh?"미확인 메시지":"업무 메시지"):fresh?"새 소식":"학교 소식",11,true);tag.TextColor=fresh?Blue:Muted;
         var stamp=Text(date,11);stamp.TextColor=Muted;metadata.Add(tag);metadata.Add(stamp,1);content.Add(metadata);
-        var button=MakeAction(title,action);button.ClassId="school-story";button.BackgroundColor=Colors.Transparent;button.FontSize=15;button.FontAttributes=fresh?FontAttributes.Bold:FontAttributes.None;button.Padding=0;button.LineBreakMode=LineBreakMode.WordWrap;button.HorizontalOptions=LayoutOptions.Fill;content.Add(button);
+        var button=MakeAction(title,action);button.ClassId="school-story";button.BackgroundColor=Colors.Transparent;button.BorderWidth=0;button.FontSize=15;button.FontAttributes=fresh?FontAttributes.Bold:FontAttributes.None;button.Padding=0;button.LineBreakMode=LineBreakMode.TailTruncation;button.HorizontalOptions=LayoutOptions.Fill;content.Add(button);
         var author=Text(sender,11);author.TextColor=Muted;author.LineBreakMode=LineBreakMode.TailTruncation;author.MaxLines=1;content.Add(author);
-        var row=new Grid{ColumnDefinitions={new(new GridLength(3)),new(GridLength.Star)},ColumnSpacing=11};row.Add(new Border{BackgroundColor=fresh?Blue:Line,StrokeThickness=0,StrokeShape=new RoundRectangle{CornerRadius=2},Margin=new Thickness(0,3)});row.Add(content,1);body.Add(Card(row,12));
+        body.Add(Card(content,14));
     }
     void Empty(string title,string description)
     {

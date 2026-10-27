@@ -6,8 +6,9 @@ namespace SchoolMessenger.Mobile;
 public sealed partial class MessengerPage : ContentPage
 {
     public static MessengerPage? Active{get;private set;}
-    static readonly Color Navy=Color.FromArgb("#1D2B3A"),Blue=Color.FromArgb("#245BC6"),Muted=Color.FromArgb("#5F7186"),Line=Color.FromArgb("#DFE6EF"),Pale=Color.FromArgb("#EEF3FB");
-    readonly VerticalStackLayout body=new(){Spacing=10,Padding=new Thickness(16,12)};
+    static readonly Color Navy=Color.FromArgb("#182C47"),Blue=Color.FromArgb("#245BC6"),Muted=Color.FromArgb("#63748C"),Line=Color.FromArgb("#DFE7F1"),Pale=Color.FromArgb("#EAF0FC");
+    readonly VerticalStackLayout body=new(){Spacing=14,Padding=new Thickness(18,18,18,24)};
+    readonly Border identityHeader=new(){BackgroundColor=Colors.White,StrokeThickness=0,Padding=new Thickness(18,12)};
     readonly Grid tabs=new(){ColumnDefinitions={new(GridLength.Star),new(GridLength.Star),new(GridLength.Star)},Padding=new Thickness(6,4),ColumnSpacing=4,IsVisible=false};
     readonly Label feedback=new(){TextColor=Color.FromArgb("#a53a38"),FontSize=13,IsVisible=false};
     string homeTab="home";
@@ -22,11 +23,13 @@ public sealed partial class MessengerPage : ContentPage
     bool unread;
     public MessengerPage()
     {
-        MessengerApi.CleanupShares();Active=this;Title="여양고 · 학교 소식";BackgroundColor=Color.FromArgb("#f3f6fb");
-        BackgroundColor=Color.FromArgb("#F5F7FA");
+        MessengerApi.CleanupShares();Active=this;Title="여양고 · 학교 소식";BackgroundColor=Color.FromArgb("#F3F6FB");
         NavigationPage.SetHasNavigationBar(this,false);
-        var layout=new Grid{RowDefinitions={new(GridLength.Star),new(GridLength.Auto)}};
-        layout.Add(new ScrollView{Content=body});var navigation=Card(tabs,0);navigation.Margin=new Thickness(12,0,12,8);navigation.SetBinding(IsVisibleProperty,new Binding(nameof(IsVisible),source:tabs));layout.Add(navigation,0,1);Content=layout;
+        var layout=new Grid{RowDefinitions={new(GridLength.Auto),new(GridLength.Star),new(GridLength.Auto)}};
+        layout.Add(identityHeader);
+        layout.Add(new ScrollView{Content=body},0,1);
+        var navigation=new Border{Content=tabs,BackgroundColor=Colors.White,StrokeThickness=0,Padding=new Thickness(8,4,8,8)};
+        navigation.SetBinding(IsVisibleProperty,new Binding(nameof(IsVisible),source:tabs));layout.Add(navigation,0,2);Content=layout;
         feedback.PropertyChanged+=(_,e)=>{if(e.PropertyName==nameof(Label.Text))feedback.IsVisible=!string.IsNullOrEmpty(feedback.Text);};Login();
     }
     protected override async void OnAppearing()
@@ -50,8 +53,8 @@ public sealed partial class MessengerPage : ContentPage
     static Label Text(string value,int size=15,bool bold=false)=>new(){Text=value,TextColor=Navy,FontSize=size,FontAttributes=bold?FontAttributes.Bold:FontAttributes.None,LineBreakMode=LineBreakMode.WordWrap};
     void Header(string caption,string title,bool signedIn=false)
     {
-        body.Clear();body.Add(Brand(signedIn?(api?.Office==true?"교사용 학교 앱":"학생·학부모용 학교 앱"):"학교와 일상을 잇다"));
-        var heading=new VerticalStackLayout{Spacing=3};heading.Add(Text(title,signedIn?20:24,true));
+        body.Clear();identityHeader.Content=Brand(signedIn?(api?.Office==true?"교사용 학교 앱":"학생·학부모용 학교 앱"):"학교와 일상을 잇다",signedIn);
+        var heading=new VerticalStackLayout{Spacing=6};heading.Add(Text(title,signedIn?22:24,true));
         var note=Text(caption,12);note.TextColor=Muted;heading.Add(note);body.Add(heading);body.Add(feedback);feedback.Text="";
     }
     Entry Input(string title,bool password=false,string? value=null){var field=new VerticalStackLayout{Spacing=4};field.Add(Text(title,12,true));var input=new Entry{ClassId="school-field",Placeholder=title,IsPassword=password,Text=value,TextColor=Navy,BackgroundColor=Colors.Transparent};var border=Card(input);border.Padding=new Thickness(12,0);input.Focused+=(_,_)=>border.Stroke=Blue;input.Unfocused+=(_,_)=>border.Stroke=Line;field.Add(border);body.Add(field);return input;}

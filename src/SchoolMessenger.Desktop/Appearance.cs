@@ -10,7 +10,7 @@ public static class Appearance
     public sealed record Palette(string Id, string Name, string Accent, string Dark, string Tint);
     public static readonly Palette[] Palettes =
     [
-        new("blue", "여양 블루", "#245BC6", "#182D50", "#E7EFFB"),
+        new("blue", "여양 블루", "#245BC6", "#182D50", "#EAF0FC"),
         new("green", "숲 그린", "#17745D", "#193D35", "#E3F1EB"),
         new("lavender", "라벤더", "#7050B0", "#34294C", "#EEE8F7"),
         new("rose", "로즈", "#AD4865", "#4D2935", "#F7E7ED"),
@@ -26,14 +26,14 @@ public static class Appearance
         Color ColorOf(string hex) => (Color)ColorConverter.ConvertFromString(hex);
         void Brush(string key, string hex) => resources[key] = new SolidColorBrush(ColorOf(hex));
         Brush("Blue", palette.Accent); Brush("Navy", palette.Dark); Brush("Pale", palette.Tint);
-        Brush("Ink", "#203048"); Brush("Muted", "#5A6B81"); Brush("Line", "#DCE3ED");
-        Brush("Soft", "#F5F7FA"); Brush("Surface", glass ? "#FAFFFFFF" : "#FFFFFF");
+        Brush("Ink", "#182C47"); Brush("Muted", "#63748C"); Brush("Line", "#DFE7F1");
+        Brush("Soft", "#F3F6FB"); Brush("Surface", "#FFFFFF");
         Brush("Glass", glass ? "#ECFFFFFF" : "#FFFFFF");
-        Brush("GlassLine", glass ? "#FFFFFFFF" : "#DCE3ED"); Brush("OnAccent", "#FFFFFF");
-        Brush("MessageSectionTint","#E7EFFB");Brush("SchoolSectionTint","#E3F1EB");
+        Brush("GlassLine", glass ? "#FFFFFFFF" : "#DFE7F1"); Brush("OnAccent", "#FFFFFF");
+        Brush("MessageSectionTint","#EAF0FC");Brush("SchoolSectionTint","#E3F1EB");
         resources["Canvas"] = glass
             ? new LinearGradientBrush(ColorOf(palette.Tint), ColorOf("#F8FAFD"), 55)
-            : new SolidColorBrush(ColorOf("#F5F7FA"));
+            : new SolidColorBrush(ColorOf("#F3F6FB"));
         if (SystemParameters.HighContrast)
         {
             foreach (var key in new[] { "Surface", "Glass", "Canvas", "Soft", "Pale", "MessageSectionTint", "SchoolSectionTint" }) resources[key] = SystemColors.WindowBrush;

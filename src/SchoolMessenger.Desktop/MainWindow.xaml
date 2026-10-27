@@ -5,7 +5,7 @@
    <Border DockPanel.Dock="Top" Background="{DynamicResource Glass}" BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1" CornerRadius="17,17,0,0" Padding="14,12">
     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="23"/><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
      <ContentControl x:Name="IdentityDot" VerticalAlignment="Center"/>
-     <StackPanel Grid.Column="1"><TextBlock x:Name="IdentityLabel" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock x:Name="IdentityDepartment" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
+     <StackPanel Grid.Column="1"><TextBlock x:Name="IdentityLabel" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock x:Name="IdentityDepartment" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/></StackPanel>
      <StackPanel Grid.Column="2" Margin="10,0,0,0"><TextBlock x:Name="IdentityStatus" Text="연결 중" Foreground="{DynamicResource Muted}" FontSize="10" HorizontalAlignment="Right"/><Button x:Name="UnreadShortcut" Content="미확인 0" Tag="unread" Click="OpenMailboxClick" BorderThickness="0" Background="{DynamicResource Pale}" Foreground="{DynamicResource Blue}" Padding="8,4" FontSize="10" Margin="0,5,0,0"/></StackPanel>
     </Grid>
    </Border>
@@ -13,7 +13,7 @@
     <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock x:Name="ConnectionLabel" Text="서버 연결 확인 중" Foreground="{DynamicResource Muted}" FontSize="10"/><TextBlock x:Name="RosterHint" Grid.Column="1" Foreground="{DynamicResource Muted}" FontSize="10" Margin="8,0,0,0"/></Grid>
     <TextBlock x:Name="StatusLabel" Foreground="#AD573C" FontSize="11" TextWrapping="Wrap"/>
    </StackPanel></Border>
-   <Border x:Name="NavigationRail" DockPanel.Dock="Left" Width="84" Background="{DynamicResource Glass}"><DockPanel x:Name="NavigationLayout" Margin="0,6">
+   <Border x:Name="NavigationRail" DockPanel.Dock="Left" Width="78" Background="{DynamicResource Soft}"><DockPanel x:Name="NavigationLayout" Margin="0,6">
     <Button x:Name="SettingsButton" DockPanel.Dock="Bottom" ToolTip="설정" Style="{StaticResource RailButton}" Click="OpenSettings"><StackPanel><Path Data="{StaticResource SettingsIcon}" Style="{StaticResource Glyph}"/><TextBlock Text="설정" HorizontalAlignment="Center" Margin="0,3,0,0"/></StackPanel>
      <Button.ContextMenu><ContextMenu><MenuItem Header="화면 색상 · 유리 효과" Click="OpenAppearance"/><Separator/><MenuItem x:Name="Quiet" Header="알림 소리 끄기" IsCheckable="True"/><MenuItem x:Name="DoNotDisturb" Header="방해금지" IsCheckable="True"/><MenuItem x:Name="AutoStartMenu" Header="Windows 로그인 시 자동 실행" IsCheckable="True" Checked="StartupChanged" Unchecked="StartupChanged"/><Separator/><MenuItem Header="업데이트 내역" Click="OpenUpdates"/><MenuItem Header="오류 신고 · 개선 의견" Click="OpenFeedback"/><MenuItem Header="약관·개인정보 안내" Click="OpenPolicies"/><MenuItem Header="개인정보 열람·정정·삭제 요청" Click="OpenPrivacyRequest"/><MenuItem Header="내 비밀번호 변경" Click="ChangePassword"/><MenuItem x:Name="AdminButton" Header="교직원 · 서버 관리" Click="OpenAdmin" Visibility="Collapsed"/><Separator/><MenuItem Header="로그아웃" Click="Logout"/><MenuItem Header="프로그램 종료" Click="ExitApp"/></ContextMenu></Button.ContextMenu>
     </Button>

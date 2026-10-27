@@ -266,6 +266,8 @@ public partial class MainWindow : Window
                 var name = new TextBlock { Text = person.Name + (Favorites.Contains(person.Id) ? " ★" : ""), FontSize = 13, FontWeight = FontWeights.Medium, Foreground = (Brush)FindResource("Ink"), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
                 name.SetResourceReference(TextBlock.ForegroundProperty, "Ink");
                 Grid.SetColumn(name, 2); panel.Children.Add(name);
+                var position = new TextBlock { Text = person.Position, FontSize = 10, MaxWidth = 72, Margin = new Thickness(8,0,0,0), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = person.Position };
+                position.SetResourceReference(TextBlock.ForegroundProperty, "Muted");Grid.SetColumn(position,3);panel.Children.Add(position);
                 var contact = new TreeViewItem { Header = panel, Tag = person, ContextMenu = PersonMenu(person) };
                 contact.PreviewMouseRightButtonDown += (_, _) => contact.IsSelected = true;
                 contact.MouseDoubleClick += async (_, e) => { if (e.ChangedButton != MouseButton.Left) return; e.Handled = true; await WriteMessage(person.Id); };
@@ -449,7 +451,7 @@ public partial class MainWindow : Window
                 else{var dot=mark.Children.OfType<System.Windows.Shapes.Ellipse>().Single();if(dot.Width!=10||(!person.Online&&dot.Fill!=Brushes.Transparent))throw new InvalidOperationException("작은 접속 원 표시 실패");}
             }
             if (OrganizationTree.Items.OfType<TreeViewItem>().SelectMany(r => r.Items.OfType<TreeViewItem>()).Any(r => !r.IsExpanded)) throw new InvalidOperationException("필터 변경 시 부서 펼침 상태 유지 실패");
-            if (System.Windows.Shell.WindowChrome.GetWindowChrome(this)?.CaptionHeight != 44) throw new InvalidOperationException("제목줄 적용 실패");
+            if (System.Windows.Shell.WindowChrome.GetWindowChrome(this)?.CaptionHeight != 38) throw new InvalidOperationException("제목줄 적용 실패");
             var output = Environment.GetEnvironmentVariable("SCHOOL_UI_OUTPUT") ?? "artifacts/client-preview.png";
             var directory = Path.GetDirectoryName(Path.GetFullPath(output))!; Directory.CreateDirectory(directory);
             static System.Collections.Generic.IEnumerable<DependencyObject> Descendants(DependencyObject parent)
