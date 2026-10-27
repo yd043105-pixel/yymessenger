@@ -14,7 +14,7 @@ namespace SchoolMessenger.Desktop;
 public partial class MainWindow : Window
 {
     public Api? Api { get; private set; }
-    public string LocalDirectory { get; } = Environment.GetEnvironmentVariable("SCHOOL_UI_LOCALDIR") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SchoolMessenger");
+    public string LocalDirectory { get; } = Environment.GetEnvironmentVariable("SCHOOL_UI_LOCALDIR") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),Environment.GetCommandLineArgs().Contains("--server-manager")?"YeoyangMessengerServer/Messenger":"SchoolMessenger");
     public HashSet<string> Favorites { get; set; } = new();
     readonly HashSet<string> selectedPeople = new(), knownIncoming = new();
     readonly HashSet<string> collapsedGroups = new();
@@ -41,7 +41,7 @@ public partial class MainWindow : Window
         savedLogin = new SavedLogin(LocalDirectory);
         startup = new WindowsStartup(Environment.GetCommandLineArgs().Any(a=>a is "--verify-ui" or "--verify-admin" or "--verify-counseling" or "--verify-electives")
             ? @"Software\YeoyangSchoolMessenger\StartupTests\" + Path.GetFileName(LocalDirectory.TrimEnd(Path.DirectorySeparatorChar)) + Guid.NewGuid().ToString("N")
-            : @"Software\Microsoft\Windows\CurrentVersion\Run");
+            : @"Software\Microsoft\Windows\CurrentVersion\Run",Environment.GetCommandLineArgs().Contains("--server-manager")?"YeoyangMessengerServerManager":"YeoyangSchoolMessenger",Environment.GetCommandLineArgs().Contains("--server-manager")?LocalServerWindow.StartupCommand:null);
         AutoStartCheck.IsChecked = AutoStartMenu.IsChecked = startup.Enabled;
         startupReady = true;
         try

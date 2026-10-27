@@ -13,9 +13,10 @@ public sealed partial class PortalAdministrationWindow:Window
 {
     readonly StackPanel body=new(){Margin=new Thickness(24)};readonly TextBlock error=new(){TextWrapping=TextWrapping.Wrap,Margin=new Thickness(20,10,20,12)};Api? api;bool busy;
     record Choice(string Id,string Name){public override string ToString()=>Name;}
-    public PortalAdministrationWindow(Window owner)
+    readonly string? initialAddress;
+    public PortalAdministrationWindow(Window owner,string? address=null)
     {
-        Owner=owner;Resources=owner.Resources;Title="학생·학부모 · 학교 소식 관리";Width=690;Height=760;WindowStartupLocation=WindowStartupLocation.CenterOwner;
+        initialAddress=address;Owner=owner;Resources=owner.Resources;Title="학생·학부모 · 학교 소식 관리";Width=690;Height=760;WindowStartupLocation=WindowStartupLocation.CenterOwner;
         var dock=new DockPanel();DockPanel.SetDock(error,Dock.Bottom);dock.Children.Add(error);dock.Children.Add(new ScrollViewer{Content=body});Content=dock;Closed+=(_,_)=>api?.Dispose();Login();
     }
     static TextBlock Text(string value)=>new(){Text=value,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,10,0,6)};
@@ -26,7 +27,7 @@ public sealed partial class PortalAdministrationWindow:Window
     {
         foreach(var window in OwnedWindows.Cast<Window>().ToArray())window.Close();
         body.Children.Clear();body.Children.Add(Text("외부 학교 소식 서버의 별도 관리자 계정으로 로그인하세요. 비밀번호와 로그인 쿠키는 이 창에서만 사용합니다."));
-        var address=Field("학교 소식 서버 HTTPS 주소");var username=Field("학교 소식 관리자 아이디","admin");body.Children.Add(Text("관리자 비밀번호"));var password=new PasswordBox();body.Children.Add(password);
+        var address=Field("학교 소식 서버 HTTPS 주소",initialAddress??"");var username=Field("학교 소식 관리자 아이디","admin");body.Children.Add(Text("관리자 비밀번호"));var password=new PasswordBox();body.Children.Add(password);
         Button("관리자 로그인",async()=>{api?.Dispose();api=new Api(address.Text);try{await api.Login(username.Text,password.Password,false);}finally{password.Clear();}await api.Get<JsonElement>("api/admin/status");await Load();new ServerManagementWindow(this,api).Show();});
     }
     async Task Load()

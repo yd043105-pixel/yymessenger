@@ -106,7 +106,7 @@ try {
     New-Item -ItemType Directory -Force -Path (Join-Path $packageDirectory 'scripts') | Out-Null
     Copy-Item -LiteralPath 'scripts\Start-Server.ps1','scripts\Start-AnnouncementServer.ps1','scripts\Configure-RemoteFirewall.ps1' -Destination (Join-Path $packageDirectory 'scripts')
     Copy-Item -LiteralPath 'scripts\Server-Operations.ps1','scripts\Configure-ServerOperations.ps1','scripts\Inspect-ServerComputer.ps1','scripts\Stage-ServerUpdate.ps1' -Destination (Join-Path $packageDirectory 'scripts')
-    Copy-Item -LiteralPath 'README.md','시작-로컬체험.cmd','시작-교사용.cmd' -Destination $packageDirectory
+    Copy-Item -LiteralPath 'README.md','installer\launchers\시작-로컬체험.cmd','installer\launchers\시작-교사용.cmd' -Destination $packageDirectory
     $packageDocs = Join-Path $packageDirectory 'docs'
     New-Item -ItemType Directory -Force -Path $packageDocs | Out-Null
     Copy-Item -Path 'docs\security-audit-*.md' -Destination $packageDocs

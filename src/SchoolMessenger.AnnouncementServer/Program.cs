@@ -164,6 +164,7 @@ app.Services.GetServices<IHostedService>().OfType<PortalMaintenance>().Single().
 BackendOperations.Map(app,store.Open);
 DeviceSessions.Map(app,store.Open);
 FeedbackReports.Map(app,store.Open,protection,"announcements");
+ManagedServerLifetime.Attach(app);
 app.Run();
 
 record Login(string? Username,string? Password,bool RememberLogin=false);

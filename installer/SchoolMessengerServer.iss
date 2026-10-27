@@ -11,6 +11,12 @@
   #define InstallerAppId "{AE5EF18D-119A-4E9F-A7F3-E078F33E2B18}"
 #endif
 #define NumericVersion GetVersionNumbersString(PackageDirectory + "\server\SchoolMessenger.Server.exe")
+#ifndef StartupEntryName
+  #define StartupEntryName "YeoyangMessengerServerManager"
+#endif
+#ifndef DesktopLinkName
+  #define DesktopLinkName "여양메신저 서버 관리"
+#endif
 
 [Setup]
 AppId={{#InstallerAppId}
@@ -53,7 +59,11 @@ Name: "custom"; Description: "사용자 지정 · 시험 환경"; Flags: iscusto
 [Components]
 Name: "office"; Description: "교내 업무 서버 · 교직원 메시지·업무"; Types: office
 Name: "announcements"; Description: "학교 소식 서버 · 학생·학부모 앱"; Types: announcements
-Name: "admin"; Description: "관리자 메신저 · 업무 서버 접속 후 설정"; Types: office
+Name: "admin"; Description: "서버 관리 프로그램 · 시작·중지·관리자 로그인"; Types: office announcements; Flags: fixed
+
+[Tasks]
+Name: "desktopicon"; Description: "바탕화면에 서버 관리 바로가기 만들기"; GroupDescription: "바로가기:"; Flags: unchecked
+Name: "autostart"; Description: "Windows 로그인 시 서버 관리 프로그램 자동 실행"; GroupDescription: "자동 실행:"; Flags: unchecked
 
 [Files]
 Source: "{#PackageDirectory}\server\*"; DestDir: "{app}\server"; Components: office; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -68,11 +78,23 @@ Source: "{#PackageDirectory}\docs\server-installer.md"; DestDir: "{app}"; DestNa
 [Icons]
 Name: "{group}\서버 설치·설정 안내"; Filename: "{app}\서버 설치 안내.txt"
 Name: "{group}\서버 프로그램 폴더"; Filename: "{app}"
-Name: "{group}\관리자 메신저"; Filename: "{app}\admin\SchoolMessenger.exe"; Components: admin
+Name: "{group}\서버 관리 프로그램"; Filename: "{app}\admin\SchoolMessenger.exe"; Parameters: "--server-manager"; Components: admin
+#ifdef InstallerTest
+Name: "{userdesktop}\{#DesktopLinkName}"; Filename: "{app}\admin\SchoolMessenger.exe"; Parameters: "--server-manager"; Components: admin; Tasks: desktopicon
+#else
+Name: "{commondesktop}\{#DesktopLinkName}"; Filename: "{app}\admin\SchoolMessenger.exe"; Parameters: "--server-manager"; Components: admin; Tasks: desktopicon
+#endif
 Name: "{group}\서버 프로그램 제거"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{app}\서버 설치 안내.txt"; Description: "서버 설치·설정 안내 열기"; Flags: shellexec postinstall skipifsilent runasoriginaluser
+Filename: "{app}\admin\SchoolMessenger.exe"; Parameters: "--server-manager --configure-startup enable --startup-entry-name {#StartupEntryName}"; Components: admin; Tasks: autostart; Flags: runhidden runasoriginaluser
+Filename: "{app}\admin\SchoolMessenger.exe"; Parameters: "--server-manager --configure-startup disable --startup-entry-name {#StartupEntryName}"; Components: admin; Tasks: not autostart; Flags: runhidden runasoriginaluser
+Filename: "{app}\admin\SchoolMessenger.exe"; Parameters: "--server-manager"; Components: admin; Description: "서버 관리 프로그램 실행"; Flags: nowait postinstall skipifsilent runasoriginaluser
+Filename: "{app}\서버 설치 안내.txt"; Description: "서버 설치·설정 안내 열기"; Flags: shellexec postinstall skipifsilent runasoriginaluser unchecked
+
+[InstallDelete]
+Type: files; Name: "{group}\이 PC에서만 시험 서버 켜기.lnk"
+Type: files; Name: "{group}\관리자 메신저.lnk"
 
 [Code]
 function MaintenanceBlock(Uninstalling: Boolean): String;
@@ -124,6 +146,15 @@ begin
   except
     Result := '실행 중인 서버 또는 예약 작업을 확인할 수 없습니다. Windows 관리 권한·WMI·작업 스케줄러를 담당자와 확인한 뒤 다시 시도하세요.';
   end;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var Command: String;
+begin
+  if CurUninstallStep = usUninstall then
+    if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', '{#StartupEntryName}', Command) then
+      if CompareText(Command, '"' + ExpandConstant('{app}\admin\SchoolMessenger.exe') + '" --server-manager --startup') = 0 then
+        RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', '{#StartupEntryName}');
 end;
 
 function InitializeSetup(): Boolean;

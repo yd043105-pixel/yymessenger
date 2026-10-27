@@ -1,6 +1,6 @@
 <Application x:Class="SchoolMessenger.Desktop.App"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
- StartupUri="MainWindow.xaml"><Application.Resources>
+ ><Application.Resources>
  <ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Theme.xaml"/></ResourceDictionary.MergedDictionaries>
   <Style TargetType="ContextMenu">
    <Setter Property="Background" Value="{DynamicResource Glass}"/><Setter Property="Foreground" Value="{DynamicResource Ink}"/>

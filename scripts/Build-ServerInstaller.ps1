@@ -17,7 +17,7 @@ if(((Get-Item -LiteralPath $PackageDirectory).Attributes -band [IO.FileAttribute
 if(@($entries | Where-Object {$_.Name -match '(?i)(\.db($|-)|\.sqlite3?($|-)|\.dpapi$|\.pfx$|\.pem$|\.key$|\.p12$|\.jks$|\.keystore$|^\.env|\.local\.json$|\.secrets\.xml$|^login\.dat$|^preferences\.json$|^draft|^secrets\.json$|^appsettings\.Production\.json$)'}).Count){throw 'Operational data or secrets found in server installer input.'}
 if(-not $Compiler){$Compiler=& (Join-Path $PSScriptRoot 'Install-InnoCompiler.ps1')}
 $arguments=@('/Q',"/DAppVersion=$version","/DPackageDirectory=$PackageDirectory","/DArtifactDirectory=$OutputDirectory")
-if($InstallerAppId){$arguments+=@("/DInstallerAppId=$InstallerAppId",'/DInstallerTest=1')}
+if($InstallerAppId){$arguments+=@("/DInstallerAppId=$InstallerAppId",'/DInstallerTest=1',('/DStartupEntryName=YyMessengerInstallerTest-'+$InstallerAppId.Trim('{}')),('/DDesktopLinkName=YyMessengerInstallerTest-'+$InstallerAppId.Trim('{}')))}
 & $Compiler @arguments (Join-Path $projectRoot 'installer\SchoolMessengerServer.iss')
 if($LASTEXITCODE -ne 0){throw 'Server installer compilation failed.'}
 $name="yymessenger-$version-server-setup-win-x64.exe"

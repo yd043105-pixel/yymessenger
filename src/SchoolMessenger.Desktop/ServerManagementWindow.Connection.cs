@@ -39,6 +39,10 @@ public sealed partial class ServerManagementWindow
         {
             var local=api.Address.IsLoopback||Dns.GetHostAddresses(api.Address.DnsSafeHost).Any(a=>Dns.GetHostAddresses(Dns.GetHostName()).Contains(a));
             if(!local){feedback.Text="자동 구동은 실제 서버 PC에서 관리자 프로그램을 열어 설정하세요.";return;}
+            if(Application.Current.MainWindow is LocalServerWindow manager)
+            {
+                manager.Show();manager.Activate();feedback.Text="현재 서버는 서버 관리 프로그램에서 가동합니다. 상단의 Windows 로그인 시 자동 실행과 각 서버의 자동 시작을 설정하세요. 로그인 전 운영 작업으로 바꾸려면 현재 가동을 정상 종료한 뒤 운영 담당자가 전환해야 합니다.";return;
+            }
             var panel=new StackPanel{Margin=new Thickness(22)};var dialog=Dialog("서버 PC 자동 구동",panel);
             panel.Children.Add(Label("Windows가 재시작되면 로그인 전에도 서버를 시작하고, 비정상 종료 시 1분 간격으로 최대 3회 다시 시작합니다."));
             panel.Children.Add(Label("기존 서버 운영 설정 JSON을 선택하세요. 업무 서버와 학교 소식 서버는 각각 등록합니다. 비밀 설정을 만든 전용 표준 Windows 운영 계정으로 실행해야 합니다.",12));

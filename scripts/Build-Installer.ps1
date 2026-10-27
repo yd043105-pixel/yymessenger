@@ -29,7 +29,7 @@ if ($privateFiles) { throw 'Private data or server configuration found in instal
 if (-not $Compiler) { $Compiler = & (Join-Path $PSScriptRoot 'Install-InnoCompiler.ps1') }
 if (-not (Test-Path -LiteralPath $Compiler)) { throw 'Inno Setup compiler unavailable.' }
 $arguments = @("/DAppVersion=$version", "/DClientDirectory=$ClientDirectory", "/DArtifactDirectory=$OutputDirectory")
-if ($InstallerAppId) { $arguments += @("/DInstallerAppId=$InstallerAppId", "/DStartupEntryName=YyMessengerInstallerTest-$($InstallerAppId.Trim('{}'))") }
+if ($InstallerAppId) { $arguments += @("/DInstallerAppId=$InstallerAppId", "/DStartupEntryName=YyMessengerInstallerTest-$($InstallerAppId.Trim('{}'))", "/DDesktopLinkName=YyMessengerInstallerTest-$($InstallerAppId.Trim('{}'))") }
 & $Compiler @arguments (Join-Path $projectRoot 'installer\SchoolMessenger.iss')
 if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
 $setup = Join-Path $OutputDirectory "yymessenger-$version-setup-win-x64.exe"

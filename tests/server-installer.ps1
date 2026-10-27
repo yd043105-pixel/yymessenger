@@ -1,4 +1,4 @@
-﻿param([string]$OutputDirectory,[string]$PackageDirectory,[string]$Compiler)
+﻿param([string]$OutputDirectory,[string]$PackageDirectory,[string]$Compiler,[switch]$ShortcutOnly)
 $ErrorActionPreference='Stop'
 $projectRoot=Split-Path $PSScriptRoot -Parent
 if(-not $OutputDirectory){$OutputDirectory=Join-Path $projectRoot 'artifacts'}
@@ -6,6 +6,8 @@ if(-not $PackageDirectory){$PackageDirectory=Join-Path $projectRoot 'artifacts\�
 if(-not $Compiler){$Compiler=Join-Path $projectRoot '.tools\inno-6.7.3\ISCC.exe'}
 $version=[string]([xml](Get-Content -LiteralPath (Join-Path $projectRoot 'Directory.Build.props') -Raw)).Project.PropertyGroup.Version
 $testGuid=[guid]::NewGuid().ToString()
+$testGroup='YY-Installer-Test-'+$testGuid
+$startupEntry='YyMessengerInstallerTest-'+$testGuid
 $work=Join-Path $projectRoot ".test-data\server-installer-$testGuid"
 $install=Join-Path $work 'installed'
 $regName="Software\Microsoft\Windows\CurrentVersion\Uninstall\{$testGuid}_is1"
@@ -15,8 +17,9 @@ $owned=[Collections.Generic.List[Diagnostics.Process]]::new()
 function Check([string]$Name){$checks.Add($Name);Write-Host "PASS $Name"}
 function Key{[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($regName,$true)}
 function TaskNames{$scheduler=New-Object -ComObject Schedule.Service;$scheduler.Connect();@($scheduler.GetFolder('\').GetTasks(1) | Where-Object Name -Like 'YeoyangMessenger-*' | ForEach-Object Name | Sort-Object)}
-function Setup([string]$Name,[string]$Components='office,admin',[switch]$Reject){
-    $arguments=@('/VERYSILENT','/SUPPRESSMSGBOXES','/SP-','/NORESTART','/NOICONS',"/COMPONENTS=$Components",('/DIR="'+$install+'"'),('/LOG="'+(Join-Path $work ($Name+'.log'))+'"'))
+function Setup([string]$Name,[string]$Components='office,admin',[switch]$Reject,[switch]$CreateIcons,[string]$Tasks=''){
+    $arguments=@('/VERYSILENT','/SUPPRESSMSGBOXES','/SP-','/NORESTART',"/GROUP=$testGroup","/TASKS=$Tasks","/COMPONENTS=$Components",('/DIR="'+$install+'"'),('/LOG="'+(Join-Path $work ($Name+'.log'))+'"'))
+    if(-not $CreateIcons){$arguments+='/NOICONS'}
     $process=Start-Process -FilePath $testSetup -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru
     if($Reject){if($process.ExitCode -eq 0){throw 'Unsafe installation was accepted'}}elseif($process.ExitCode -ne 0){throw "Installation failed: $Name / $($process.ExitCode) / $work"}
 }
@@ -48,13 +51,38 @@ try{
     & (Join-Path $projectRoot 'scripts\Build-ServerInstaller.ps1') -OutputDirectory (Join-Path $work 'setup') -PackageDirectory $PackageDirectory -Compiler $Compiler -InstallerAppId "{$testGuid}"
     $testSetup=Join-Path $work "setup\yymessenger-$version-server-setup-win-x64.exe"
     $tasksBefore=@(TaskNames)
-    Setup 'office'
+    Setup 'office' -CreateIcons -Tasks 'desktopicon,autostart'
     foreach($path in @('server\SchoolMessenger.Server.exe','admin\SchoolMessenger.exe','scripts\Server-Operations.ps1','config\server-operations.example.json','docs\server-installer.md')){
         if(-not(Test-Path -LiteralPath (Join-Path $install $path))){throw "Missing installed file: $path"}
     }
     if(Test-Path -LiteralPath (Join-Path $install 'announcement-server\SchoolMessenger.AnnouncementServer.exe')){throw 'Unselected public server was installed'}
     $key=Key;if($null -eq $key){throw 'Uninstall registration missing'};$key.Dispose()
     Check 'Office selection installs the self-contained server, administrator messenger and operating tools; unselected public server is absent'
+    $shortcutPath=Join-Path ([Environment]::GetFolderPath('Programs')) ($testGroup+'\서버 관리 프로그램.lnk')
+    if(-not(Test-Path -LiteralPath $shortcutPath)){throw 'Server manager shortcut missing'}
+    $shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
+    if($shortcut.TargetPath -ne (Join-Path $install 'admin\SchoolMessenger.exe') -or $shortcut.Arguments -ne '--server-manager'){throw 'Incorrect server manager shortcut'}
+    $desktop=Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) ($startupEntry+'.lnk')
+    if(-not(Test-Path -LiteralPath $desktop)){throw 'Selected desktop shortcut was not created'}
+    $run=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Microsoft\Windows\CurrentVersion\Run');try{if($run.GetValue($startupEntry) -ne ('"'+(Join-Path $install 'admin\SchoolMessenger.exe')+'" --server-manager --startup')){throw 'Selected startup option was not applied'}}finally{$run.Dispose()}
+    Check 'Server manager opens before login; selected desktop and current-user startup options are applied without starting a backend'
+    Setup 'startup-disabled' -CreateIcons
+    $run=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Microsoft\Windows\CurrentVersion\Run');try{if($null -ne $run.GetValue($startupEntry)){throw 'Deselected startup option was not removed'}}finally{$run.Dispose()}
+    Check 'Deselecting startup removes only this test installation startup command'
+    if($ShortcutOnly){
+        Uninstall
+        if(Test-Path -LiteralPath $shortcutPath){throw 'Uninstall left the trial shortcut behind'}
+        if(Test-Path -LiteralPath $desktop){throw 'Uninstall left its desktop shortcut behind'}
+        Setup 'public-manager' -Components 'announcements' -CreateIcons
+        if(-not(Test-Path -LiteralPath (Join-Path $install 'announcement-server\SchoolMessenger.AnnouncementServer.exe')) -or -not(Test-Path -LiteralPath (Join-Path $install 'admin\SchoolMessenger.exe')) -or (Test-Path -LiteralPath (Join-Path $install 'server\SchoolMessenger.Server.exe'))){throw 'Public role manager payload is incorrect'}
+        if(Test-Path -LiteralPath $desktop){throw 'Unselected desktop shortcut was created'}
+        Check 'Public-only installation includes its server manager while unchecked desktop creation remains off'
+        Uninstall
+        if((@($tasksBefore) -join "`n") -ne (@(TaskNames) -join "`n")){throw 'Installer changed operational tasks'}
+        Check 'Shortcut-only verification removes its isolated test installation and leaves operating tasks unchanged'
+        @{version=$version;checks=@($checks);realSchoolData=$false;serverStarted=$false}|ConvertTo-Json -Depth 4|Set-Content -LiteralPath (Join-Path $OutputDirectory 'server-launcher-checks.json') -Encoding UTF8
+        return
+    }
     $localConfig=Join-Path $install 'server\appsettings.Production.json';Set-Content -LiteralPath $localConfig -Value '{"SyntheticPreserved":true}' -Encoding UTF8
     $sentinel=Join-Path $install 'data\fake-attachment.txt';New-Item -ItemType Directory -Path (Split-Path $sentinel -Parent) | Out-Null;Set-Content -LiteralPath $sentinel -Value 'Synthetic retained attachment'
     $outside=Join-Path $work 'operator-secrets.xml';Set-Content -LiteralPath $outside -Value 'SYNTHETIC NOT A REAL SECRET'
@@ -86,7 +114,7 @@ try{
     if(Test-Path -LiteralPath (Join-Path $install 'server\SchoolMessenger.Server.exe')){throw 'Owned executable was not removed'}
     Check 'Uninstall removes program files and retains the real synthetic DB, attachments, added configuration and external secrets'
     Setup 'public-only' -Components 'announcements'
-    if(-not(Test-Path -LiteralPath (Join-Path $install 'announcement-server\SchoolMessenger.AnnouncementServer.exe')) -or (Test-Path -LiteralPath (Join-Path $install 'server\SchoolMessenger.Server.exe')) -or (Test-Path -LiteralPath (Join-Path $install 'admin\SchoolMessenger.exe'))){throw 'Public-only selection is incorrect'}
+    if(-not(Test-Path -LiteralPath (Join-Path $install 'announcement-server\SchoolMessenger.AnnouncementServer.exe')) -or (Test-Path -LiteralPath (Join-Path $install 'server\SchoolMessenger.Server.exe')) -or -not(Test-Path -LiteralPath (Join-Path $install 'admin\SchoolMessenger.exe'))){throw 'Public-only selection must include its local server manager'}
     Uninstall
     $tasksAfter=@(TaskNames)
     if(($tasksBefore -join "`n") -ne ($tasksAfter -join "`n")){throw 'Installer changed operational scheduled tasks'}

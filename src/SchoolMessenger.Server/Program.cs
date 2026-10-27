@@ -601,6 +601,7 @@ Timetables.Map(app, app.Services.GetRequiredService<Timetables>());
 BackendOperations.Map(app,store.Open);
 DeviceSessions.Map(app,store.Open);
 FeedbackReports.Map(app,store.Open,app.Services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),"office");
+ManagedServerLifetime.Attach(app);
 app.Run();
 
 static string UserId(HttpContext c) => c.User.FindFirstValue(ClaimTypes.NameIdentifier)!;

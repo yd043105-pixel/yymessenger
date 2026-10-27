@@ -14,6 +14,9 @@
 #ifndef StartupEntryName
   #define StartupEntryName "YeoyangSchoolMessenger"
 #endif
+#ifndef DesktopLinkName
+  #define DesktopLinkName "여양고 교무메신저"
+#endif
 
 [Setup]
 AppId={{#InstallerAppId}
@@ -48,6 +51,7 @@ Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "바탕화면 바로가기 만들기"; GroupDescription: "바로가기:"; Flags: unchecked
+Name: "autostart"; Description: "Windows 로그인 시 메신저 자동 실행"; GroupDescription: "자동 실행:"; Flags: unchecked
 
 [Files]
 Source: "{#ClientDirectory}\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -55,9 +59,11 @@ Source: "{#ClientDirectory}\*"; DestDir: "{app}"; Excludes: "*.pdb"; Flags: igno
 [Icons]
 Name: "{group}\여양고 교무메신저"; Filename: "{app}\SchoolMessenger.exe"
 Name: "{group}\여양고 교무메신저 제거"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\여양고 교무메신저"; Filename: "{app}\SchoolMessenger.exe"; Tasks: desktopicon
+Name: "{userdesktop}\{#DesktopLinkName}"; Filename: "{app}\SchoolMessenger.exe"; Tasks: desktopicon
 
 [Run]
+Filename: "{app}\SchoolMessenger.exe"; Parameters: "--configure-startup enable --startup-entry-name {#StartupEntryName}"; Tasks: autostart; Flags: runhidden
+Filename: "{app}\SchoolMessenger.exe"; Parameters: "--configure-startup disable --startup-entry-name {#StartupEntryName}"; Tasks: not autostart; Flags: runhidden
 Filename: "{app}\SchoolMessenger.exe"; Description: "여양고 교무메신저 실행"; Flags: nowait postinstall skipifsilent
 
 [Messages]

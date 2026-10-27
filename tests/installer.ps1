@@ -19,8 +19,9 @@ New-Item -ItemType Directory -Force -Path (Join-Path $testRoot 'temp') | Out-Nul
 $oldTemp=$env:TEMP; $oldTmp=$env:TMP; $oldClient=$env:YY_INSTALLED_CLIENT
 $passed = [Collections.Generic.List[string]]::new()
 function Check([string]$message) { $passed.Add($message); Write-Host "PASS $message" }
-function Install([string]$log, [switch]$ExpectFailure) {
-    $args = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/NOICONS','/TASKS=', ('/DIR="'+$installDirectory+'"'), ('/LOG="'+(Join-Path $testRoot $log)+'"'))
+function Install([string]$log, [switch]$ExpectFailure,[string]$Tasks='',[switch]$CreateIcons) {
+    $args = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',"/TASKS=$Tasks", ('/DIR="'+$installDirectory+'"'), ('/LOG="'+(Join-Path $testRoot $log)+'"'))
+    if(-not $CreateIcons){$args+='/NOICONS'}
     $result = Start-Process -FilePath $testSetup -ArgumentList $args -WindowStyle Hidden -Wait -PassThru
     if ($ExpectFailure) { if ($result.ExitCode -eq 0) { throw 'Installer must reject this operation.' } }
     elseif ($result.ExitCode -ne 0) { throw "Installer failed: $($result.ExitCode) ($log)" }
@@ -46,7 +47,14 @@ try {
     $sentinel=Join-Path $installDirectory 'user-preserved.txt'; Set-Content -LiteralPath $sentinel -Value 'FAKE-USER-DATA-PRESERVE' -Encoding ASCII
     $sentinelHash=(Get-FileHash -LiteralPath $sentinel).Hash
     $key=UninstallKey; $key.SetValue('DisplayVersion','0.9.0'); $key.Dispose()
-    Install 'upgrade.log'
+    Install 'upgrade.log' -CreateIcons -Tasks 'desktopicon,autostart'
+    $desktop=Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) ($startupEntry+'.lnk')
+    if(-not(Test-Path -LiteralPath $desktop)){throw 'Selected client desktop shortcut missing'}
+    $run=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath);try{if($run.GetValue($startupEntry) -ne ('"'+$installedExe+'" --startup')){throw 'Selected client startup option missing'}}finally{$run.Dispose()}
+    Check 'Installer desktop and Windows-login startup checkboxes create the requested shortcut and own current-user startup entry'
+    Install 'startup-disabled.log'
+    $run=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($runPath);try{if($null -ne $run.GetValue($startupEntry)){throw 'Client startup option remained after deselection'}}finally{$run.Dispose()}
+    Check 'Deselecting automatic startup removes this installation startup entry'
     if((Get-FileHash -LiteralPath $sentinel).Hash -ne $sentinelHash){throw 'Upgrade changed user data.'}
     $key=UninstallKey; if($key.GetValue('DisplayVersion') -ne $version){throw 'Upgrade version mismatch.'}; $key.Dispose()
     Check 'upgrade reuses the existing installation and preserves unrelated user files'

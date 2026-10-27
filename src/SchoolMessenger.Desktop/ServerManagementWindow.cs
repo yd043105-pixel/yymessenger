@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
@@ -28,6 +29,14 @@ public sealed partial class ServerManagementWindow:Window
         MaxHeight=SystemParameters.WorkArea.Height-30;WindowStartupLocation=WindowStartupLocation.CenterOwner;
         var dock=new DockPanel();DockPanel.SetDock(feedback,Dock.Bottom);feedback.Margin=new Thickness(22,8,22,16);dock.Children.Add(feedback);dock.Children.Add(new ScrollViewer{Content=body});Content=dock;
         body.Children.Add(Label("서버 운영",25));body.Children.Add(Label("접속 서버: "+api.Address+"\n네트워크 수치는 같은 PC의 다른 프로그램도 포함합니다.",12));
+        var localControl=new Button{Content="이 PC 서버 시작 · 중지 관리",Margin=new Thickness(0,5,0,10)};
+        var localRoot=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,".."));
+        localControl.IsEnabled=Application.Current.MainWindow is LocalServerWindow||File.Exists(Path.Combine(localRoot,"server","SchoolMessenger.Server.exe"))||File.Exists(Path.Combine(localRoot,"announcement-server","SchoolMessenger.AnnouncementServer.exe"));
+        localControl.Click+=(_,_)=>
+        {
+            if(Application.Current.MainWindow is LocalServerWindow manager){manager.Show();manager.Activate();return;}
+            var start=new ProcessStartInfo(Environment.ProcessPath!){UseShellExecute=false,CreateNoWindow=true};start.ArgumentList.Add("--server-manager");Process.Start(start);
+        };body.Children.Add(localControl);
         var cards=new Grid();for(var i=0;i<3;i++)cards.ColumnDefinitions.Add(new ColumnDefinition());
         AddCard(cards,0,"PC 전체 CPU",cpu,cpuBar);AddCard(cards,1,"PC 전체 RAM",memory,memoryBar,memoryNote);AddCard(cards,2,"이 서버 프로그램 RAM",process,null,processNote);body.Children.Add(cards);
         body.Children.Add(hardware);body.Children.Add(traffic);body.Children.Add(storage);
