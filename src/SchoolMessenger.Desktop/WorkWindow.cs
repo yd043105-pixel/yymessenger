@@ -61,9 +61,15 @@ public sealed class WorkWindow : Window
     }
     static TextBlock Text(string text, double size = 13)
     {var block=new TextBlock{Text=text,FontSize=size,FontWeight=size>=16?FontWeights.SemiBold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)};block.SetResourceReference(TextBlock.ForegroundProperty,size<=12?"Muted":"Ink");return block;}
-    Button Action(string label, Func<Task> action)
+    Border Card(UIElement content,string background="Soft")
+    {
+        var card=new Border{Child=content,Padding=new Thickness(12),CornerRadius=new CornerRadius(12),BorderThickness=new Thickness(1),Margin=new Thickness(0,0,0,10)};
+        card.SetResourceReference(Border.BackgroundProperty,background);card.SetResourceReference(Border.BorderBrushProperty,"Line");return card;
+    }
+    Button Action(string label, Func<Task> action,bool primary=false)
     {
         var button = new Button { Content = label, Margin = new Thickness(0, 0, 8, 8), FontSize = 11 };
+        if(primary)button.SetResourceReference(StyleProperty,"PrimaryButton");
         button.Click += async (_, _) => { if (busy) return; busy = true; button.IsEnabled = false; try { await Run(action); } finally { busy = false; button.IsEnabled = true; } }; return button;
     }
     async Task Run(Func<Task> action) { feedback.Text = ""; try { await action(); } catch (Exception error) { feedback.Text = error.Message; } }
@@ -115,7 +121,7 @@ public sealed class WorkWindow : Window
         {
             await api.Send<JsonElement>(item is null ? HttpMethod.Post : HttpMethod.Patch, "api/todos" + (item is { } todo ? "/" + String(todo, "id") : ""), new { title = title.Text, dueDate = due.SelectedDate?.ToString("yyyy-MM-dd"), status = statuses[status.SelectedIndex], revision = item is { } old ? old.GetProperty("revision").GetInt32() : 0 });
             await Reload(); detail.Children.Clear(); detail.Children.Add(Text("저장했습니다."));
-        }));
+        },true));
     }
     public async Task Submission(string id)
     {
@@ -125,24 +131,24 @@ public sealed class WorkWindow : Window
         var closed = request.GetProperty("closed").GetBoolean();
         detail.Children.Add(Text("마감 " + DateTimeOffset.FromUnixTimeMilliseconds(request.GetProperty("deadline").GetInt64()).ToOffset(TimeSpan.FromHours(9)).ToString("yyyy.MM.dd HH:mm") + (closed ? " · 종료" : ""), 12));
         var mine = String(request, "ownerId") == api.Session!.User!.Id;
+        var targets = response.GetProperty("targets").EnumerateArray().ToArray();
+        if(mine){var required=targets.Where(t=>!t.GetProperty("exempt").GetBoolean()).ToArray();var submitted=required.Count(t=>t.GetProperty("submittedAt").ValueKind!=JsonValueKind.Null);var summary=Text($"제출 {submitted}/{required.Length}명 · 미제출 {required.Length-submitted}명 · 면제 {targets.Length-required.Length}명",13);summary.Margin=new Thickness(0);detail.Children.Add(Card(summary,"Pale"));}
         if (mine)
         {
-            detail.Children.Add(Action("파일 일괄 다운로드 (ZIP)", async () => { var dialog = new Microsoft.Win32.SaveFileDialog { FileName = "제출파일.zip", Filter = "ZIP 파일|*.zip" }; if (dialog.ShowDialog(this) == true) await api.DownloadPath($"api/submission-requests/{id}/zip", dialog.FileName); }));
-            if (!closed) detail.Children.Add(Action("요청 종료", async () => { if (System.Windows.MessageBox.Show(this, "새 제출과 자동 알림을 종료할까요?", "제출 요청 종료", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return; await api.Send<JsonElement>(HttpMethod.Post, $"api/submission-requests/{id}/close"); await Submission(id); }));
+            var actions=new WrapPanel();actions.Children.Add(Action("파일 일괄 다운로드 (ZIP)", async () => { var dialog = new Microsoft.Win32.SaveFileDialog { FileName = "제출파일.zip", Filter = "ZIP 파일|*.zip" }; if (dialog.ShowDialog(this) == true) await api.DownloadPath($"api/submission-requests/{id}/zip", dialog.FileName); },true));
+            if (!closed) actions.Children.Add(Action("요청 종료", async () => { if (System.Windows.MessageBox.Show(this, "새 제출과 자동 알림을 종료할까요?", "제출 요청 종료", MessageBoxButton.YesNo) != MessageBoxResult.Yes) return; await api.Send<JsonElement>(HttpMethod.Post, $"api/submission-requests/{id}/close"); await Submission(id); }));detail.Children.Add(actions);
         }
-        var targets = response.GetProperty("targets").EnumerateArray().ToArray();
-        if(mine){var required=targets.Where(t=>!t.GetProperty("exempt").GetBoolean()).ToArray();var submitted=required.Count(t=>t.GetProperty("submittedAt").ValueKind!=JsonValueKind.Null);detail.Children.Insert(3,Text($"제출 {submitted}/{required.Length}명 · 미제출 {required.Length-submitted}명 · 면제 {targets.Length-required.Length}명",14));}
         foreach (var target in targets)
         {
             var exempt = target.GetProperty("exempt").GetBoolean(); var submitted = target.GetProperty("submittedAt").ValueKind != JsonValueKind.Null;
-            detail.Children.Add(Text(String(target, "name") + " · " + (exempt ? "면제" : submitted ? target.GetProperty("late").GetBoolean() ? "지각 제출" : "제출 완료" : "미제출")));
+            var targetDetails=new StackPanel();targetDetails.Children.Add(Text(String(target, "name") + " · " + (exempt ? "면제" : submitted ? target.GetProperty("late").GetBoolean() ? "지각 제출" : "제출 완료" : "미제출")));
             foreach (var file in target.GetProperty("files").EnumerateArray())
             {
                 var attachment = file.Deserialize<Attachment>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
-                if (attachment.Expired) detail.Children.Add(Text(attachment.Name + " · 파일 만료", 11));
-                else detail.Children.Add(Action(attachment.Description, async () => { var dialog = new Microsoft.Win32.SaveFileDialog { FileName = attachment.Name }; if (dialog.ShowDialog(this) == true) await api.Download(attachment.Id, dialog.FileName); }));
+                if (attachment.Expired) targetDetails.Children.Add(Text(attachment.Name + " · 파일 만료", 11));
+                else targetDetails.Children.Add(Action(attachment.Description, async () => { var dialog = new Microsoft.Win32.SaveFileDialog { FileName = attachment.Name }; if (dialog.ShowDialog(this) == true) await api.Download(attachment.Id, dialog.FileName); }));
             }
-            if (mine && !closed) detail.Children.Add(Action(exempt ? "면제 해제" : "제출 면제", async () => { await api.Send<JsonElement>(HttpMethod.Patch, $"api/submission-requests/{id}/targets/{String(target, "id")}", new { exempt = !exempt }); await Submission(id); }));
+            if (mine && !closed) targetDetails.Children.Add(Action(exempt ? "면제 해제" : "제출 면제", async () => { await api.Send<JsonElement>(HttpMethod.Patch, $"api/submission-requests/{id}/targets/{String(target, "id")}", new { exempt = !exempt }); await Submission(id); }));detail.Children.Add(Card(targetDetails));
         }
         if (!mine && !closed && targets.Length > 0 && !targets[0].GetProperty("exempt").GetBoolean())
         {
@@ -169,6 +175,7 @@ public sealed class WorkWindow : Window
                 await api.Send<JsonElement>(HttpMethod.Post, $"api/submission-requests/{id}/submit", packet); pending.Remove(id); await Reload(); await Submission(id);
             }));
         }
+        detail.Children.Add(Text("업로드한 파일은 30일 보관됩니다.",11));
     }
     sealed record WorkRow(JsonElement Value, string Title,string Summary){public string Label=>Title+"\n"+Summary;}
     internal async Task Verify()
