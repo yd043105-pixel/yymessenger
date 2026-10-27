@@ -98,6 +98,7 @@ $copies=@{
     'artifacts\submissions-preview.png'='04_화면미리보기\05_파일_제출현황.png'
     'artifacts\ui-review-20261027\detail-design.png'='04_화면미리보기\06_앱과_PC_세부화면_디자인시안.png'
     'artifacts\server-manager\server-manager-running.png'='04_화면미리보기\07_서버_가동관리.png'
+    'artifacts\server-manager\server-operations.png'='04_화면미리보기\08_관리자_서버운영.png'
 }
 foreach($entry in $copies.GetEnumerator()){
     $source=Join-Path $projectRoot $entry.Key;$target=Join-Path $projectRoot $entry.Value
