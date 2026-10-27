@@ -3,6 +3,9 @@ import {RemoteChannel} from './features.mjs';
 
 export async function presenceChecks({Client,admin,bob,carol,check}) {
  const channels=[];const get=async id=>(await admin.request('/api/users')).find(p=>p.id===id);
+ // The transport's DELETE response can precede OnDisconnectedAsync. Observe the
+ // public state until cleanup finishes, with a deadline that still fails leaks.
+ const disconnected=async()=>{const until=Date.now()+5000;let user;do{user=await get(bob.user.id);if(!user.online&&!user.away)return user;await new Promise(r=>setTimeout(r,50));}while(Date.now()<until);assert.equal(user.online,false);assert.equal(user.away,false);return user;};
  try {
   let user=await get(bob.user.id);assert.equal(user.online,false);assert.equal(user.away,false);
   const one=await new RemoteChannel(bob,'/hub').connect();channels.push(one);
@@ -23,8 +26,8 @@ export async function presenceChecks({Client,admin,bob,carol,check}) {
   await new Promise(r=>setTimeout(r,3100));assert.equal(await one.invoke('SetAway',false),false);
   assert.equal((await get(bob.user.id)).away,false);
   check('Any active connection keeps a user online; all connected devices must be away, and resumed input restores online');
-  await one.close();user=await get(bob.user.id);assert.equal(user.online,false);assert.equal(user.away,false);
-  const third=await new RemoteChannel(bob,'/hub').connect();channels.push(third);await third.event('PresenceChanged');assert.equal((await get(bob.user.id)).away,false);await third.close();
+  await one.close();user=await disconnected();
+  const third=await new RemoteChannel(bob,'/hub').connect();channels.push(third);await third.event('PresenceChanged');assert.equal((await get(bob.user.id)).away,false);await third.close();await disconnected();
   check('Disconnect removes away state; a new connection does not inherit an old away flag');
   await bob.request('/api/presence/mobile','POST',{userId:carol.user.id});
   user=await get(bob.user.id);assert.equal(user.mobile,true);assert.equal(user.online,false);
@@ -34,7 +37,7 @@ export async function presenceChecks({Client,admin,bob,carol,check}) {
   await pc.event('PresenceChanged');
   user=await get(bob.user.id);assert.equal(user.mobile,true);assert.equal(user.online,true);
   await pc.invoke('SetAway',true);assert.equal((await get(bob.user.id)).away,true);
-  await pc.close();user=await get(bob.user.id);assert.equal(user.online,false);assert.equal(user.mobile,true);
+  await pc.close();user=await disconnected();assert.equal(user.mobile,true);
   check('PC and phone coexist; disconnecting the PC preserves phone presence without making remote support available');
   await bob.request('/api/presence/mobile/leave','POST',{});
   assert.equal((await get(bob.user.id)).mobile,false);

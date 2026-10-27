@@ -25,10 +25,11 @@ public sealed partial class ServerManagementWindow:Window
     public bool Ready{get;private set;}
     public ServerManagementWindow(Window owner,Api api)
     {
-        this.api=api;Owner=owner;Resources=owner.Resources;Title="관리자 시스템 · 서버 운영";Width=740;Height=780;MinWidth=560;MinHeight=500;
+        this.api=api;Owner=owner;Resources=owner.Resources;Title="관리자 시스템 · 서버 운영";Width=940;Height=760;MinWidth=760;MinHeight=560;Style=(Style)FindResource("SchoolWindow");
         MaxHeight=SystemParameters.WorkArea.Height-30;WindowStartupLocation=WindowStartupLocation.CenterOwner;
-        var dock=new DockPanel();DockPanel.SetDock(feedback,Dock.Bottom);feedback.Margin=new Thickness(22,8,22,16);dock.Children.Add(feedback);dock.Children.Add(new ScrollViewer{Content=body});Content=dock;
-        body.Children.Add(Label("서버 운영",25));body.Children.Add(Label("접속 서버: "+api.Address+"\n네트워크 수치는 같은 PC의 다른 프로그램도 포함합니다.",12));
+        var dock=new DockPanel{Margin=new Thickness(24,18,24,12)};Content=dock;
+        var footer=new DockPanel{Margin=new Thickness(0,12,0,0)};var refresh=new Button{Content="상태 새로고침",MinHeight=38,Margin=new Thickness(0,0,16,0)};refresh.Click+=async(_,_)=>await Refresh(true);DockPanel.SetDock(refresh,Dock.Left);footer.Children.Add(refresh);footer.Children.Add(feedback);DockPanel.SetDock(footer,Dock.Bottom);dock.Children.Add(footer);
+        var header=new DockPanel{Margin=new Thickness(0,0,0,18)};
         var localControl=new Button{Content="이 PC 서버 시작 · 중지 관리",Margin=new Thickness(0,5,0,10)};
         var localRoot=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,".."));
         localControl.IsEnabled=Application.Current.MainWindow is LocalServerWindow||File.Exists(Path.Combine(localRoot,"server","SchoolMessenger.Server.exe"))||File.Exists(Path.Combine(localRoot,"announcement-server","SchoolMessenger.AnnouncementServer.exe"));
@@ -36,20 +37,23 @@ public sealed partial class ServerManagementWindow:Window
         {
             if(Application.Current.MainWindow is LocalServerWindow manager){manager.Show();manager.Activate();return;}
             var start=new ProcessStartInfo(Environment.ProcessPath!){UseShellExecute=false,CreateNoWindow=true};start.ArgumentList.Add("--server-manager");Process.Start(start);
-        };body.Children.Add(localControl);
+        };localControl.Content="이 PC 서버 시작·중지";localControl.VerticalAlignment=VerticalAlignment.Center;DockPanel.SetDock(localControl,Dock.Right);header.Children.Add(localControl);
+        var heading=new StackPanel();var title=Label("서버 운영",22);title.FontWeight=FontWeights.Bold;heading.Children.Add(title);heading.Children.Add(Label("접속 서버  "+api.Address,12));header.Children.Add(heading);DockPanel.SetDock(header,Dock.Top);dock.Children.Add(header);
+        var tabs=new TabControl{BorderThickness=new Thickness(0)};tabs.SetResourceReference(Control.BackgroundProperty,"Soft");dock.Children.Add(tabs);body.Margin=new Thickness(0,12,0,0);
+        tabs.Items.Add(new TabItem{Header="운영 현황",Content=new ScrollViewer{Content=body,VerticalScrollBarVisibility=ScrollBarVisibility.Auto}});
         var cards=new Grid();for(var i=0;i<3;i++)cards.ColumnDefinitions.Add(new ColumnDefinition());
         AddCard(cards,0,"PC 전체 CPU",cpu,cpuBar);AddCard(cards,1,"PC 전체 RAM",memory,memoryBar,memoryNote);AddCard(cards,2,"이 서버 프로그램 RAM",process,null,processNote);body.Children.Add(cards);
-        body.Children.Add(hardware);body.Children.Add(traffic);body.Children.Add(storage);
-        body.Children.Add(Label("부하 설정",19));body.Children.Add(profile);body.Children.Add(settings);body.Children.Add(apply);
-        var discovery=new Button{Content="교내 서버 자동검색 설정",Margin=new Thickness(0,14,0,0)};discovery.Click+=async(_,_)=>await OpenDiscovery();body.Children.Add(discovery);
-        var boot=new Button{Content="서버 PC 재시작 후 자동 구동 설정",Margin=new Thickness(0,8,0,0)};boot.Click+=(_,_)=>OpenServerStartup();body.Children.Add(boot);
-        var policy=new Button{Content="학교별 약관 · 개인정보 설정 초안",Margin=new Thickness(0,8,0,0)};policy.Click+=(_,_)=>new SchoolPolicyWindow(this,api).ShowDialog();body.Children.Add(policy);
-        body.Children.Add(Label("기존 작업을 강제로 종료하지 않고 새 파일 작업의 동시 실행과 전송 속도를 조정합니다. 서버가 사용하는 RAM 전체의 강제 상한은 아닙니다.",12));
-        var refresh=new Button{Content="상태 새로고침",Margin=new Thickness(0,12,0,8)};refresh.Click+=async(_,_)=>await Refresh(true);body.Children.Add(refresh);
+        var information=new StackPanel();var infoGrid=new Grid();infoGrid.ColumnDefinitions.Add(new ColumnDefinition());infoGrid.ColumnDefinitions.Add(new ColumnDefinition());var machine=new StackPanel{Margin=new Thickness(0,0,20,0)};machine.Children.Add(hardware);machine.Children.Add(traffic);infoGrid.Children.Add(machine);Grid.SetColumn(storage,1);infoGrid.Children.Add(storage);foreach(var label in new[]{hardware,traffic,storage})label.FontSize=12;information.Children.Add(infoGrid);information.Children.Add(Label("네트워크 수치는 같은 PC의 다른 프로그램도 포함합니다.",12));body.Children.Add(Section("하드웨어 · 네트워크 · 저장 공간",information));
+        var load=new StackPanel();var loadActions=new DockPanel();apply.MinHeight=38;apply.MinWidth=160;apply.Margin=new Thickness(16,0,0,0);apply.SetResourceReference(StyleProperty,"PrimaryButton");DockPanel.SetDock(apply,Dock.Right);loadActions.Children.Add(apply);loadActions.Children.Add(profile);load.Children.Add(loadActions);load.Children.Add(Label("새 파일 작업의 동시 실행과 전송 속도를 조정합니다. 서버 RAM 전체의 강제 상한은 아닙니다.",12));load.Children.Add(new Expander{Header="전송 제한과 현재 작업",Content=settings,Margin=new Thickness(0,8,0,0)});body.Children.Add(Section("부하 설정",load));
+        var school=new StackPanel{Margin=new Thickness(0,16,0,0)};tabs.Items.Add(new TabItem{Header="계정·학교",Content=new ScrollViewer{Content=school,VerticalScrollBarVisibility=ScrollBarVisibility.Auto}});
+        var connection=new StackPanel{Margin=new Thickness(0,16,0,0)};tabs.Items.Add(new TabItem{Header="시작·연결",Content=new ScrollViewer{Content=connection,VerticalScrollBarVisibility=ScrollBarVisibility.Auto}});
+        var discovery=new Button{Content="교내 서버 자동검색 설정",HorizontalAlignment=HorizontalAlignment.Left};discovery.Click+=async(_,_)=>await OpenDiscovery();connection.Children.Add(Section("교사용 PC 연결",discovery));
+        var boot=new Button{Content="서버 PC 재시작 후 자동 구동 설정",HorizontalAlignment=HorizontalAlignment.Left};boot.Click+=(_,_)=>OpenServerStartup();connection.Children.Add(Section("서버 자동 시작",boot));
+        var policy=new Button{Content="학교별 약관 · 개인정보 설정 초안",HorizontalAlignment=HorizontalAlignment.Left};policy.Click+=(_,_)=>new SchoolPolicyWindow(this,api).ShowDialog();school.Children.Add(Section("학교 운영 정책",policy));
         if(owner is MainWindow main)
         {
             var actions=new WrapPanel();var accounts=new Button{Content="교직원 계정 · 승인",Margin=new Thickness(0,4,8,8)};accounts.Click+=(_,_)=>new OfficeWindow(main,true).Show();actions.Children.Add(accounts);
-            var portal=new Button{Content="학생·학부모 관리",Margin=new Thickness(0,4,0,8)};portal.Click+=(_,_)=>new PortalAdministrationWindow(this).Show();actions.Children.Add(portal);body.Children.Insert(2,actions);
+            var portal=new Button{Content="학생·학부모 관리",Margin=new Thickness(0,4,0,8)};portal.Click+=(_,_)=>new PortalAdministrationWindow(this).Show();actions.Children.Add(portal);school.Children.Insert(0,Section("계정 관리",actions));
         }
         apply.Click+=async(_,_)=>
         {
@@ -63,11 +67,16 @@ public sealed partial class ServerManagementWindow:Window
         Closed+=(_,_)=>timer.Stop();
     }
     static TextBlock Label(string value,int size=14)=>new(){Text=value,FontSize=size,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,7,0,7)};
+    static Border Section(string title,UIElement content)
+    {
+        var stack=new StackPanel();var heading=Label(title,16);heading.FontWeight=FontWeights.Bold;heading.Margin=new Thickness(0,0,0,14);stack.Children.Add(heading);stack.Children.Add(content);
+        var card=new Border{Child=stack,Padding=new Thickness(20),CornerRadius=new CornerRadius(14),Margin=new Thickness(0,0,0,16)};card.SetResourceReference(Border.BackgroundProperty,"Surface");return card;
+    }
     static void AddCard(Grid grid,int column,string title,TextBlock value,ProgressBar? bar,TextBlock? note=null)
     {
         var stack=new StackPanel();stack.Children.Add(Label(title,12));stack.Children.Add(value);if(bar is not null)stack.Children.Add(bar);if(note is not null)stack.Children.Add(note);
         var card=new Border{CornerRadius=new CornerRadius(12),Padding=new Thickness(14),Margin=new Thickness(0,8,10,12),BorderThickness=new Thickness(1),Child=stack};
-        card.SetResourceReference(Border.BackgroundProperty,"Surface");card.BorderBrush=new SolidColorBrush(Color.FromRgb(220,229,240));Grid.SetColumn(card,column);grid.Children.Add(card);
+        card.SetResourceReference(Border.BackgroundProperty,"Surface");card.SetResourceReference(Border.BorderBrushProperty,"Line");value.FontWeight=FontWeights.Bold;Grid.SetColumn(card,column);grid.Children.Add(card);
     }
     static string Bytes(double value)=>value>=1073741824?(value/1073741824).ToString("0.0")+" GB":(value/1048576).ToString("0.0")+" MB";
     static string Rate(JsonElement sample,string name)=>sample.GetProperty(name).ValueKind==JsonValueKind.Number?(sample.GetProperty(name).GetDouble()/1024).ToString("0.0")+" KB/s":"수집 중";

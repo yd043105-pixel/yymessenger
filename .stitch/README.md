@@ -25,6 +25,8 @@
 
 참고: [Google Stitch MCP 연결 안내](https://stitch.withgoogle.com/docs/mcp/setup), [Codex MCP 설정](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
 
+2026-10-28 서버 관리 화면은 기존 프로젝트의 브라우저 UI로 생성·수정한 뒤 Figma에서 정제했다. 실제 작업 캡처와 적용 범위는 [서버 관리 디자인 기록](../docs/server-admin-design.md)에 정리했다. 확인되지 않은 개별 화면 ID는 만들지 않는다.
+
 ## 실제 생성·수정 결과
 
 | 제품 | 최종 Stitch 화면 ID | 로컬 시안 |
