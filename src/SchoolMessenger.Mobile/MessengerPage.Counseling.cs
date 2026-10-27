@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Globalization;
 using SchoolMessenger.Contracts;
 
 namespace SchoolMessenger.Mobile;
@@ -7,17 +8,21 @@ public sealed partial class MessengerPage
 {
     async Task Counseling()
     {
-        var source=api!;var version=epoch;var today=DateOnly.Parse(CounselingTimes.Today).ToDateTime(TimeOnly.MinValue);
+        var source=api!;var version=epoch;var today=DateOnly.ParseExact(CounselingTimes.Today,"yyyy-MM-dd",CultureInfo.InvariantCulture).ToDateTime(TimeOnly.MinValue);
         var page=new ContentPage{Title="상담 예약",BackgroundColor=BackgroundColor};
-        var stack=new VerticalStackLayout{Padding=20,Spacing=12};page.Content=new ScrollView{Content=stack};
-        stack.Add(Brand("상담 예약"));stack.Add(Text("선생님과 만나는 시간",23,true));stack.Add(Text("한국 시간 기준 · 학생별 예정 상담은 1건입니다.",12));
+        var stack=new VerticalStackLayout{Padding=18,Spacing=12};page.Content=new ScrollView{Content=stack};
+        var heading=Text("선생님과 만나는 시간",20,true);stack.Add(heading);var hint=Text("한국 시간 기준 · 학생별 예정 상담은 1건입니다.",12);hint.TextColor=Muted;stack.Add(hint);
         var error=Text("",13);error.TextColor=Color.FromArgb("#A53A38");stack.Add(error);
-        var day=new DatePicker{Date=today.AddDays(1),MinimumDate=today.AddMonths(-6),MaximumDate=today.AddMonths(6),Format="yyyy.MM.dd"};
-        stack.Add(Text("상담 날짜",12,true));stack.Add(Card(day,8));
+        var day=new DatePicker{ClassId="school-field",Date=today.AddDays(1),MinimumDate=today.AddMonths(-6),MaximumDate=today.AddMonths(6),Format="yyyy.MM.dd"};
         var form=new VerticalStackLayout{Spacing=10};var list=new VerticalStackLayout{Spacing=12};
-        var room=new Picker{Title="담당 학급"};var childPicker=new Picker{Title="상담할 학생"};var choices=new Dictionary<int,CheckBox>();
-        var scheduled=new Switch();var opensDay=new DatePicker{Date=today,MinimumDate=today,MaximumDate=today.AddMonths(6),Format="yyyy.MM.dd"};var opensTime=new TimePicker{Time=TimeSpan.FromHours(9),Format="HH:mm"};
-        CounselingView? data=null;CounselingOpen? pending=null;bool loading=false;
+        var room=new Picker{ClassId="school-field",Title="담당 학급"};var childPicker=new Picker{ClassId="school-field",AutomationId="counseling-student",Title="상담할 학생"};var choices=new Dictionary<int,CheckBox>();
+        var filters=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Star)},ColumnSpacing=10};
+        var dateField=new VerticalStackLayout{Spacing=4};dateField.Add(Text("상담 날짜",11,true));dateField.Add(day);filters.Add(dateField);
+        var studentField=new VerticalStackLayout{Spacing=4,IsVisible=false};studentField.Add(Text("상담할 학생",11,true));studentField.Add(childPicker);filters.Add(studentField,1);stack.Add(Card(filters,12));
+        var formCard=Card(form);formCard.AutomationId="counseling-manage-form";formCard.IsVisible=false;
+        SemanticProperties.SetDescription(day,"상담 날짜 · 한국 시간");SemanticProperties.SetDescription(childPicker,"상담할 학생");
+        var scheduled=new Switch();var opensDay=new DatePicker{ClassId="school-field",Date=today,MinimumDate=today,MaximumDate=today.AddMonths(6),Format="yyyy.MM.dd"};var opensTime=new TimePicker{ClassId="school-field",Time=TimeSpan.FromHours(9),Format="HH:mm"};
+        CounselingView? data=null;CounselingOpen? pending=null;bool loading=false;Button? open=null;
         var periodGrid=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Star)},ColumnSpacing=8,RowSpacing=4};
         void PeriodChoices()
         {
@@ -40,7 +45,7 @@ public sealed partial class MessengerPage
         }
         Button Act(string label,Func<Task> action,bool primary=false)
         {
-            var button=new Button{Text=label,BackgroundColor=primary?Blue:Colors.White,TextColor=primary?Colors.White:Navy,CornerRadius=14,Padding=12,MinimumHeightRequest=48,LineBreakMode=LineBreakMode.WordWrap};
+            var button=new Button{Text=label,BackgroundColor=primary?Blue:Colors.White,TextColor=primary?Colors.White:Navy,BorderColor=primary?Blue:Line,BorderWidth=1,CornerRadius=10,Padding=new Thickness(16,10),FontSize=14,MinimumHeightRequest=48,LineBreakMode=LineBreakMode.WordWrap};
             button.Clicked+=async(_,_)=>await Do(action);return button;
         }
         void Render()
@@ -67,7 +72,7 @@ public sealed partial class MessengerPage
                 {
                     if(!slot.Closed&&!slot.Booked&&slot.StartsAt>now)details.Add(Act("이 시간 닫기",async()=>{await source.Send("api/counseling/slots/"+slot.Id+"/close");await Load();}));
                 }
-                else if(student is not null&&!slot.Booked&&slot.OpensAt<=now&&slot.StartsAt>now)
+                else if(student is not null&&!slot.Closed&&!slot.Booked&&slot.OpensAt<=now&&slot.StartsAt>now)
                 {
                     var old=data.Bookings.FirstOrDefault(b=>b.StudentId==student.Id&&b.CanceledAt is null&&b.StartsAt>now);
                     var request=new CounselingReserve(Guid.NewGuid().ToString("N"),slot.Id,student.Id,old?.Id);
@@ -77,35 +82,37 @@ public sealed partial class MessengerPage
                         if(await page.DisplayAlertAsync(old is null?"상담 신청":"상담 시간 변경",note,"확인","돌아가기")&&Live()){await source.Send("api/counseling/bookings",request);await Load();}
                     },true));
                 }
-                list.Add(Card(details));
+                var card=Card(details);card.AutomationId="counseling-slot-"+slot.Id;list.Add(card);
             }
             if(slots.Length==0)list.Add(Text(data.CanManage?"상담 시간을 선택해 열어주세요.":"이 날짜에 열린 상담 시간이 없습니다.",14));
         }
         async Task Load()
         {
-            var value=await source.Get("api/counseling?date="+(day.Date??today).ToString("yyyy-MM-dd"));if(!Live())return;
+            var value=await source.Get("api/counseling?date="+(day.Date??today).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture));if(!Live())return;
             var previousChild=childPicker.SelectedIndex>=0&&data is not null&&childPicker.SelectedIndex<data.Students.Length?data.Students[childPicker.SelectedIndex].Id:null;
             var previousRoom=room.SelectedIndex>=0&&data is not null&&room.SelectedIndex<data.Classes.Length?data.Classes[room.SelectedIndex].Id:null;
             data=value.Deserialize(MobileJson.Default.CounselingView)!;
             room.ItemsSource=data.Classes.Select(c=>c.Name).ToArray();room.SelectedIndex=Math.Max(0,Array.FindIndex(data.Classes,c=>c.Id==previousRoom));
             childPicker.ItemsSource=data.Students.Select(s=>s.Name+" · "+s.ClassName).ToArray();childPicker.SelectedIndex=Math.Max(0,Array.FindIndex(data.Students,s=>s.Id==previousChild));
-            childPicker.IsVisible=!data.CanManage;form.IsVisible=data.CanManage;PeriodChoices();Render();
+            studentField.IsVisible=!data.CanManage;formCard.IsVisible=data.CanManage;filters.ColumnDefinitions[1].Width=data.CanManage?new GridLength(0):GridLength.Star;filters.ColumnSpacing=data.CanManage?0:10;
+            heading.Text=data.CanManage?"상담 시간 관리":"선생님과 만나는 시간";if(open is not null)open.IsVisible=data.CanManage;PeriodChoices();Render();
         }
-        stack.Add(Act("날짜 조회 · 새로고침",async()=>{await Load();pending=null;form.IsEnabled=true;}));stack.Add(Card(childPicker,8));
+        stack.Add(Act("날짜 조회 · 새로고침",async()=>{await Load();pending=null;form.IsEnabled=true;}));
         form.Add(Text("예약 시간 열기",18,true));form.Add(Card(room,8));
         form.Add(periodGrid);
-        var schedule=new HorizontalStackLayout{Spacing=10};schedule.Add(scheduled);schedule.Add(Text("신청 오픈 시각 지정",14));form.Add(schedule);form.Add(opensDay);form.Add(opensTime);stack.Add(Card(form));
-        var open=Act("선택한 시간 열기 · 같은 요청 재시도",async()=>
+        var schedule=new HorizontalStackLayout{Spacing=10};schedule.Add(scheduled);schedule.Add(Text("신청 오픈 시각 지정",14));form.Add(schedule);
+        var openingFields=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Star)},ColumnSpacing=10,IsVisible=false};openingFields.Add(opensDay);openingFields.Add(opensTime,1);form.Add(openingFields);scheduled.Toggled+=(_,e)=>openingFields.IsVisible=e.Value;stack.Add(formCard);
+        open=Act("선택한 시간 열기",async()=>
         {
             if(data is not{CanManage:true})return;
             if(pending is null)
             {
                 if(room.SelectedIndex<0||room.SelectedIndex>=data.Classes.Length)throw new InvalidOperationException("관리자에게 담당 학급 배정을 요청하세요.");
                 var opening=scheduled.IsToggled?CounselingTimes.At(DateOnly.FromDateTime(opensDay.Date??today),(opensTime.Time??TimeSpan.FromHours(9)).ToString(@"hh\:mm")):(long?)null;
-                pending=new CounselingOpen(Guid.NewGuid().ToString("N"),data.Classes[room.SelectedIndex].Id,(day.Date??today).ToString("yyyy-MM-dd"),choices.Where(c=>c.Value.IsChecked).Select(c=>c.Key).ToArray(),opening);form.IsEnabled=false;
+                pending=new CounselingOpen(Guid.NewGuid().ToString("N"),data.Classes[room.SelectedIndex].Id,(day.Date??today).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),choices.Where(c=>c.Value.IsChecked).Select(c=>c.Key).ToArray(),opening);form.IsEnabled=false;
             }
             await source.Send("api/counseling/slots",pending);pending=null;form.IsEnabled=true;await Load();
-        },true);stack.Add(open);stack.Add(list);
+        },true);open.IsVisible=false;stack.Add(open);stack.Add(list);
         childPicker.SelectedIndexChanged+=(_,_)=>Render();
         room.SelectedIndexChanged+=(_,_)=>PeriodChoices();
         await Navigation.PushAsync(page);await Do(Load);open.IsVisible=data?.CanManage==true;

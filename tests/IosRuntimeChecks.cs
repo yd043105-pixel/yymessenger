@@ -146,7 +146,7 @@ internal static class IosRuntimeChecks
                 await Tap("학급 시간표");await Wait(()=>CurrentPage.Title=="우리 학급 시간표");
                 Controls.OfType<DatePicker>().Single().Date=DateTime.ParseExact(fixture.GetProperty("timetableDate").GetString()!,"yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture);
                 await Tap("선택한 날짜 보기");await Wait(()=>Has("가상 영어"));
-                Check(Has("변경 전: 가상 수학")&&Has("2교시 · 10:00–10:50 · 수업 없음")&&Has("일자별 시간표 적용"),"native iOS displays dated replacement, previous lesson, exact school bell time and explicitly empty period");
+                Check(Has("변경 전: 가상 수학")&&Controls.OfType<Border>().Any(b=>b.ClassId=="timetable-lesson"&&SemanticProperties.GetDescription(b).Contains("2교시 · 10:00–10:50 · 수업 없음"))&&Has("일자별 시간표 적용"),"native iOS displays dated replacement, previous lesson, exact school bell time and explicitly empty period");
                 Controls.OfType<DatePicker>().Single().Date=new DateTime(2026,10,15);await Tap("선택한 날짜 보기");await Wait(()=>Has("기초시간표 적용"));
                 Check(Has("가상 수학")&&Has("가상 국어"),"native iOS falls back to baseline when no dated workbook exists");
                 Controls.OfType<Picker>().Single().SelectedIndex=1;await Tap("선택한 날짜 보기");await Wait(()=>Has("아직 시간표가 등록되지 않은 학급이 있습니다."));
@@ -160,6 +160,17 @@ internal static class IosRuntimeChecks
                 Check(CurrentPage.Content.IsVisible, "resume validates session before restoring native content");
                 using var teacher = new MessengerApi(portal, false); await teacher.Login(fixture.GetProperty("teacher").GetString()!, password, false);
                 var scopes = await teacher.Get("api/classes");
+                var counselingDay=DateOnly.ParseExact(CounselingTimes.Today,"yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture).AddDays(1).ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture);
+                var opened=await teacher.Send("api/counseling/slots",new CounselingOpen(Guid.NewGuid().ToString("N"),scopes.EnumerateArray().First().GetProperty("id").GetString()!,counselingDay,[1,2]));
+                var slotIds=opened.GetProperty("ids").EnumerateArray().Select(s=>s.GetString()!).ToArray();
+                await teacher.Send("api/counseling/slots/"+slotIds[1]+"/close");
+                await Page.Navigation.PopAsync();await Tap("홈");await Tap("상담 예약");await Wait(()=>CurrentPage.Title=="상담 예약"&&Has("선택한 날짜의 상담 시간"));
+                var childChoice=Controls.OfType<Picker>().Single(p=>p.AutomationId=="counseling-student");childChoice.SelectedIndex=childChoice.ItemsSource.Cast<string>().ToList().FindIndex(s=>s.StartsWith("가상학생 하나"));
+                Check(!Controls.OfType<Border>().Single(b=>b.AutomationId=="counseling-manage-form").IsVisible&&!Controls.OfType<Button>().Single(b=>b.Text=="선택한 시간 열기").IsVisible,"native parent counseling hides the complete teacher management card and action");
+                Check(Controls.OfType<Border>().Any(b=>b.AutomationId=="counseling-slot-"+slotIds[0])&&!Controls.OfType<Border>().Any(b=>b.AutomationId=="counseling-slot-"+slotIds[1])&&Has("이 시간 신청"),"native parent counseling offers an open slot and omits a closed slot");
+                childChoice.SelectedIndex=childChoice.ItemsSource.Cast<string>().ToList().FindIndex(s=>s.StartsWith("가상학생 둘"));
+                Check(!Controls.OfType<Border>().Any(b=>b.AutomationId=="counseling-slot-"+slotIds[0])&&!Has("이 시간 신청"),"native counseling switches available times with the selected child's class");
+                await Page.Navigation.PopAsync();await Tap("홈");
                 var file = Path.Combine(FileSystem.CacheDirectory, "ios-synthetic-attachment.png"); await File.WriteAllBytesAsync(file, Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK1cAAAAASUVORK5CYII="));
                 var upload = await teacher.Upload(new FileResult(file), true);
                 var request = new AnnouncementRequest(Guid.NewGuid().ToString("N"), "iOS 공지 검증", "가상 iOS 공지입니다.", "both", [scopes.EnumerateArray().First().GetProperty("id").GetString()!], false, [upload.GetProperty("id").GetString()!]);
@@ -234,6 +245,11 @@ internal static class IosRuntimeChecks
                 entries=Controls.OfType<Entry>().ToArray();entries[0].Text=office;entries[1].Text=fixture.GetProperty("admin").GetString();entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("교직원 업무 메시지 검증"));
                 Check(Has("온라인 교무실")&&Has("메시지"),"native office home renders the internal account schema without requiring a public portal role");
                 Check(Controls.OfType<Button>().Count(b=>b.ClassId=="school-shortcut")==4,"teacher home groups timetable, counseling, school events and room booking without oversized cards");
+                await Tap("상담 예약");await Wait(()=>CurrentPage.Title=="상담 예약"&&Has("상담 시간 관리"));
+                Check(Controls.OfType<Border>().Single(b=>b.AutomationId=="counseling-manage-form").IsVisible&&Controls.OfType<Button>().Single(b=>b.Text=="선택한 시간 열기").IsVisible,"native teacher counseling exposes authorized time management");
+                var openingFields=((VerticalStackLayout)Controls.OfType<Border>().Single(b=>b.AutomationId=="counseling-manage-form").Content!).Children.OfType<Grid>().Last();var openingSwitch=Controls.OfType<Switch>().Single();
+                Check(!openingFields.IsVisible,"native counseling keeps scheduled opening fields hidden until requested");openingSwitch.IsToggled=true;
+                Check(openingFields.IsVisible,"native counseling reveals the scheduled date and time together");openingSwitch.IsToggled=false;await Page.Navigation.PopAsync();
                 var presenceApi=Page.VerificationApi;var ownId=presenceApi.Session.GetProperty("user").GetProperty("id").GetString();
                 async Task<bool> PhonePresent(){var roster=await presenceApi.Get("api/users");return roster.EnumerateArray().Single(p=>p.GetProperty("id").GetString()==ownId).GetProperty("mobile").GetBoolean();}
                 Check(await PhonePresent(),"foreground iOS teacher app publishes authenticated phone presence");

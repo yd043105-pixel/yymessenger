@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Windows.Data;
 using Button = System.Windows.Controls.Button;
 using TextBox = System.Windows.Controls.TextBox;
 using Orientation = System.Windows.Controls.Orientation;
@@ -15,6 +16,7 @@ public sealed class WorkWindow : Window
     readonly MainWindow main;
     readonly Api api;
     readonly ListBox list = new();
+    readonly Button todosTab,submissionsTab,directAdd;
     readonly StackPanel detail = new() { Margin = new Thickness(24) };
     readonly TextBlock feedback = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16, 8, 16, 10) };
     readonly Dictionary<string, SubmissionPacket> pending = new();
@@ -31,19 +33,25 @@ public sealed class WorkWindow : Window
         Title = "여양 교무실 · 할 일과 파일 제출"; Width = 860; Height = 650; MinWidth = 650; MinHeight = 500;
         Style = (Style)FindResource("SchoolWindow"); WindowStartupLocation = WindowStartupLocation.CenterOwner;
         requestedId = requestId; if (requestId is not null) view = "submission-requests";
-        var layout = new DockPanel { Background = Brushes.White }; Content = layout;
+        var layout = new DockPanel();layout.SetResourceReference(Panel.BackgroundProperty,"Surface"); Content = layout;
         var heading = new StackPanel { Margin = new Thickness(20, 16, 20, 12) };
-        heading.Children.Add(Text("할 일과 파일 제출", 21)); heading.Children.Add(Text("추천은 확인 후 등록하세요. 진행 중인 일은 기한순으로 표시합니다. D-Day는 한국 날짜 기준입니다.", 11));
-        var navigation = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
-        navigation.Children.Add(Action("나의 할 일", async () => { view = "todos"; offset = 0; detail.Children.Clear(); await Reload(); }));
-        navigation.Children.Add(Action("파일 제출 · 수합", async () => { view = "submission-requests"; offset = 0; detail.Children.Clear(); await Reload(); }));
+        heading.Children.Add(Text("할 일과 파일 제출", 18)); heading.Children.Add(Text("진행 중인 일은 기한순으로 표시합니다. D-Day는 한국 날짜 기준입니다.", 11));
+        var navigation = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        todosTab=Action("나의 할 일", async () => { view = "todos"; offset = 0; detail.Children.Clear(); await Reload(); });navigation.Children.Add(todosTab);
+        submissionsTab=Action("파일 제출 · 수합", async () => { view = "submission-requests"; offset = 0; detail.Children.Clear(); await Reload(); });navigation.Children.Add(submissionsTab);
         navigation.Children.Add(Action("새로고침", Reload));
-        navigation.Children.Add(Action("할 일 직접 추가", () => { Todo(null); return Task.CompletedTask; }));
+        directAdd=Action("할 일 직접 추가", async () => { view="todos";offset=0;await Reload();Todo(null); });navigation.Children.Add(directAdd);
         navigation.Children.Add(Action("다음 목록", async () => { offset += 100; detail.Children.Clear(); await Reload(); }));
         heading.Children.Add(navigation); DockPanel.SetDock(heading, Dock.Top); layout.Children.Add(heading);
         DockPanel.SetDock(feedback, Dock.Bottom); layout.Children.Add(feedback);
         var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) }); grid.ColumnDefinitions.Add(new ColumnDefinition());
         list.BorderThickness = new Thickness(0, 0, 1, 0); list.BorderBrush = (Brush)FindResource("Line");
+        list.SetResourceReference(Control.BackgroundProperty,"Soft");
+        ScrollViewer.SetHorizontalScrollBarVisibility(list,ScrollBarVisibility.Disabled);list.HorizontalContentAlignment=HorizontalAlignment.Stretch;
+        var row=new FrameworkElementFactory(typeof(StackPanel));row.SetBinding(ToolTipService.ToolTipProperty,new Binding("Label"));
+        var title=new FrameworkElementFactory(typeof(TextBlock));title.SetBinding(TextBlock.TextProperty,new Binding("Title"));title.SetValue(TextBlock.FontSizeProperty,12d);title.SetValue(TextBlock.FontWeightProperty,FontWeights.SemiBold);title.SetValue(TextBlock.TextWrappingProperty,TextWrapping.NoWrap);title.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);row.AppendChild(title);
+        var summary=new FrameworkElementFactory(typeof(TextBlock));summary.SetBinding(TextBlock.TextProperty,new Binding("Summary"));summary.SetValue(TextBlock.FontSizeProperty,10d);summary.SetResourceReference(TextBlock.ForegroundProperty,"Muted");summary.SetValue(FrameworkElement.MarginProperty,new Thickness(0,6,0,0));summary.SetValue(TextBlock.TextWrappingProperty,TextWrapping.NoWrap);summary.SetValue(TextBlock.TextTrimmingProperty,TextTrimming.CharacterEllipsis);row.AppendChild(summary);
+        list.ItemTemplate=new DataTemplate{VisualTree=row};
         list.SelectionChanged += async (_, _) => { if (!rendering && list.SelectedItem is WorkRow row) await Run(() => Show(row.Value)); };
         grid.Children.Add(list); var scroll = new ScrollViewer { Content = detail, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }; Grid.SetColumn(scroll, 1); grid.Children.Add(scroll); layout.Children.Add(grid);
         Loaded += async (_, _) => await Run(async () => { await Reload(); if (requestedId is not null) await Submission(requestedId); });
@@ -51,7 +59,8 @@ public sealed class WorkWindow : Window
         deadlineClock.Tick+=async(_,_)=>{var today=KoreanToday;if(today!=displayedDay&&!busy){if(view=="todos")await Run(Reload);else displayedDay=today;}};
         Closing += (_, e) => { if (busy) e.Cancel = true; };
     }
-    static TextBlock Text(string text, double size = 13) => new() { Text = text, FontSize = size, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) };
+    static TextBlock Text(string text, double size = 13)
+    {var block=new TextBlock{Text=text,FontSize=size,FontWeight=size>=16?FontWeights.SemiBold:FontWeights.Normal,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,0,0,10)};block.SetResourceReference(TextBlock.ForegroundProperty,size<=12?"Muted":"Ink");return block;}
     Button Action(string label, Func<Task> action)
     {
         var button = new Button { Content = label, Margin = new Thickness(0, 0, 8, 8), FontSize = 11 };
@@ -61,12 +70,14 @@ public sealed class WorkWindow : Window
     public async Task Reload()
     {
         var currentView = view;
+        todosTab.SetResourceReference(Control.BackgroundProperty,currentView=="todos"?"Pale":"Surface");todosTab.SetResourceReference(Control.ForegroundProperty,currentView=="todos"?"Blue":"Muted");
+        submissionsTab.SetResourceReference(Control.BackgroundProperty,currentView=="submission-requests"?"Pale":"Surface");submissionsTab.SetResourceReference(Control.ForegroundProperty,currentView=="submission-requests"?"Blue":"Muted");
         var previous = (list.SelectedItem as WorkRow)?.Value.GetProperty("id").GetString();
         var rows = await api.Get<JsonElement[]>($"api/{view}?offset={offset}");
         if (currentView != view) return;
         feedback.Text="";
         rendering = true;
-        try { displayedDay=KoreanToday;list.ItemsSource = rows.Select(v => new WorkRow(v, v.GetProperty("title").GetString()! + "\n" + (view == "todos" ? Status(v.GetProperty("status").GetString()!) + " · " + Deadline(String(v,"dueDate"),String(v,"status"),displayedDay) : v.GetProperty("ownerName").GetString() + " · " + v.GetProperty("submittedCount").GetInt32() + "/" + v.GetProperty("targetCount").GetInt32() + "명 제출"))).ToArray(); list.DisplayMemberPath = "Label"; list.SelectedItem = list.Items.Cast<WorkRow>().FirstOrDefault(r => r.Value.GetProperty("id").GetString() == previous); }
+        try { displayedDay=KoreanToday;list.ItemsSource = rows.Select(v => new WorkRow(v, v.GetProperty("title").GetString()!.ReplaceLineEndings(" "), currentView == "todos" ? Status(v.GetProperty("status").GetString()!) + " · " + Deadline(String(v,"dueDate"),String(v,"status"),displayedDay) : v.GetProperty("ownerName").GetString() + " · " + v.GetProperty("submittedCount").GetInt32() + "/" + v.GetProperty("targetCount").GetInt32() + "명 제출")).ToArray(); list.SelectedItem = list.Items.Cast<WorkRow>().FirstOrDefault(r => r.Value.GetProperty("id").GetString() == previous); }
         finally { rendering = false; }
         if(currentView=="todos"&&list.SelectedItem is WorkRow selected&&detail.Children.OfType<TextBlock>().FirstOrDefault(t=>Equals(t.Tag,"deadline-counter")) is{} counter)
             counter.Text=Deadline(String(selected.Value,"dueDate"),String(selected.Value,"status"),displayedDay);
@@ -91,7 +102,7 @@ public sealed class WorkWindow : Window
             detail.Children.Add(Text(String(original, "evidence"), 12));
             var counter=Text(Deadline(String(original,"dueDate"),String(original,"status"),KoreanToday),14);counter.Tag="deadline-counter";detail.Children.Add(counter);
             if (String(original, "sourceId") is { Length: > 0 } source)
-                detail.Children.Add(Action("원본 메시지 보기", async () => { var originalMessage = await api.Get<Detail>($"api/messages/{source}"); var window = new Window { Owner = this, Title = originalMessage.Message.Title, Width = 550, Height = 450, Content = new ScrollViewer { Content = Text(originalMessage.Message.Body), Margin = new Thickness(20) } }; window.Show(); }));
+                detail.Children.Add(Action("원본 메시지 보기", async () => { var originalMessage = await api.Get<Detail>($"api/messages/{source}"); var window = new Window { Owner = this, Title = originalMessage.Message.Title, Width = 550, Height = 450, Style=(Style)FindResource("SchoolWindow"), Content = new ScrollViewer { Content = Text(originalMessage.Message.Body), Margin = new Thickness(20) } }; window.Show(); }));
         }
         var title = new TextBox { MaxLength = 200, Text = item is { } t ? String(t, "title") : "", Margin = new Thickness(0, 0, 0, 12) };
         var due = new DatePicker { Margin = new Thickness(0, 0, 0, 12) };
@@ -159,14 +170,16 @@ public sealed class WorkWindow : Window
             }));
         }
     }
-    sealed record WorkRow(JsonElement Value, string Label);
+    sealed record WorkRow(JsonElement Value, string Title,string Summary){public string Label=>Title+"\n"+Summary;}
     internal async Task Verify()
     {
         var day=new DateOnly(2026,12,31);
         if(Deadline("2027-01-01","open",day)!="2027.01.01 · D-1"||Deadline("2026-12-31","open",day)!="2026.12.31 · D-Day"
            ||Deadline("2026-12-29","open",day)!="2026.12.29 · 기한 지남 2일"||Deadline("","open",day)!="기한 없음"
            ||Deadline("2026-12-29","done",day)!="2026.12.29")throw new InvalidOperationException("기한별 D-Day 표시 검증 실패");
-        Todo(null);
+        view="submission-requests";await Reload();directAdd.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        for(var i=0;i<100&&busy;i++)await Task.Delay(50);
+        if(busy||view!="todos"||!detail.Children.OfType<TextBox>().Any())throw new InvalidOperationException("제출 탭에서 할 일 직접 추가 전환 실패");
         detail.Children.OfType<TextBox>().Single().Text = "Windows 업무 창에서 등록한 할 일";
         detail.Children.OfType<Button>().Single(b => b.Content?.ToString() == "저장").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         for (var i = 0; i < 100 && busy; i++) await Task.Delay(50);
