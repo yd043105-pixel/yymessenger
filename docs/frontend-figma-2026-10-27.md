@@ -4,18 +4,18 @@
 
 ## 편집 가능한 디자인
 
-[Figma 디자인 파일](https://www.figma.com/design/4Sapf25JYKt31JwtMU24a4)
+[최신 Figma 작업본](https://www.figma.com/design/x3w6KOP0uIi5VnkEDbXx0l) · [이전 계정의 보존 파일](https://www.figma.com/design/4Sapf25JYKt31JwtMU24a4)
 
 | 화면 | Figma 노드 |
 | --- | --- |
-| PC 조직도 · 450×820 | [3:65](https://www.figma.com/design/4Sapf25JYKt31JwtMU24a4?node-id=3-65) |
-| PC 메시지함 | [3:66](https://www.figma.com/design/4Sapf25JYKt31JwtMU24a4?node-id=3-66) |
-| PC 메시지 작성 | [3:67](https://www.figma.com/design/4Sapf25JYKt31JwtMU24a4?node-id=3-67) |
-| 교사용 앱 홈 | [3:68](https://www.figma.com/design/4Sapf25JYKt31JwtMU24a4?node-id=3-68) |
-| 학부모용 학교 앱 홈 | [3:69](https://www.figma.com/design/4Sapf25JYKt31JwtMU24a4?node-id=3-69) |
-| 학생용 학교 앱 홈 | [3:70](https://www.figma.com/design/4Sapf25JYKt31JwtMU24a4?node-id=3-70) |
-| 회원가입 | [3:71](https://www.figma.com/design/4Sapf25JYKt31JwtMU24a4?node-id=3-71) |
-| 공지 상세 | [3:72](https://www.figma.com/design/4Sapf25JYKt31JwtMU24a4?node-id=3-72) |
+| PC 조직도 · 450×820 | [2:69](https://www.figma.com/design/x3w6KOP0uIi5VnkEDbXx0l?node-id=2-69) |
+| PC 메시지함 | [2:70](https://www.figma.com/design/x3w6KOP0uIi5VnkEDbXx0l?node-id=2-70) |
+| PC 메시지 작성 | [2:71](https://www.figma.com/design/x3w6KOP0uIi5VnkEDbXx0l?node-id=2-71) |
+| 교사용 앱 홈 | [2:72](https://www.figma.com/design/x3w6KOP0uIi5VnkEDbXx0l?node-id=2-72) |
+| 학부모용 학교 앱 홈 | [2:73](https://www.figma.com/design/x3w6KOP0uIi5VnkEDbXx0l?node-id=2-73) |
+| 학생용 학교 앱 홈 | [2:74](https://www.figma.com/design/x3w6KOP0uIi5VnkEDbXx0l?node-id=2-74) |
+| 회원가입 | [2:75](https://www.figma.com/design/x3w6KOP0uIi5VnkEDbXx0l?node-id=2-75) |
+| 공지 상세 | [2:76](https://www.figma.com/design/x3w6KOP0uIi5VnkEDbXx0l?node-id=2-76) |
 
 색상 변수, 글자 스타일, 기본·보조·비활성 버튼 컴포넌트를 파일에 만들었다. 인물·수업·날짜는 가상 예시이며 실제 회원 정보와 메시지는 Figma에 올리지 않는다. 시안의 데이터·기기 상태바는 앱 기능이나 실측 화면의 증거가 아니다.
 
@@ -52,8 +52,8 @@ Figma는 Noto Sans KR로 편집한다. Windows는 맑은 고딕, 휴대폰은 �
 - `node tests/smoke.mjs --ui --skip-native-input`: 93개 통과. 실제 창을 띄워 450×820, 450×760, 380×580 메뉴 잘림과 아이콘 전환, 다섯 테마, 접속 상태, 역할별 메뉴, 작성·읽기·예약·제출·할 일 흐름을 검사했다. 실제 Windows 키보드 주입은 제외했다.
 - 로컬 실제 화면은 `artifacts/client-preview.png`, `artifacts/mailbox-preview.png`, `artifacts/compose-preview.png`에 저장한다. Figma 시안 캡처와 작업 노드 기록은 `artifacts/figma-ui-20261027/`에 구분해 보관한다.
 - Android 교사용·학생학부모용 Debug APK 빌드는 경고·오류 0개로 완료했다. GitHub의 양쪽 앱 Release 빌드도 통과했다.
-- [코드 커밋 1fe054e의 검증 실행](https://github.com/yd043105-pixel/yymessenger/actions/runs/40451902297)에서 iPhone 시뮬레이터 실행 검사가 통과했다. 기록 작성 시 iOS Release 빌드와 Windows 설치파일 CI 검사는 진행 중이다. 최신 결과는 해당 실행과 PR 상태를 확인한다.
+- [코드 커밋 1fe054e의 검증 실행](https://github.com/yd043105-pixel/yymessenger/actions/runs/40451902297)에서 iPhone 시뮬레이터 실행 검사가 통과했다. Windows 설치파일 CI 검사도 통과했다. 기록 작성 시 iOS Release 빌드는 진행 중이다. 최신 결과는 해당 실행과 PR 상태를 확인한다.
 - 로컬 Windows 설치파일 두 개와 서버 ZIP, 두 APK, iOS 최신 소스 ZIP을 `01_설치파일`에 갱신했다. `tests/final-delivery.ps1`의 전달 파일 7개 해시·현재 소스 일치 검사가 통과했다. iOS ZIP은 설치 가능한 IPA가 아니다.
 - 실제 Android/iPhone의 화면 크기·큰 글씨·VoiceOver/TalkBack, 학교 운영 데이터, Apple 서명·스토어 업로드는 별도 현장 확인이 필요하다. 학교 서버 가동·공개 릴리즈는 실행하지 않는다.
 
-Figma의 기존 계정 무료 호출 한도 도달 후 사용자가 다른 연결 계정 사용을 지정했다. 재인증은 확인했지만 기존 파일의 편집 권한이 없어 추가 쓰기가 거부됐다. 사용자에게 기존 파일의 편집 권한 공유 또는 새 계정에 작업본 생성을 요청했다. Figma 모바일 홈 세 화면의 하단 탭 프레임 높이 보정이 남아 있다. 실제 앱의 하단 탭은 별도 고정 영역으로 구현했으며 이 시안의 잘림을 앱에 적용하지 않았다. Figma 시안과 실제 화면 캡처는 구분해 확인한다.
+기존 계정 무료 호출 한도 도달 후 사용자가 지정한 다른 연결 계정에 새 작업본을 만들었다. 기존 파일은 보존했다. 같은 공통 색상·글자 스타일·버튼과 8개 화면을 이어서 구성하고, 모바일 하단 메뉴 높이를 보정했다. PC 세 화면, 모바일 홈 세 화면, 가입·공지 두 화면으로 묶어 전체 캡처를 검토했다. 최신 캡처는 `artifacts/figma-ui-20261027/pc-design.png`, `mobile-homes-design.png`, `signup-notice-design.png`이며 새 파일의 변수·스타일·노드·잘림 검사 기록은 `continued-state.json`에 있다. 기존 파일에 편집 권한을 추가할 필요는 없다.
