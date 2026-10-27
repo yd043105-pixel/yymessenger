@@ -21,7 +21,7 @@ public sealed partial class MessengerPage
         grid.Add(name,1);
         if(signedIn)
         {
-            var account=new ImageButton{Source="nav_profile.png",WidthRequest=44,HeightRequest=44,Padding=12,BackgroundColor=Colors.Transparent,CornerRadius=10};
+            var account=new ImageButton{AutomationId="school-account",Source="nav_profile.png",WidthRequest=44,HeightRequest=44,Padding=12,BackgroundColor=Colors.Transparent,CornerRadius=10};
             SemanticProperties.SetDescription(account,"내 정보 열기");account.Clicked+=async(_,_)=>await Run(async()=>{homeTab="account";await Home();});grid.Add(account,2);
         }
         return grid;
@@ -38,11 +38,10 @@ public sealed partial class MessengerPage
         for(var index=0;index<options.Length;index++)
         {
             var (key,label,icon)=options[index];var selected=homeTab==key;
-            var item=new Grid{MinimumHeightRequest=54,BackgroundColor=selected?Pale:Colors.Transparent};
-            item.Add(new Image{Source=icon,HeightRequest=20,WidthRequest=20,VerticalOptions=LayoutOptions.Start,HorizontalOptions=LayoutOptions.Center,Margin=new Thickness(0,7,0,0)});
             var button=MakeAction(label,async()=>{homeTab=key;offset=0;await Home();});
-            button.BackgroundColor=Colors.Transparent;button.BorderWidth=0;button.TextColor=selected?Blue:Muted;button.FontSize=11;button.FontAttributes=selected?FontAttributes.Bold:FontAttributes.None;button.Padding=new Thickness(2,26,2,2);item.Add(button);
-            tabs.Add(new Border{Content=item,StrokeThickness=0,StrokeShape=new RoundRectangle{CornerRadius=12}},index);
+            button.AutomationId="school-tab-"+key;button.ImageSource=icon;button.ContentLayout=new Button.ButtonContentLayout(Button.ButtonContentLayout.ImagePosition.Top,3);
+            button.BackgroundColor=selected?Pale:Colors.Transparent;button.BorderWidth=0;button.CornerRadius=12;button.MinimumHeightRequest=54;button.TextColor=selected?Blue:Muted;button.FontSize=11;button.FontAttributes=selected?FontAttributes.Bold:FontAttributes.None;button.Padding=new Thickness(6,7);
+            tabs.Add(button,index);
         }
     }
     void Login()
@@ -128,15 +127,15 @@ public sealed partial class MessengerPage
             var day=Text("오늘 · "+today.ToString("M월 d일 dddd",CultureInfo.GetCultureInfo("ko-KR")),12,true);day.TextColor=Muted;day.Margin=new Thickness(0,4,0,0);body.Add(day);
             var shortcuts=new List<(string Label,string Icon,Func<Task> Action)>
             {
-                ("시간표 · 내 수업 / 학급","action_calendar.png",()=>Timetable()),
-                (source.Office||role=="teacher"?"상담 예약 관리":"상담 예약 신청 · 내 예약","nav_profile.png",Counseling)
+                (source.Office?"내 시간표":"학급 시간표","action_calendar.png",()=>Timetable()),
+                ("상담 예약","nav_profile.png",Counseling)
             };
             if(source.Office)
             {
-                shortcuts.Add(("학사력 · 행사 · 학교 일정","action_calendar.png",()=>OfficeSchedule(false)));
-                shortcuts.Add(("특별실 예약 · 나의 예약","action_room.png",()=>OfficeSchedule(true)));
+                shortcuts.Add(("학교 일정","action_calendar.png",()=>OfficeSchedule(false)));
+                shortcuts.Add(("특별실 예약","action_room.png",()=>OfficeSchedule(true)));
             }
-            if(!source.Office&&role=="student")shortcuts.Add(("선택과목 신청 · 내 신청","nav_notices.png",Electives));
+            if(!source.Office&&role=="student")shortcuts.Add(("수강신청","nav_notices.png",Electives));
             body.Add(QuickActions(shortcuts));
         }
         var scheduleNotices=await source.Get("api/timetable/notices");if(!Current(source,version))return;

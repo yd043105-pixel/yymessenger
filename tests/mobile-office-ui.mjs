@@ -34,8 +34,8 @@ check('native teacher foreground publishes phone-only presence, background clear
 await find(n=>n.text==='미확인 메시지');await click('교직원 업무 메시지 검증');await find(n=>n.text==='교직원 전용 메시지입니다. 외부 공지 서버에는 나타나지 않습니다.');
 cmd('shell','input','keyevent','KEYCODE_BACK');await delay(500);await find(n=>n.text==='교직원 업무 메시지 검증');assert.ok(!dump().some(n=>n.text==='미확인 메시지'));check('received message shows unread state and opening it persists read status, including a self-recipient');
 assert.ok(!dump().some(n=>n.text==='받은 메시지'));await click('메시지');await find(n=>n.text==='받은 메시지');await screenshot('android-teacher-inbox-current');await click('홈');await find(n=>n.text==='교직원 업무 메시지 검증');check('teacher home keeps recent messages compact and the message tab exposes mailbox choices');
-await click('학사력 · 행사 · 학교 일정');await find(n=>n.text==='교직원 학사일정 검증');await screenshot('android-teacher-calendar');check('native teacher calendar reads authenticated school events');
-cmd('shell','input','keyevent','KEYCODE_BACK');await delay(500);await click('특별실 예약 · 나의 예약');await find(n=>n.text==='특별실 예약하기');await screenshot('android-teacher-rooms');
+await click('학교 일정');await find(n=>n.text==='교직원 학사일정 검증');await screenshot('android-teacher-calendar');check('native teacher calendar reads authenticated school events');
+cmd('shell','input','keyevent','KEYCODE_BACK');await delay(500);await click('특별실 예약');await find(n=>n.text==='특별실 예약하기');await screenshot('android-teacher-rooms');
 await click('특별실 예약하기');await input(0,'Android-native-reservation');
 // The isolated fixture already reserves the first period. Pick the second period for both ends.
 for(let index=0;index<2;index++){tap(await find(n=>n.class==='android.widget.EditText'&&n.text.startsWith('1교시')));tap(await find(n=>n.text.startsWith('2교시')));await delay(300);}

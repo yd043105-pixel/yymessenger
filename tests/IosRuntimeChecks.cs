@@ -8,6 +8,7 @@ public sealed partial class MessengerPage
 {
     internal bool VerificationReady=>!busy&&!resuming&&!covered;
     internal MessengerApi VerificationApi=>api!;
+    internal Task VerificationRun(Func<Task> action)=>Run(action);
 }
 
 // Compiled only into the explicitly requested simulator verification build.
@@ -56,6 +57,39 @@ internal static class IosRuntimeChecks
     {
         await Tap("내 정보");await Tap(text);
     }
+    static async Task VerifyHomeLayout()
+    {
+        var root=Page.Content;var width=root.WidthRequest;var actualWidth=root.Width;var alignment=root.HorizontalOptions;
+        var buttons=Controls.OfType<Button>().Where(b=>b.AutomationId?.StartsWith("school-tab-")==true).ToArray();
+        var sizes=buttons.Select(b=>b.FontSize).ToArray();
+        try
+        {
+            root.WidthRequest=320;root.HorizontalOptions=LayoutOptions.Start;
+            for(var index=0;index<buttons.Length;index++)buttons[index].FontSize=sizes[index]*2;
+            await Wait(()=>root.Width>0&&root.Width<=320.5&&buttons.All(b=>b.Height>=54));await Task.Delay(300);
+            Check(buttons.Length==3&&buttons.All(b=>b.Handler?.PlatformView is UIKit.UIButton native&&
+                native.ImageView is {} image&&native.TitleLabel is {} title&&image.Frame.Height>0&&title.Frame.Height>0&&
+                image.Frame.Y+image.Frame.Height<=title.Frame.Y+1&&title.Frame.Y+title.Frame.Height<=native.Bounds.Height+1),
+                "320pt content and simulated double-size tab text keep all native tab icons and labels separate and inside their buttons");
+        }
+        finally
+        {
+            for(var index=0;index<buttons.Length;index++)buttons[index].FontSize=sizes[index];
+            root.WidthRequest=width;root.HorizontalOptions=alignment;
+            await Wait(()=>Math.Abs(root.Width-actualWidth)<1);
+        }
+        var account=Controls.OfType<ImageButton>().Single(b=>b.AutomationId=="school-account");
+        var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var work=Page.VerificationRun(()=>release.Task);
+        try
+        {
+            await Wait(()=>!Page.VerificationReady);await Task.Delay(100);
+            Check(!account.IsEnabled&&account.Handler?.PlatformView is UIKit.UIButton native&&!native.Enabled,
+                "busy native school page disables the fixed header account action together with the feed and tabs");
+        }
+        finally{release.TrySetResult();await work;}
+        Check(account.IsEnabled,"native header account action is restored after work finishes");
+    }
     static async Task SaveReport(string phase,bool ok,string? error=null)
     {
         var file=Path.Combine(Documents,"ios-"+phase+"-results.json");
@@ -100,12 +134,16 @@ internal static class IosRuntimeChecks
                 entries[0].Text = portal; entries[1].Text = fixture.GetProperty("parent").GetString(); entries[2].Text = password;
                 await Tap("로그인"); await Wait(() => Has("10월 현장체험학습 안내"));
                 Check(entries[2].Text == "", "native parent login renders allowed notices and clears password input");
-                Check(!Has("선택과목 신청 · 내 신청"),"native parent home does not offer student elective applications");
+                Check(!Has("수강신청"),"native parent home does not offer student elective applications");
                 Check(Controls.OfType<Button>().Count(b=>b.ClassId=="school-shortcut")==2,"parent home groups timetable and counseling into two compact shortcuts");
                 Check(Has("홈")&&Has("소식")&&Has("내 정보")&&!Has("로그아웃")&&!Has("업데이트 내역"),"native home prioritizes notices with persistent tabs and moves account actions out of the feed");
+                var latestNotice=(await Page.VerificationApi.Get("api/announcements?offset=0")).EnumerateArray().First();
+                var expectedStamp=DateTimeOffset.FromUnixTimeMilliseconds(latestNotice.GetProperty("publishedAt").GetInt64()).ToOffset(TimeSpan.FromHours(9)).ToString("MM.dd HH:mm",System.Globalization.CultureInfo.InvariantCulture);
+                Check(Controls.OfType<Label>().Any(l=>l.Text==expectedStamp),"native school notice timestamps use Korea time independently of the simulator timezone");
+                await VerifyHomeLayout();
                 await Tap("소식");await Wait(()=>Has("받은 학교 소식"));await Tap("홈");await Wait(()=>Has("최근 학교 소식"));
                 Check(Has("10월 현장체험학습 안내"),"native notice tab and home tab preserve authorized school content");
-                await Tap("시간표 · 내 수업 / 학급");await Wait(()=>CurrentPage.Title=="우리 학급 시간표");
+                await Tap("학급 시간표");await Wait(()=>CurrentPage.Title=="우리 학급 시간표");
                 Controls.OfType<DatePicker>().Single().Date=DateTime.ParseExact(fixture.GetProperty("timetableDate").GetString()!,"yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture);
                 await Tap("선택한 날짜 보기");await Wait(()=>Has("가상 영어"));
                 Check(Has("변경 전: 가상 수학")&&Has("2교시 · 10:00–10:50 · 수업 없음")&&Has("일자별 시간표 적용"),"native iOS displays dated replacement, previous lesson, exact school bell time and explicitly empty period");
@@ -152,7 +190,7 @@ internal static class IosRuntimeChecks
                 await Tap("회원가입 신청");await Wait(()=>CurrentPage==Page&&Has("임시회원 가입 완료"));
                 Check(signup[2].Text=="","native individual signup clears its password and returns to login");
                 entries=Controls.OfType<Entry>().ToArray();entries[0].Text=portal;entries[1].Text="ios.parent";entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("임시회원입니다."));
-                Check(!Controls.OfType<Button>().Any(b=>b.Text=="시간표 · 내 수업 / 학급"),"native temporary parent has no school content or timetable action");
+                Check(!Controls.OfType<Button>().Any(b=>b.Text=="학급 시간표"),"native temporary parent has no school content or timetable action");
                 using var administrator=new MessengerApi(portal,false);await administrator.Login("admin",password,false);
                 var people=(await administrator.Get("api/admin/people")).EnumerateArray().ToArray();
                 var firstStudent=people.Single(p=>p.GetProperty("username").ValueKind==JsonValueKind.String&&p.GetProperty("username").GetString()==fixture.GetProperty("student").GetString());
@@ -163,9 +201,9 @@ internal static class IosRuntimeChecks
                 Check(Has("정회원 · 연결된 자녀")&&Has("가상학생 하나"),"native code entry immediately upgrades temporary parent to regular member");
                 Controls.OfType<Entry>().Single().Text=otherCode;await Tap("자녀 연결");await Wait(()=>Has("가상학생 둘")&&Has("자녀가 연결되었습니다"));
                 Check(Has("가상학생 하나")&&Controls.OfType<Entry>().Single().Text=="","native settings adds a second child and clears the entered secret");
-                await Page.Navigation.PopAsync();await Tap("홈");await Wait(()=>Controls.OfType<Button>().Any(b=>b.Text=="시간표 · 내 수업 / 학급"));await TapAccount("로그아웃");await Wait(()=>Has("우리 학교 소식"));
+                await Page.Navigation.PopAsync();await Tap("홈");await Wait(()=>Controls.OfType<Button>().Any(b=>b.Text=="학급 시간표"));await TapAccount("로그아웃");await Wait(()=>Has("우리 학교 소식"));
                 entries=Controls.OfType<Entry>().ToArray();entries[0].Text=portal;entries[1].Text=fixture.GetProperty("student").GetString();entries[2].Text=password;await Tap("로그인");await Wait(()=>Has("10월 현장체험학습 안내"));
-                Check(Has("선택과목 신청 · 내 신청"),"native student home offers elective registration");
+                Check(Has("수강신청"),"native student home offers elective registration");
                 Check(Controls.OfType<Button>().Count(b=>b.ClassId=="school-shortcut")==3,"student home keeps timetable, counseling and elective registration in a compact grid");
                 var electiveId=fixture.GetProperty("electiveId").GetString()!;
                 var courseIds=fixture.GetProperty("electiveCourseIds").EnumerateArray().Select(c=>c.GetString()!).ToArray();
@@ -177,7 +215,7 @@ internal static class IosRuntimeChecks
                     var course=courses.Single(c=>c.GetProperty("id").GetString()==id);var prefix=course.GetProperty("name").GetString()+" · ";
                     return Controls.OfType<CheckBox>().Single(c=>SemanticProperties.GetDescription(c)?.StartsWith(prefix,StringComparison.Ordinal)==true);
                 }
-                await Tap("선택과목 신청 · 내 신청");await Wait(()=>Has(round.GetProperty("title").GetString()!));await Tap("과목·내 신청 보기");await Wait(()=>Has(round.GetProperty("groups")[0].GetProperty("name").GetString()!));
+                await Tap("수강신청");await Wait(()=>Has(round.GetProperty("title").GetString()!));await Tap("과목·내 신청 보기");await Wait(()=>Has(round.GetProperty("groups")[0].GetProperty("name").GetString()!));
                 Check(Controls.OfType<CheckBox>().Count()==courses.Length&&Has("정원 제한 없이")&&mandatory.All(id=>CourseCheck(id).IsChecked&&!CourseCheck(id).IsEnabled),"native elective detail renders all course types, mandatory common courses and no-capacity guidance");
                 CourseCheck(courseIds[0]).IsChecked=true;await Tap("선택 과목 신청");await Wait(()=>Has("접수 완료"));
                 var application=(await Page.VerificationApi.Get("api/electives/"+electiveId)).GetProperty("application");
@@ -205,11 +243,11 @@ internal static class IosRuntimeChecks
                 await Page.Resume();await Wait(()=>Page.VerificationReady&&Has("교직원 업무 메시지 검증"));
                 Check(await PhonePresent(),"resuming the iOS app restores phone presence");
                 Check(Controls.OfType<Label>().Any(l=>l.Text=="미확인 메시지"),"native iOS office home renders the received-message unread state");
-                await Tap("학사력 · 행사 · 학교 일정");await Wait(()=>Has("교직원 학사일정 검증"));
+                await Tap("학교 일정");await Wait(()=>Has("교직원 학사일정 검증"));
                 Check(Controls.OfType<DatePicker>().Any()&&Has("학교 일정 등록"),"native teacher calendar displays authenticated school events and manager actions");
                 await Tap("학교 일정 등록");await Wait(()=>Controls.OfType<Entry>().Any(e=>e.Placeholder=="제목"));Controls.OfType<Entry>().Single(e=>e.Placeholder=="제목").Text="iOS 학교 행사 저장 검증";
                 await Tap("저장");await Wait(()=>Has("iOS 학교 행사 저장 검증"));Check(true,"native teacher calendar editor persists an event through the office API");
-                await Page.Navigation.PopAsync();await Tap("특별실 예약 · 나의 예약");await Wait(()=>CurrentPage.Title=="특별실 예약");Controls.OfType<DatePicker>().Single().Date=DateTime.Parse(fixture.GetProperty("officeBookingDate").GetString()!);
+                await Page.Navigation.PopAsync();await Tap("특별실 예약");await Wait(()=>CurrentPage.Title=="특별실 예약");Controls.OfType<DatePicker>().Single().Date=DateTime.Parse(fixture.GetProperty("officeBookingDate").GetString()!);
                 await Tap("날짜 조회");await Wait(()=>Has("교직원 특별실 예약 검증"));Check(Has("가상 특별실"),"native teacher reservations display the selected day and room from the school server");
                 await Page.Navigation.PopAsync();
                 await Tap("교직원 업무 메시지 검증");await Wait(()=>Has("교직원 전용 메시지입니다"));
