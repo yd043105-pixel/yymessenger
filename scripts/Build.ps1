@@ -114,7 +114,7 @@ try {
     Copy-Item -LiteralPath 'docs\server-setup-school-tunnel.md','docs\server-administration.md','docs\server-administration-verification-2026-10-14.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\server-connection-and-autostart.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\mobile-operations.md','docs\ui-design-presence.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\mobile-operations.md','docs\ui-design-presence.md','docs\frontend-figma-2026-10-27.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\platform-deployment-guide.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\beginner-setup-guide.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\installation-and-test-order.md' -Destination $packageDocs

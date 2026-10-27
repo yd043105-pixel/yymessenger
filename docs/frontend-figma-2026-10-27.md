@@ -51,7 +51,9 @@ Figma는 Noto Sans KR로 편집한다. Windows는 맑은 고딕, 휴대폰은 �
 - WPF 빌드: 경고·오류 0개.
 - `node tests/smoke.mjs --ui --skip-native-input`: 93개 통과. 실제 창을 띄워 450×820, 450×760, 380×580 메뉴 잘림과 아이콘 전환, 다섯 테마, 접속 상태, 역할별 메뉴, 작성·읽기·예약·제출·할 일 흐름을 검사했다. 실제 Windows 키보드 주입은 제외했다.
 - 로컬 실제 화면은 `artifacts/client-preview.png`, `artifacts/mailbox-preview.png`, `artifacts/compose-preview.png`에 저장한다. Figma 시안 캡처와 작업 노드 기록은 `artifacts/figma-ui-20261027/`에 구분해 보관한다.
-- Android는 교사용·학생학부모용 APK를 별도로 빌드한다. iOS는 기존 GitHub macOS 검증에서 시뮬레이터 실행과 양쪽 앱의 Release 빌드를 확인한다. 실행별 최신 결과는 PR의 검증 상태를 확인한다.
+- Android 교사용·학생학부모용 Debug APK 빌드는 경고·오류 0개로 완료했다. GitHub의 양쪽 앱 Release 빌드도 통과했다.
+- [코드 커밋 1fe054e의 검증 실행](https://github.com/yd043105-pixel/yymessenger/actions/runs/40451902297)에서 iPhone 시뮬레이터 실행 검사가 통과했다. 기록 작성 시 iOS Release 빌드와 Windows 설치파일 CI 검사는 진행 중이다. 최신 결과는 해당 실행과 PR 상태를 확인한다.
+- 로컬 Windows 설치파일 두 개와 서버 ZIP, 두 APK, iOS 최신 소스 ZIP을 `01_설치파일`에 갱신했다. `tests/final-delivery.ps1`의 전달 파일 7개 해시·현재 소스 일치 검사가 통과했다. iOS ZIP은 설치 가능한 IPA가 아니다.
 - 실제 Android/iPhone의 화면 크기·큰 글씨·VoiceOver/TalkBack, 학교 운영 데이터, Apple 서명·스토어 업로드는 별도 현장 확인이 필요하다. 학교 서버 가동·공개 릴리즈는 실행하지 않는다.
 
-Figma의 기존 계정 무료 호출 한도 도달 후 사용자가 다른 연결 계정 사용을 지정했다. 재인증은 확인했지만 기존 파일의 편집 권한 연결은 별도로 필요하다. 실제 프로그램 수정과 검증은 로컬 소스로 계속 진행한다.
+Figma의 기존 계정 무료 호출 한도 도달 후 사용자가 다른 연결 계정 사용을 지정했다. 재인증은 확인했지만 기존 파일의 편집 권한이 없어 추가 쓰기가 거부됐다. 사용자에게 기존 파일의 편집 권한 공유 또는 새 계정에 작업본 생성을 요청했다. Figma 모바일 홈 세 화면의 하단 탭 프레임 높이 보정이 남아 있다. 실제 앱의 하단 탭은 별도 고정 영역으로 구현했으며 이 시안의 잘림을 앱에 적용하지 않았다. Figma 시안과 실제 화면 캡처는 구분해 확인한다.
