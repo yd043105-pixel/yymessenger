@@ -15,7 +15,7 @@ public sealed partial class MessengerPage
     Button DesktopButton(string label,Func<Task>? action=null,bool primary=false)
     {
         var button=new Button{Text=label,FontSize=16,FontAttributes=FontAttributes.None,Padding=new Thickness(14,8),MinimumHeightRequest=42,CornerRadius=10,BorderWidth=1,BorderColor=primary?Blue:Line,BackgroundColor=primary?Blue:Colors.White,TextColor=primary?Colors.White:Navy,LineBreakMode=LineBreakMode.TailTruncation};
-        if(action is not null)button.Clicked+=async(_,_)=>await Run(action);return button;
+        if(action is not null)button.Clicked+=async(_,_)=>await Run(async()=>{try{await action();}catch(Exception error)when(Navigation.NavigationStack.LastOrDefault() is ContentPage page&&page!=this){await page.DisplayAlertAsync(page.Title??"교무톡",error.Message,"확인");}});return button;
     }
     ContentPage DesktopPage(string title)
     {
@@ -56,7 +56,7 @@ public sealed partial class MessengerPage
         Link("rooms","특별실 예약","action_room.png",()=>OfficeSchedule(true));Link("counseling","상담 예약","action_calendar.png",Counseling);
         Link("account","내 정보","nav_profile.png",async()=>{homeTab="account";await Home();});rail.Add(links,0,2);
         var away=DesktopButton("자리비움",async()=>{if(desktopHub?.State!=HubConnectionState.Connected)throw new InvalidOperationException("연결을 확인하세요.");desktopAway=await desktopHub.InvokeAsync<bool>("SetAway",!desktopAway);desktopStatus.Text=desktopAway?"자리비움":"온라인";});away.FontSize=12;away.Padding=4;rail.Add(away,0,3);
-        var grid=new Grid{ColumnDefinitions={new(new GridLength(96)),new(GridLength.Star)},ColumnSpacing=1,BackgroundColor=Line};grid.Add(rail);grid.Add(desktopContent,1);Content=grid;
+        var grid=new Grid{ColumnDefinitions={new(new GridLength(96)),new(GridLength.Star)},RowDefinitions={new(GridLength.Star),new(GridLength.Auto)},ColumnSpacing=1,BackgroundColor=Line};grid.Add(rail);Grid.SetRowSpan(rail,2);grid.Add(desktopContent,1);feedback.Margin=new Thickness(16,4);grid.Add(feedback,1,1);Content=grid;
         // Keep the desktop navigation in view at short window heights as well.
         rail.SizeChanged+=(_,_)=>{var compact=rail.Height>0&&rail.Height<720;foreach(var item in desktopMenu.Values){item.ImageSource=compact?null:item.AutomationId is "mac-nav-rooms"?"action_room.png":item.AutomationId is "mac-nav-timetable" or "mac-nav-calendar" or "mac-nav-counseling"?"action_calendar.png":item.AutomationId is "mac-nav-people" or "mac-nav-account"?"nav_profile.png":"nav_notices.png";item.HeightRequest=compact?40:56;}};
     }

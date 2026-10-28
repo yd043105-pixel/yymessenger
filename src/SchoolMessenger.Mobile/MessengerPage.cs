@@ -69,7 +69,11 @@ public sealed partial class MessengerPage : ContentPage
     {
         body.Clear();identityHeader.Content=Brand(signedIn?(api?.Office==true?OfficeSpaceLabel:"학생·학부모용 학교 앱"):"학교와 일상을 잇다",signedIn);
         var heading=new VerticalStackLayout{Spacing=6};heading.Add(Text(title,signedIn?22:24,true));
-        var note=Text(caption,12);note.TextColor=Muted;heading.Add(note);body.Add(heading);body.Add(feedback);feedback.Text="";
+        var note=Text(caption,12);note.TextColor=Muted;heading.Add(note);body.Add(heading);
+#if !MACCATALYST
+        body.Add(feedback);
+#endif
+        feedback.Text="";
     }
     Entry Input(string title,bool password=false,string? value=null){var field=new VerticalStackLayout{Spacing=4};field.Add(Text(title,12,true));var input=new Entry{ClassId="school-field",Placeholder=title,IsPassword=password,Text=value,TextColor=Navy,BackgroundColor=Colors.Transparent};var border=Card(input);border.Padding=new Thickness(12,0);input.Focused+=(_,_)=>border.Stroke=Blue;input.Unfocused+=(_,_)=>border.Stroke=Line;field.Add(border);body.Add(field);return input;}
     void EnableActions(bool value){foreach(var button in body.Children.OfType<Button>())button.IsEnabled=value;tabs.IsEnabled=value;identityHeader.IsEnabled=value;}

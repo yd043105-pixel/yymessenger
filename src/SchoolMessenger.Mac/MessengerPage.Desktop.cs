@@ -97,13 +97,20 @@ public sealed partial class MessengerPage
         var files=new List<string>();var names=new VerticalStackLayout{Spacing=4};var fileHint=Text("선택한 파일이 여기에 표시됩니다 · 30일 보관",11);fileHint.TextColor=Muted;names.Add(fileHint);
         var fileZone=new Grid{ColumnDefinitions={new(GridLength.Auto),new(GridLength.Star)},ColumnSpacing=12};names.VerticalOptions=LayoutOptions.Center;fileZone.Add(names,1);
         var error=Text("",12);error.TextColor=Color.FromArgb("#A53A38");fields.Add(error,0,5);
-        var attach=MakeAction("파일 첨부",async()=>
-        {
-            preserveComposerOnResume=true;var file=await FilePicker.Default.PickAsync(new PickOptions{PickerTitle="메시지 첨부파일 선택"});if(file is null)return;
-            var upload=await source.Upload(file,false);if(!Current(source,version))return;files.Add(upload.GetProperty("id").GetString()!);fileHint.IsVisible=false;var name=Text(file.FileName,12);name.MaxLines=1;name.LineBreakMode=LineBreakMode.TailTruncation;names.Add(name);
-        });fileZone.Add(attach);fields.Add(DesktopPanel(fileZone,10,Color.FromArgb("#F3F6FB")),0,4);
         var client=Guid.NewGuid().ToString("N");JsonObject? pending=null;
-        var send=DesktopButton("보내기",()=>Task.CompletedTask,true);send.AutomationId="mac-send";send.MinimumWidthRequest=112;send.HorizontalOptions=LayoutOptions.End;
+        var send=DesktopButton("보내기",null,true);send.AutomationId="mac-send";send.MinimumWidthRequest=112;send.HorizontalOptions=LayoutOptions.End;
+        var attach=DesktopButton("파일 첨부");
+        attach.Clicked+=async(_,_)=>
+        {
+            attach.IsEnabled=send.IsEnabled=false;
+            try
+            {
+                preserveComposerOnResume=true;var file=await FilePicker.Default.PickAsync(new PickOptions{PickerTitle="메시지 첨부파일 선택"});if(file is null)return;
+                var upload=await source.Upload(file,false);if(!Current(source,version))return;files.Add(upload.GetProperty("id").GetString()!);fileHint.IsVisible=false;var name=Text(file.FileName,12);name.MaxLines=1;name.LineBreakMode=LineBreakMode.TailTruncation;names.Add(name);
+            }
+            catch(Exception e){error.Text=e.Message;}
+            finally{send.IsEnabled=true;attach.IsEnabled=pending is null;}
+        };fileZone.Add(attach);fields.Add(DesktopPanel(fileZone,10,Color.FromArgb("#F3F6FB")),0,4);
         var footer=new Grid{Padding=new Thickness(20,10),ColumnDefinitions={new(GridLength.Star),new(GridLength.Auto)}};var caption=Text("교직원에게 보내는 업무 메시지",11);caption.TextColor=Muted;caption.VerticalOptions=LayoutOptions.Center;footer.Add(caption);footer.Add(send,1);grid.Add(footer,0,2);
         send.Clicked+=async(_,_)=>
         {
