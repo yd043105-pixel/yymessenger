@@ -31,3 +31,7 @@ Windows에서 받은 CI 파일은 `artifacts/mac`에 놓고 `scripts/Prepare-Mac
 Intel용은 교차 빌드와 실제 Mach-O 아키텍처 검사를 통과했으며 실제 Intel Mac에서 실행한 결과는 아니다. 실제 Mac에서 학교망·VPN·학교 인증서, Finder 파일 선택·첨부 내려받기와 취소, 일정·예약, 절전·복귀·네트워크 변경·계정 회수를 추가 시험해야 한다. 앱이 종료된 상태의 OS 푸시나 Mac 자동 업데이트, Windows 전용 기능 전체와의 동등성을 검증한 결과도 아니다.
 
 Developer ID·프로비저닝 프로파일·Apple 공증 정보는 제공되지 않았다. 두 ZIP은 ad-hoc 시험본이며 Gatekeeper가 다운로드 앱 실행을 차단할 수 있다. 일반 배포 전 정식 서명·공증과 배포 Keychain 자동 로그인 시험을 마쳐야 한다. 인증서 확인을 끄거나 평문 세션 저장으로 우회하지 않았다. [Mac 설치·배포 준비](mac-operations.md)를 함께 읽는다.
+
+## 같은 날 · Figma 공통 톤 적용
+
+[Figma Mac 작업본](https://www.figma.com/design/x3w6KOP0uIi5VnkEDbXx0l?node-id=58-43)을 기준으로 메뉴 레일·분할 메시지함·작성창을 정리했다. [Mac 실행 40703259115](https://github.com/yd043105-pixel/yymessenger/actions/runs/40703259115)의 검토 HEAD는 `e02003f`이며 실제 실행 **14개 검사**와 Apple Silicon·Intel Release 번들 검사를 통과했다. 목록·본문 동시 표시, 중복 모바일 하단 메뉴 제거, 서버 읽음 응답 후 미확인 표시 갱신, 로그아웃 시 본문 제거를 확인했다. 시험 ZIP·SHA-256·실행 기록을 Mac 전달 폴더에 갱신했다. 이전 시운행 기록의 창 구성과 구분하며 [상세 변경](mac-ui-figma-2026-10-28.md)을 따른다.
