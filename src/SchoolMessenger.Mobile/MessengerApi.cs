@@ -27,7 +27,7 @@ public sealed class MessengerApi : IDisposable
         localDebug=uri.Scheme=="http"&&(uri.IsLoopback||uri.Host=="10.0.2.2");
 #endif
         if(uri.Scheme!="https"&&!localDebug)throw new InvalidOperationException("서버 주소는 https://로 시작해야 합니다.");
-        Address=uri;Office=office;key="session-"+Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes((office?"office:":"portal:")+uri.AbsoluteUri)));
+        Address=uri;Office=office;key=SessionKey(uri,office);
 #if FAMILY_APP
         if(office)throw new InvalidOperationException("학생·학부모용 학교 앱은 학교 소식 서버만 사용할 수 있습니다.");
 #elif TEACHER_APP
@@ -52,6 +52,11 @@ public sealed class MessengerApi : IDisposable
     {
         try{var data=await SecureStorage.Default.GetAsync(key);if(data is null)return;foreach(var cookie in JsonSerializer.Deserialize(data,MobileJson.Default.MobileCookieArray)??[])if(cookie.Expires>DateTime.UtcNow)cookies.Add(Address,new Cookie(cookie.Name,cookie.Value,"/"){Expires=cookie.Expires,Secure=Address.Scheme=="https",HttpOnly=true});Remember=true;}
         catch{SecureStorage.Default.Remove(key);}
+    }
+    static string SessionKey(Uri uri,bool office)=>"session-"+Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes((office?"office:":"portal:")+uri.AbsoluteUri)));
+    public static void ForgetRemembered(string address,bool office)
+    {
+        if(Uri.TryCreate(address.TrimEnd('/')+"/",UriKind.Absolute,out var uri))SecureStorage.Default.Remove(SessionKey(uri,office));
     }
     async Task Persist()
     {

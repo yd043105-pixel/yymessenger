@@ -15,6 +15,8 @@ $sourceStage=Join-Path $artifacts ('ios-source-'+[guid]::NewGuid().ToString('N')
 New-Item -ItemType Directory -Path $sourceStage | Out-Null
 try{
     foreach($file in @('global.json','Directory.Build.props')){Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $sourceStage}
+    New-Item -ItemType Directory -Path (Join-Path $sourceStage 'config') -Force|Out-Null
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'config\school-directory.json') -Destination (Join-Path $sourceStage 'config')
     foreach($project in @('SchoolMessenger.Mobile','SchoolMessenger.Contracts','SchoolMessenger.Shared')){
         $target=Join-Path $sourceStage "src\$project"
         New-Item -ItemType Directory -Path $target -Force | Out-Null

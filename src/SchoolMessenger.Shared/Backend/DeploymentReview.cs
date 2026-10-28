@@ -19,6 +19,8 @@ public sealed class DeploymentReview
     static readonly JsonSerializerOptions Json=new(JsonSerializerDefaults.Web){MaxDepth=16,UnmappedMemberHandling=JsonUnmappedMemberHandling.Disallow};
     readonly Review? record;
     public bool Trial=>record is null;
+    public string? SchoolId=>record?.SchoolId;
+    public string? SchoolName=>record?.School;
     DeploymentReview(Review? value)=>record=value;
     static InvalidOperationException Invalid(string code)=>new("학교 보안 도입 검토를 확인하세요. ["+code+"]");
     static bool Label(string? value)=>!string.IsNullOrWhiteSpace(value)&&value.Length<=160&&!value.Any(char.IsControl);

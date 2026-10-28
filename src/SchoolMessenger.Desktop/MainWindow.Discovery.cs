@@ -10,7 +10,7 @@ namespace SchoolMessenger.Desktop;
 public partial class MainWindow
 {
     bool findingServer;
-    async void FindServerClick(object sender,RoutedEventArgs e)=>await FindSchoolServer();
+    async void FindNearbyServerClick(object sender,RoutedEventArgs e)=>await FindSchoolServer();
     async Task FindSchoolServer()
     {
         if(findingServer||signingIn)return;findingServer=true;FindServerButton.IsEnabled=LoginButton.IsEnabled=false;

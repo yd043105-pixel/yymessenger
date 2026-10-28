@@ -23,7 +23,7 @@ public sealed partial class MessengerPage : ContentPage
     bool unread;
     public MessengerPage()
     {
-        MessengerApi.CleanupShares();Active=this;Title="여양고 · 학교 소식";BackgroundColor=Color.FromArgb("#F3F6FB");
+        MessengerApi.CleanupShares();Active=this;Title="여양메신저 · 학교 소식";BackgroundColor=Color.FromArgb("#F3F6FB");
         NavigationPage.SetHasNavigationBar(this,false);
         var layout=new Grid{RowDefinitions={new(GridLength.Auto),new(GridLength.Star),new(GridLength.Auto)}};
         layout.Add(identityHeader);
@@ -40,6 +40,7 @@ public sealed partial class MessengerPage : ContentPage
             restored=true;var mode=Preferences.Default.Get("mode",0);var address=Preferences.Default.Get("address-"+mode,"");
             if(address.Length>0)await Run(async()=>
             {
+                var school=ReadSelectedSchool(mode);if(school is not null)await SchoolMessenger.Shared.SchoolDirectory.Verify(school,mode==1?"office":"announcements");
                 var source=new MessengerApi(address,mode==1);await source.Restore();
                 if(!source.Remember){source.Dispose();return;}
                 api=source;source.Invalidated+=()=>{if(api==source)Invalidate();};await source.Refresh();

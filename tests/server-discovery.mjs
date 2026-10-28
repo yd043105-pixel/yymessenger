@@ -7,7 +7,7 @@ export async function discoveryChecks({admin,ordinary,base,check}){
  assert.equal((await fetch(base+'/api/admin/server-discovery')).status,401);
  const state=await admin.req('admin/server-discovery');assert.equal(state.settings.enabled,false);
  for(const address of ['http://10.0.0.1:7443/','https://localhost:7443/','https://127.0.0.1/','https://name:password@10.0.0.1/','https://10.0.0.1/private','https://10.0.0.1/?secret=x'])await admin.req('admin/server-discovery','POST',{enabled:true,address},400);
- const identity=await(await fetch(base+'/server-info')).json();assert.equal(identity.product,product);assert.deepEqual(Object.keys(identity).sort(),['product','schoolName']);
+ const identity=await(await fetch(base+'/server-info')).json();assert.equal(identity.product,product);assert.equal(identity.directoryProduct,'SchoolMessenger.School.1');assert.equal(identity.service,'office');assert.deepEqual(Object.keys(identity).sort(),['directoryProduct','product','schoolId','schoolName','service']);
  check('Discovery settings are administrator-only, HTTPS-only, reject localhost/credentials/paths and publish no account or message data');
  const target='https://10.0.0.1:7443/';await admin.req('admin/server-discovery','POST',{enabled:true,address:target});
  for(let n=0;n<30&&!(await admin.req('admin/server-discovery')).listening;n++)await delay(100);

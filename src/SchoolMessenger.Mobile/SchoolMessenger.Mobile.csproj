@@ -39,12 +39,12 @@
     </PropertyGroup>
     <PropertyGroup Condition="'$(SchoolApp)' == 'Teacher'">
         <ApplicationId>kr.school.yeoyang.teacher</ApplicationId>
-        <ApplicationTitle>여양고 교무실</ApplicationTitle>
+        <ApplicationTitle>여양메신저 교무실</ApplicationTitle>
         <DefineConstants>$(DefineConstants);TEACHER_APP</DefineConstants>
     </PropertyGroup>
     <PropertyGroup Condition="'$(SchoolApp)' == 'Family'">
         <ApplicationId>kr.school.yeoyang.family</ApplicationId>
-        <ApplicationTitle>여양고 학교 소식</ApplicationTitle>
+        <ApplicationTitle>여양메신저 학교 소식</ApplicationTitle>
         <DefineConstants>$(DefineConstants);FAMILY_APP</DefineConstants>
     </PropertyGroup>
     <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'iossimulator-arm64' Or '$(RuntimeIdentifier)' == 'iossimulator-x64'">
@@ -87,6 +87,8 @@
     <Compile Include="../SchoolMessenger.Contracts/Electives.cs" Link="Contracts/Electives.cs" />
     <Compile Include="../SchoolMessenger.Contracts/RegistrationPolicies.cs" Link="Contracts/RegistrationPolicies.cs" />
         <Compile Include="../SchoolMessenger.Shared/ReleaseNotice.cs" Link="ReleaseNotice.cs" />
+        <Compile Include="../SchoolMessenger.Shared/SchoolDirectory.cs" Link="SchoolDirectory.cs" />
+        <EmbeddedResource Include="../../config/school-directory.json" LogicalName="SchoolMessenger.SchoolDirectory.json" />
         <EmbeddedResource Include="../SchoolMessenger.Shared/updates.json" LogicalName="SchoolMessenger.UpdateNotes.json" />
 		<!-- The installed workload version must not silently change the locked app dependencies. -->
 		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.0" />
