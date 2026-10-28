@@ -41,11 +41,15 @@ public static class MauiProgram
         });
         Microsoft.Maui.Handlers.DatePickerHandler.Mapper.AppendToMapping("SchoolField",(handler,view)=>
         {
+#if IOS
             if(view is DatePicker{ClassId:"school-field"})handler.PlatformView.BorderStyle=UIKit.UITextBorderStyle.None;
+#endif
         });
         Microsoft.Maui.Handlers.TimePickerHandler.Mapper.AppendToMapping("SchoolField",(handler,view)=>
         {
+#if IOS
             if(view is TimePicker{ClassId:"school-field"})handler.PlatformView.BorderStyle=UIKit.UITextBorderStyle.None;
+#endif
         });
         Microsoft.Maui.Handlers.ButtonHandler.Mapper.AppendToMapping("SchoolStory",(handler,view)=>
         {

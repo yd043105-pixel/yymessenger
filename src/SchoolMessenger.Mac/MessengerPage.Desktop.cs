@@ -17,7 +17,7 @@ public sealed partial class MessengerPage
         sidebar.Add(Text("교무톡",22,true));sidebar.Add(desktopStatus);
         void Link(string label,Func<Task> action)
         {
-            var button=MakeAction(label,async()=>{if(api?.Session.ValueKind!=JsonValueKind.Object||api.Session.GetProperty("user").ValueKind!=JsonValueKind.Object)throw new InvalidOperationException("학교 계정으로 먼저 로그인하세요.");await action();});
+            var button=MakeAction(label,async()=>{if(api?.Session.ValueKind!=JsonValueKind.Object||api.Session.GetProperty("user").ValueKind!=JsonValueKind.Object)throw new InvalidOperationException("학교 계정으로 먼저 로그인하세요.");var user=api.Session.GetProperty("user");if(user.TryGetProperty("activationRequired",out var activation)&&activation.GetBoolean()||user.TryGetProperty("passwordChangeRequired",out var reset)&&reset.GetBoolean())throw new InvalidOperationException("계정 활성화와 비밀번호 변경을 먼저 완료하세요.");await action();});
             button.HorizontalOptions=LayoutOptions.Fill;button.FontSize=14;sidebar.Add(button);
         }
         Link("받은 메시지",async()=>{homeTab="notices";view="received";offset=0;await Home();});
@@ -58,7 +58,7 @@ public sealed partial class MessengerPage
     {using var content=new StringContent(payload.ToJsonString(),Encoding.UTF8,"application/json");return await source.Send(path,content:content);}
     async Task MacPeople()
     {
-        var source=api!;var version=epoch;var people=await source.Get("api/people");if(!Current(source,version))return;
+        var source=api!;var version=epoch;var people=await source.Get("api/users");if(!Current(source,version))return;
         var stack=new VerticalStackLayout{Padding=24,Spacing=12};var page=new ContentPage{Title="조직도",Content=new ScrollView{Content=stack},BackgroundColor=BackgroundColor};
         var search=new SearchBar{Placeholder="이름·부서 검색"};stack.Add(search);var rows=new VerticalStackLayout{Spacing=8};stack.Add(rows);
         void Show()
@@ -74,7 +74,7 @@ public sealed partial class MessengerPage
     }
     async Task MacCompose(string? recipient=null)
     {
-        var source=api!;var version=epoch;var people=await source.Get("api/people");if(!Current(source,version))return;
+        var source=api!;var version=epoch;var people=await source.Get("api/users");if(!Current(source,version))return;
         var page=new ContentPage{Title="새 메시지",BackgroundColor=BackgroundColor};composer=page;
         var stack=new VerticalStackLayout{Padding=24,Spacing=12};var grid=new Grid{RowDefinitions={new(GridLength.Star),new(GridLength.Auto)}};
         grid.Add(new ScrollView{Content=stack});page.Content=grid;
