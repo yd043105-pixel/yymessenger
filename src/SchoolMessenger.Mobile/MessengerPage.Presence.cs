@@ -7,6 +7,9 @@ public sealed partial class MessengerPage
     MessengerApi? presenceOwner;
     async Task StartPhonePresence()
     {
+#if MACCATALYST
+        await StartDesktopPresence();return;
+#else
         var source=api;
         if(covered||source?.Office!=true||source.Session.GetProperty("user").ValueKind!=System.Text.Json.JsonValueKind.Object)return;
         presenceOwner=source;
@@ -15,11 +18,16 @@ public sealed partial class MessengerPage
         {presenceTimer.Interval=TimeSpan.FromSeconds(45);presenceTimer.Tick+=async(_,_)=>{if(presenceOwner is {} owner)await SendPhonePresence(owner,false);};}
         await SendPhonePresence(source,false);
         if(!covered&&presenceOwner==source)presenceTimer.Start();
+#endif
     }
-    void StopPhonePresence()
+    internal void StopPhonePresence()
     {
+#if MACCATALYST
+        StopDesktopPresence();
+#else
         presenceTimer?.Stop();var source=presenceOwner;presenceOwner=null;
         if(source is not null)_=SendPhonePresence(source,true);
+#endif
     }
     async Task SendPhonePresence(MessengerApi source,bool leave)
     {

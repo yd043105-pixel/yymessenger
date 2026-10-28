@@ -29,7 +29,7 @@ public static class MauiProgram
         {
             if(view is Button{ClassId:"school-story"})handler.PlatformView.Gravity=Android.Views.GravityFlags.Left|Android.Views.GravityFlags.CenterVertical;
         });
-#elif IOS
+#elif IOS || MACCATALYST
         // Match the Android form: the surrounding card supplies the only border.
         Microsoft.Maui.Handlers.EntryHandler.Mapper.AppendToMapping("SchoolField",(handler,view)=>
         {

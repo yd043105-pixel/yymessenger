@@ -23,7 +23,7 @@ public sealed partial class MessengerPage
             try
             {
                 if(pending is null&&(title.Text?.Trim().Length is not >=3||details.Text?.Trim().Length is not >=10))throw new InvalidOperationException("제목 3자, 재현 설명 10자 이상 적어 주세요.");
-                pending??=new(Guid.NewGuid().ToString("N"),privacy?"privacy":kind.SelectedIndex==0?"bug":"suggestion",(source.Office?"teacher-":"school-")+(DeviceInfo.Platform==DevicePlatform.iOS?"ios":"android"),privacy?new[]{"privacy-access","privacy-rectify","privacy-erase","privacy-restrict"}[kind.SelectedIndex]:new[]{"login","messages","notices","timetable","counseling","rooms","files","other"}[area.SelectedIndex],title.Text??"",details.Text??"",AppInfo.Current.VersionString);
+                pending??=new(Guid.NewGuid().ToString("N"),privacy?"privacy":kind.SelectedIndex==0?"bug":"suggestion",source.ProductCode,privacy?new[]{"privacy-access","privacy-rectify","privacy-erase","privacy-restrict"}[kind.SelectedIndex]:new[]{"login","messages","notices","timetable","counseling","rooms","files","other"}[area.SelectedIndex],title.Text??"",details.Text??"",AppInfo.Current.VersionString);
                 kind.IsEnabled=area.IsEnabled=title.IsEnabled=details.IsEnabled=false;
                 var response=await source.Send("api/feedback",pending);pending=null;if(!Current(source,version))return;await Navigation.PopAsync();feedback.Text="접수 완료 · "+response.GetProperty("id").GetString();
             }

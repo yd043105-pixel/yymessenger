@@ -13,6 +13,8 @@ public sealed class MessengerApi : IDisposable
     readonly CookieContainer cookies=new();
     readonly HttpClient http;
     readonly string key;
+    internal CookieContainer SessionCookies=>cookies;
+    public string ProductCode=>(Office?"teacher-":"school-")+(DeviceInfo.Platform==DevicePlatform.MacCatalyst?"macos":DeviceInfo.Platform==DevicePlatform.iOS?"ios":"android");
     public bool Office{get;}
     public Uri Address{get;}
     public JsonElement Session{get;private set;}
@@ -33,7 +35,7 @@ public sealed class MessengerApi : IDisposable
 #elif TEACHER_APP
         if(!office)throw new InvalidOperationException("교사 앱은 교직원 교무실 서버를 사용하세요.");
 #endif
-#if IOS
+#if IOS || MACCATALYST
         // Default NSURLSession shares native cookies across clients and app restarts.
         // Each school space/account gets private native storage; only our Keychain data restores it.
         using var configuration=Foundation.NSUrlSessionConfiguration.EphemeralSessionConfiguration;
@@ -45,7 +47,7 @@ public sealed class MessengerApi : IDisposable
         var handler=new HttpClientHandler{CookieContainer=cookies,AllowAutoRedirect=false};
 #endif
         http=new HttpClient(handler){BaseAddress=uri,Timeout=TimeSpan.FromSeconds(90)};
-        http.DefaultRequestHeaders.Add("X-YY-Product",(office?"teacher-":"school-")+(DeviceInfo.Platform==DevicePlatform.iOS?"ios":"android"));
+        http.DefaultRequestHeaders.Add("X-YY-Product",ProductCode);
         http.DefaultRequestHeaders.Add("X-YY-Version",AppInfo.Current.VersionString);
     }
     public async Task Restore()
@@ -66,8 +68,15 @@ public sealed class MessengerApi : IDisposable
         var name=Office?"SchoolMessenger.Session":"YyAnnouncements.Session";
         var list=cookies.GetCookies(Address).Cast<Cookie>().Where(c=>!c.Expired&&c.Expires>DateTime.Now&&c.Name.StartsWith(name,StringComparison.Ordinal)).Select(c=>new MobileCookie(c.Name,c.Value,c.Expires.ToUniversalTime())).ToArray();
         if(list.Length==0){SecureStorage.Default.Remove(key);return;}
-        await SecureStorage.Default.SetAsync(key,JsonSerializer.Serialize(list,MobileJson.Default.MobileCookieArray));
+        try{await SecureStorage.Default.SetAsync(key,JsonSerializer.Serialize(list,MobileJson.Default.MobileCookieArray));}
+#if MACCATALYST
+        catch(Exception error)when(error is not OperationCanceledException)
+        {Remember=false;StorageWarning="이 Mac 빌드에서는 키체인에 로그인 정보를 저장하지 못했습니다. 현재 창에서만 로그인됩니다.";}
+#else
+        catch{throw;}
+#endif
     }
+    public string? StorageWarning{get;private set;}
     public async Task Refresh()
     {
         var previousShares=ShareFolder();

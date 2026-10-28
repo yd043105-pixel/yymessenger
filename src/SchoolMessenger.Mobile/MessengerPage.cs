@@ -31,7 +31,9 @@ public sealed partial class MessengerPage : ContentPage
         var navigation=new Border{Content=tabs,BackgroundColor=Colors.White,StrokeThickness=0,Padding=new Thickness(8,4,8,8)};
         navigation.SetBinding(IsVisibleProperty,new Binding(nameof(IsVisible),source:tabs));layout.Add(navigation,0,2);Content=layout;
         feedback.PropertyChanged+=(_,e)=>{if(e.PropertyName==nameof(Label.Text))feedback.IsVisible=!string.IsNullOrEmpty(feedback.Text);};Login();
+        ConfigureDesktop();
     }
+    partial void ConfigureDesktop();
     protected override async void OnAppearing()
     {
         base.OnAppearing();
@@ -109,8 +111,10 @@ public sealed partial class MessengerPage : ContentPage
             }
         }
         var userId=source.Session.GetProperty("user").GetProperty("id").GetString();
+        ConfigureDesktopDetail(page,value,source);
         if(value.GetProperty("recipients").EnumerateArray().Any(r=>r.GetProperty("id").GetString()==userId))await source.Send("api/messages/"+id+"/read");if(Current(source,version))await Navigation.PushAsync(page);
     }
+    partial void ConfigureDesktopDetail(ContentPage page,JsonElement value,MessengerApi source);
     ContentPage Detail(string title,string text,JsonElement files,MessengerApi source,bool inline=false)
     {
         var page=new ContentPage{Title=title,BackgroundColor=BackgroundColor};var stack=new VerticalStackLayout{Padding=24,Spacing=18};page.Content=new ScrollView{Content=stack};stack.Add(Text(title,24,true));stack.Add(Text(text,16));

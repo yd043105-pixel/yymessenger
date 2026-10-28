@@ -18,7 +18,7 @@ namespace SchoolMessenger.Shared;
 public static class FeedbackReports
 {
     static readonly JsonSerializerOptions Json=new(JsonSerializerDefaults.Web);
-    static readonly string[] Products=["windows","teacher-android","teacher-ios","school-android","school-ios"];
+    static readonly string[] Products=["windows","teacher-android","teacher-ios","school-android","school-ios","teacher-macos"];
     static readonly string[] Areas=["login","messages","notices","timetable","counseling","rooms","files","other"];
     static readonly string[] PrivacyAreas=["privacy-access","privacy-rectify","privacy-erase","privacy-restrict"];
     static long Now=>DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

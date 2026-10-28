@@ -6,14 +6,14 @@ public partial class App : Application
 {
 	public App()
 	{
-#if IOS
+#if IOS || MACCATALYST
         PrepareIosStorage();
 #endif
 		InitializeComponent();
         UserAppTheme=AppTheme.Light;
 	}
 
-#if IOS
+#if IOS || MACCATALYST
     internal static void PrepareIosStorage()
     {
         SecureStorage.DefaultAccessible = Security.SecAccessible.WhenUnlockedThisDeviceOnly;
@@ -29,8 +29,13 @@ public partial class App : Application
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
 		var window = new Window(new NavigationPage(new MessengerPage()) { BarBackgroundColor = Colors.White, BarTextColor = Color.FromArgb("#17243b") });
+#if MACCATALYST
+        window.Title="교무톡";window.Width=1120;window.Height=820;window.MinimumWidth=860;window.MinimumHeight=620;
+        window.Destroying+=(_,_)=>MessengerPage.Active?.StopPhonePresence();
+#else
 		window.Stopped += (_, _) => MessengerPage.Active?.Cover();
 		window.Resumed += async (_, _) => { if (MessengerPage.Active is { } page) await page.Resume(); };
+#endif
 		return window;
 	}
 }

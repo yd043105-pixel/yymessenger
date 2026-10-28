@@ -81,6 +81,9 @@ public sealed partial class MessengerPage
         mode.SelectedIndexChanged+=(_,_)=>{selected=ReadSelectedSchool(mode.SelectedIndex);address.Text=Preferences.Default.Get("address-"+mode.SelectedIndex,"");selection.Text=selected?.Label??"학교를 검색해 선택하세요";help.Text=mode.SelectedIndex==1?"교직원 업무 메시지는 교내망 또는\n학교 VPN에 연결한 뒤 확인하세요.":"가정통신문부터 시간표까지,\n필요한 학교 소식을 한곳에서 확인하세요.";};
         var username=Input("아이디");username.Keyboard=Keyboard.Text;var password=Input("비밀번호",true);
         var remember=new Switch{IsToggled=true};var rememberRow=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Auto)}};
+#if MACCATALYST
+        remember.IsToggled=false;
+#endif
         var rememberLabel=Text("자동 로그인",13);rememberLabel.VerticalOptions=LayoutOptions.Center;rememberRow.Add(rememberLabel);rememberRow.Add(remember,1);body.Add(rememberRow);
         SemanticProperties.SetDescription(remember,"자동 로그인. 비밀번호는 저장하지 않습니다.");
         clearSchoolLoginFields=()=>{password.Text="";remember.IsToggled=false;};
