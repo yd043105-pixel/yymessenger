@@ -68,6 +68,8 @@ Name: "desktopicon"; Description: "바탕화면에 관리자 프로그램 바로
 Name: "autostart"; Description: "Windows 로그인 시 관리자 프로그램 자동 실행"; GroupDescription: "자동 실행:"; Flags: unchecked
 
 [Files]
+Source: "{#PackageDirectory}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackageDirectory}\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackageDirectory}\server\*"; DestDir: "{app}\server"; Components: office; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#PackageDirectory}\announcement-server\*"; DestDir: "{app}\announcement-server"; Components: announcements; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#PackageDirectory}\client\*"; DestDir: "{app}\admin"; Components: admin; Excludes: "*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs

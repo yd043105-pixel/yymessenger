@@ -72,6 +72,7 @@
 		<!-- Custom Fonts -->
 		<MauiFont Include="Resources\Fonts\*.ttf" />
 		<MauiAsset Include="Resources/Fonts/LICENSE-OpenSans.txt;Resources/Fonts/NOTICE-OpenSans.txt" LogicalName="licenses/%(Filename)%(Extension)" />
+        <MauiAsset Include="../../LICENSE;../../THIRD-PARTY-NOTICES.md" LogicalName="licenses/%(Filename)%(Extension)" />
 
 		<!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />

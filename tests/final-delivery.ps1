@@ -52,7 +52,7 @@ try{
             if($relative -notin $names){throw "Missing iOS source: $relative"}
         }
     }
-    foreach($required in @('global.json','Directory.Build.props','config/school-directory.json','scripts/Build-iOS.sh','tests/IosRuntimeChecks.cs')){if($required -notin $names){throw "Missing iOS build input: $required"}}
+    foreach($required in @('global.json','Directory.Build.props','LICENSE','THIRD-PARTY-NOTICES.md','config/school-directory.json','scripts/Build-iOS.sh','tests/IosRuntimeChecks.cs')){if($required -notin $names){throw "Missing iOS build input: $required"}}
 }finally{$iosZip.Dispose()}
 Check 'iOS ZIP includes the current complete mobile/shared/contracts source and locked build inputs, without claiming an installable IPA'
 @{version=$version;verifiedAt=[DateTimeOffset]::UtcNow.ToString('o');passed=$passed}|ConvertTo-Json -Depth 4|Set-Content -LiteralPath (Join-Path $artifacts 'final-delivery-checks.json') -Encoding UTF8

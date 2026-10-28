@@ -119,7 +119,7 @@ try {
     New-Item -ItemType Directory -Force -Path (Join-Path $packageDirectory 'scripts') | Out-Null
     Copy-Item -LiteralPath 'scripts\Start-Server.ps1','scripts\Start-AnnouncementServer.ps1','scripts\Configure-RemoteFirewall.ps1' -Destination (Join-Path $packageDirectory 'scripts')
     Copy-Item -LiteralPath 'scripts\Server-Operations.ps1','scripts\Configure-ServerOperations.ps1','scripts\Inspect-ServerComputer.ps1','scripts\Stage-ServerUpdate.ps1' -Destination (Join-Path $packageDirectory 'scripts')
-    Copy-Item -LiteralPath 'README.md','installer\launchers\시작-로컬체험.cmd','installer\launchers\시작-교사용.cmd' -Destination $packageDirectory
+    Copy-Item -LiteralPath 'README.md','LICENSE','THIRD-PARTY-NOTICES.md','installer\launchers\시작-로컬체험.cmd','installer\launchers\시작-교사용.cmd' -Destination $packageDirectory
     $packageDocs = Join-Path $packageDirectory 'docs'
     New-Item -ItemType Directory -Force -Path $packageDocs | Out-Null
     Copy-Item -Path 'docs\security-audit-*.md' -Destination $packageDocs
@@ -169,7 +169,7 @@ try {
     Copy-Item -LiteralPath 'artifacts\여양고-교무메신저.zip' -Destination $releaseZip -Force
     # Server-only ZIP has server/, announcement-server/, scripts/, config/, docs/ at its root.
     $serverZip=Join-Path $projectRoot "artifacts\yymessenger-$Version-servers-win-x64.zip"
-    $serverEntries=@('server','announcement-server','scripts','config','docs','VERSION.txt') | ForEach-Object {Join-Path $packageDirectory $_}
+    $serverEntries=@('server','announcement-server','scripts','config','docs','VERSION.txt','LICENSE','THIRD-PARTY-NOTICES.md') | ForEach-Object {Join-Path $packageDirectory $_}
     Compress-Archive -LiteralPath $serverEntries -DestinationPath $serverZip -Force
     $hash = (Get-FileHash -LiteralPath $releaseZip -Algorithm SHA256).Hash.ToLowerInvariant()
     $serverHash=(Get-FileHash -LiteralPath $serverZip -Algorithm SHA256).Hash.ToLowerInvariant()
