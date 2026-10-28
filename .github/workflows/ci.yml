@@ -47,6 +47,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Server installer build failed' }
           ./tests/server-installer.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Server installer verification failed' }
+          ./tests/server-installer.ps1 -ShortcutOnly
+          if ($LASTEXITCODE -ne 0) { throw 'Administrator-only installer verification failed' }
   android:
     runs-on: windows-latest
     timeout-minutes: 35

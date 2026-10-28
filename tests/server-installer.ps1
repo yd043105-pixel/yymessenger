@@ -61,15 +61,17 @@ try{
     Check 'Office selection installs the self-contained server, administrator messenger and operating tools; unselected public server is absent'
     $shortcutPath=Join-Path ([Environment]::GetFolderPath('Programs')) ($testGroup+'\관리자 프로그램.lnk')
     if(-not(Test-Path -LiteralPath $shortcutPath)){throw 'Server manager shortcut missing'}
-    $shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
+    # The hosted runner's WScript shortcut reader can return empty properties for
+    # this existing Korean-named link; Explorer's Unicode link reader resolves it.
+    $shellFolder=(New-Object -ComObject Shell.Application).NameSpace((Split-Path $shortcutPath -Parent))
+    $shortcut=$shellFolder.ParseName((Split-Path $shortcutPath -Leaf)).GetLink
     $expectedTarget=Join-Path $install 'admin\SchoolMessenger.exe'
-    if($shortcut.TargetPath -ne $expectedTarget -or $shortcut.Arguments -ne '--server-manager'){
-        $evidence=@{expectedTarget=$expectedTarget;target=[string]$shortcut.TargetPath;arguments=[string]$shortcut.Arguments;shortcut=$shortcutPath;shortcutBytes=(Get-Item -LiteralPath $shortcutPath).Length}
+    if($shortcut.Path -ne $expectedTarget -or $shortcut.Arguments -ne '--server-manager'){
+        $evidence=@{expectedTarget=$expectedTarget;target=[string]$shortcut.Path;arguments=[string]$shortcut.Arguments;shortcut=$shortcutPath;shortcutBytes=(Get-Item -LiteralPath $shortcutPath).Length}
         try{
-            $shellFolder=(New-Object -ComObject Shell.Application).NameSpace((Split-Path $shortcutPath -Parent))
-            $shellLink=$shellFolder.ParseName((Split-Path $shortcutPath -Leaf)).GetLink
-            $evidence.shellTarget=[string]$shellLink.Path;$evidence.shellArguments=[string]$shellLink.Arguments
-        }catch{$evidence.shellInspectionError=$_.Exception.Message}
+            $legacy=(New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
+            $evidence.wscriptTarget=[string]$legacy.TargetPath;$evidence.wscriptArguments=[string]$legacy.Arguments
+        }catch{$evidence.wscriptInspectionError=$_.Exception.Message}
         $evidence|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $OutputDirectory 'server-shortcut-failure.json') -Encoding UTF8
         throw ('Incorrect server manager shortcut: '+($evidence|ConvertTo-Json -Compress))
     }
