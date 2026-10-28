@@ -2,7 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>CFBundleName</key><string>교무톡</string>
-  <key>UIDeviceFamily</key><array><integer>6</integer></array>
+  <!-- MAUI's supported default keeps shared controls and colors consistent on Mac. -->
+  <key>UIDeviceFamily</key><array><integer>2</integer></array>
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
   <key>CFBundleDevelopmentRegion</key><string>ko</string>
   <key>NSHumanReadableCopyright</key><string>Copyright © 2026 김동욱. MIT License.</string>

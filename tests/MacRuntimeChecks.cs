@@ -50,7 +50,9 @@ internal static class MacRuntimeChecks
             Check(Page.MacVerifyApi.ProductCode=="teacher-macos"&&!Page.MacVerifyApi.Remember,"Mac product identity and session kept in memory for ad-hoc verification");
             await Wait(()=>Page.MacVerifyConnected);
             var people=await Page.MacVerifyApi.Get("api/users");var self=people.EnumerateArray().Single(p=>p.GetProperty("id").GetString()==Page.MacVerifyApi.Session.GetProperty("user").GetProperty("id").GetString());
-            Check(self.GetProperty("online").GetBoolean()&&!self.GetProperty("mobile").GetBoolean(),"Server reports Mac as desktop online, without a phone lease");await Capture("mac-messages.png");
+            Check(self.GetProperty("online").GetBoolean()&&!self.GetProperty("mobile").GetBoolean(),"Server reports Mac as desktop online, without a phone lease");
+            var mailbox=Views(Page.Content).OfType<Picker>().Single(p=>p.Title=="업무");mailbox.Focus();await Task.Delay(300);mailbox.Unfocus();
+            Check(mailbox.Handler is not null,"Native mailbox picker opens and closes in the supported Catalyst idiom");await Capture("mac-messages.png");
             var before=await Page.MacVerifyApi.Get("api/messages?box=received&offset=0");
             await Page.MacVerifyCompose();var compose=(ContentPage)Page.Navigation.NavigationStack.Last();var controls=Views(compose.Content).ToArray();
             ((IButtonController)controls.OfType<Button>().Single(b=>b.Text=="나에게 전송")).SendClicked();

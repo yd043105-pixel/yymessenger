@@ -6,6 +6,7 @@ info = plistlib.loads((bundle / 'Contents/Info.plist').read_bytes())
 assert info['CFBundleIdentifier'] == 'kr.school.kyomutalk.mac'
 assert info['CFBundleShortVersionString'] == '1.0.0'
 assert info['CFBundleDisplayName'] == '교무톡'
+assert info['UIDeviceFamily'] == [2], 'Use the standard MAUI Catalyst control idiom'
 assert info.get('NSLocalNetworkUsageDescription')
 ats = info.get('NSAppTransportSecurity', {})
 assert not ats.get('NSAllowsArbitraryLoads', False)
