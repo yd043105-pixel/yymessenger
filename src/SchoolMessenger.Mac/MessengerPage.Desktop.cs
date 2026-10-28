@@ -26,7 +26,7 @@ public sealed partial class MessengerPage
         Link("내 시간표",async()=>{await Timetable();});Link("학교 일정",()=>OfficeSchedule(false));
         Link("특별실 예약",()=>OfficeSchedule(true));Link("상담 예약",Counseling);
         Link("내 정보",async()=>{homeTab="account";await Home();});
-        Link("자리비움 / 복귀",async()=>{if(desktopHub?.State!=HubConnectionState.Connected)throw new InvalidOperationException("연결을 확인하세요.");desktopAway=!desktopAway;await desktopHub.InvokeAsync("SetAway",desktopAway);desktopStatus.Text=desktopAway?"자리비움":"온라인";});
+        Link("자리비움 / 복귀",async()=>{if(desktopHub?.State!=HubConnectionState.Connected)throw new InvalidOperationException("연결을 확인하세요.");desktopAway=await desktopHub.InvokeAsync<bool>("SetAway",!desktopAway);desktopStatus.Text=desktopAway?"자리비움":"온라인";});
         var grid=new Grid{ColumnDefinitions={new(new GridLength(184)),new(GridLength.Star)},ColumnSpacing=1};
         grid.Add(new ScrollView{Content=sidebar});grid.Add(content,1);Content=grid;
         body.MaximumWidthRequest=900;body.HorizontalOptions=LayoutOptions.Fill;
@@ -43,7 +43,7 @@ public sealed partial class MessengerPage
         hub.On<JsonElement>("NewMessage",_=>MainThread.BeginInvokeOnMainThread(()=>{if(desktopOwner==source)desktopStatus.Text="새 메시지가 도착했습니다";}));
         hub.Reconnecting+=_=>{MainThread.BeginInvokeOnMainThread(()=>desktopStatus.Text="다시 연결 중");return Task.CompletedTask;};
         hub.Reconnected+=_=>{MainThread.BeginInvokeOnMainThread(()=>desktopStatus.Text="온라인");return Task.CompletedTask;};
-        hub.Closed+=_=>{MainThread.BeginInvokeOnMainThread(()=>{if(desktopHub==hub)desktopStatus.Text="연결 끊김 · 받은함 새로고침";});return Task.CompletedTask;};
+        hub.Closed+=_=>{MainThread.BeginInvokeOnMainThread(()=>{if(desktopHub==hub){desktopHub=null;desktopOwner=null;desktopStatus.Text="연결 끊김 · 받은함 새로고침";}});return Task.CompletedTask;};
         try{await hub.StartAsync();if(desktopOwner==source)desktopStatus.Text=source.StorageWarning??"온라인";}
         catch(Exception error)when(error is HttpRequestException or InvalidOperationException or OperationCanceledException)
         {if(desktopHub==hub){desktopHub=null;desktopOwner=null;desktopStatus.Text="실시간 연결 실패 · 받은함으로 재시도";}await hub.DisposeAsync();}
@@ -78,14 +78,32 @@ public sealed partial class MessengerPage
         var page=new ContentPage{Title="새 메시지",BackgroundColor=BackgroundColor};composer=page;
         var stack=new VerticalStackLayout{Padding=24,Spacing=12};var grid=new Grid{RowDefinitions={new(GridLength.Star),new(GridLength.Auto)}};
         grid.Add(new ScrollView{Content=stack});page.Content=grid;
-        var recipients=new Dictionary<string,CheckBox>();var recipientRows=new VerticalStackLayout{Spacing=2};
-        foreach(var person in people.EnumerateArray())
+        var recipients=new HashSet<string>();
+        var directory=people.EnumerateArray().ToDictionary(p=>p.GetProperty("id").GetString()!,p=>p.GetProperty("name").GetString()+" · "+p.GetProperty("department").GetString());
+        if(recipient is not null){if(!directory.ContainsKey(recipient))throw new InvalidOperationException("현재 메시지를 받을 수 없는 계정입니다.");recipients.Add(recipient);}
+        var recipientRows=new FlexLayout{Wrap=Microsoft.Maui.Layouts.FlexWrap.Wrap,Direction=Microsoft.Maui.Layouts.FlexDirection.Row};
+        void ShowRecipients()
         {
-            var id=person.GetProperty("id").GetString()!;var check=new CheckBox{IsChecked=id==recipient};recipients[id]=check;
-            recipientRows.Add(new HorizontalStackLayout{Children={check,Text(person.GetProperty("name").GetString()+" · "+person.GetProperty("department").GetString(),14)}});
+            recipientRows.Clear();foreach(var id in recipients.ToArray())
+            {
+                var chip=new Button{Text=directory[id]+"  ×",FontSize=12,Padding=new Thickness(10,4),Margin=3,BackgroundColor=Pale,TextColor=Blue,CornerRadius=12};
+                chip.Clicked+=(_,_)=>{recipients.Remove(id);ShowRecipients();};recipientRows.Add(chip);
+            }
         }
-        stack.Add(Text("받는 사람",13,true));stack.Add(new ScrollView{Content=recipientRows,HeightRequest=108});
-        var self=MakeAction("나에게 전송",()=>{foreach(var pair in recipients)pair.Value.IsChecked=pair.Key==source.Session.GetProperty("user").GetProperty("id").GetString();return Task.CompletedTask;});stack.Add(self);
+        ShowRecipients();stack.Add(Text("받는 사람 · 이름 옆 ×로 제외",13,true));stack.Add(new ScrollView{Content=recipientRows,HeightRequest=76});
+        var add=MakeAction("대상 추가",async()=>
+        {
+            var selection=new VerticalStackLayout{Padding=20,Spacing=8};var search=new SearchBar{Placeholder="이름·부서 검색"};selection.Add(search);
+            var rows=new VerticalStackLayout();selection.Add(rows);var entries=new List<(View Row,string Name)>();
+            foreach(var pair in directory)
+            {
+                var check=new CheckBox{IsChecked=recipients.Contains(pair.Key)};check.CheckedChanged+=(_,e)=>{if(e.Value)recipients.Add(pair.Key);else recipients.Remove(pair.Key);ShowRecipients();};
+                var row=new HorizontalStackLayout{Children={check,Text(pair.Value,14)}};rows.Add(row);entries.Add((row,pair.Value));
+            }
+            search.TextChanged+=(_,_)=>{foreach(var entry in entries)entry.Row.IsVisible=entry.Name.Contains(search.Text??"",StringComparison.OrdinalIgnoreCase);};
+            selection.Add(MakeAction("선택 완료",async()=>await Navigation.PopAsync(),true));await Navigation.PushAsync(new ContentPage{Title="받는 사람 선택",Content=new ScrollView{Content=selection},BackgroundColor=BackgroundColor});
+        });stack.Add(add);
+        var self=MakeAction("나에게 전송",()=>{recipients.Clear();recipients.Add(source.Session.GetProperty("user").GetProperty("id").GetString()!);ShowRecipients();return Task.CompletedTask;});stack.Add(self);
         var title=new Entry{Placeholder="제목 (비우면 본문으로 표시)",MaxLength=200};var text=new Editor{Placeholder="메시지를 입력하세요",MinimumHeightRequest=240,MaxLength=10000,AutoSize=EditorAutoSizeOption.TextChanges};stack.Add(title);stack.Add(text);
         var files=new List<string>();var names=new VerticalStackLayout{Spacing=4};stack.Add(names);var error=Text("",13);stack.Add(error);
         var attach=MakeAction("파일 첨부",async()=>
@@ -103,10 +121,10 @@ public sealed partial class MessengerPage
             {
                 if(pending is null)
                 {
-                    var ids=recipients.Where(p=>p.Value.IsChecked).Select(p=>p.Key).ToArray();
+                    var ids=recipients.ToArray();
                     if(ids.Length==0||string.IsNullOrWhiteSpace(text.Text))throw new InvalidOperationException("받는 사람과 메시지를 입력하세요.");
                     pending=new JsonObject{["clientId"]=client,["title"]=title.Text??"",["body"]=text.Text,["recipientIds"]=new JsonArray(ids.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),["attachmentIds"]=new JsonArray(files.Select(x=>(JsonNode?)JsonValue.Create(x)).ToArray()),["all"]=false};
-                    title.IsEnabled=text.IsEnabled=recipientRows.IsEnabled=self.IsEnabled=false;
+                    title.IsEnabled=text.IsEnabled=recipientRows.IsEnabled=self.IsEnabled=add.IsEnabled=false;
                 }
                 await MacSend(source,"api/messages",pending);if(api==source){await Navigation.PopAsync();homeTab="notices";view="sent";offset=0;await Home();}
             }

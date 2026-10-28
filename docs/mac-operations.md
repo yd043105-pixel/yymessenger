@@ -11,7 +11,7 @@
 | M1·M2·M3·M4 등 Apple Silicon | `yymessenger-1.0.0-macos-arm64-trial.zip` |
 | Intel Mac | `yymessenger-1.0.0-macos-x64-trial.zip` |
 
-Mac의 Apple 메뉴 → ‘이 Mac에 관하여’에서 칩 또는 프로세서를 확인한다. ZIP을 풀면 `SchoolMessenger.Mac.app`이 나온다. Finder에서 응용 프로그램 폴더에 옮기면 된다. 표시 이름은 교무톡이다. iPhone 시뮬레이터용 ZIP이나 Windows EXE는 Mac 설치 파일이 아니다.
+Mac의 Apple 메뉴 → ‘이 Mac에 관하여’에서 칩 또는 프로세서를 확인한다. ZIP을 풀면 `교무톡.app`이 나온다. Finder에서 응용 프로그램 폴더에 옮기면 된다. iPhone 시뮬레이터용 ZIP이나 Windows EXE는 Mac 설치 파일이 아니다.
 
 **현재 제작 방식은 로컬 시험용 ad-hoc 서명이다.** Developer ID 배포 서명·Apple 공증을 받은 일반 배포본과 다르다. 다운로드한 시험본은 Gatekeeper가 실행을 차단할 수 있다. 보안 기능을 끄거나 우회하지 않는다. 다른 교사에게 일반 배포하기 전 아래의 배포 서명과 공증을 완료해야 한다.
 

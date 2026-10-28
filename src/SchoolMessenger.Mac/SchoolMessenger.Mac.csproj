@@ -14,6 +14,7 @@
   <ItemGroup>
     <Compile Include="../SchoolMessenger.Mobile/*.cs" Link="Shared/%(Filename)%(Extension)" />
     <MauiXaml Include="../SchoolMessenger.Mobile/App.xaml" Link="App.xaml" />
+    <MauiXaml Include="../SchoolMessenger.Mobile/Resources/Styles/*.xaml" Link="Resources/Styles/%(Filename)%(Extension)" />
     <Compile Include="../SchoolMessenger.Contracts/*.cs" Link="Contracts/%(Filename)%(Extension)" />
     <Compile Include="../SchoolMessenger.Shared/ReleaseNotice.cs;../SchoolMessenger.Shared/SchoolDirectory.cs" Link="Shared/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../../config/school-directory.json" LogicalName="SchoolMessenger.SchoolDirectory.json" />

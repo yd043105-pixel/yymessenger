@@ -25,7 +25,7 @@ internal static class MacRuntimeChecks
         yield return view;IEnumerable<View> children=view switch{ScrollView s when s.Content is not null=>[s.Content],Border b when b.Content is not null=>[b.Content],Microsoft.Maui.Controls.Layout l=>l.Children.OfType<View>(),ContentView c when c.Content is not null=>[c.Content],_=>[]};
         foreach(var child in children)foreach(var descendant in Views(child))yield return descendant;
     }
-    static void Check(bool value,string description){if(!value)throw new InvalidOperationException(description);passed.Add(description);}
+    static void Check(bool value,string description){if(!value)throw new InvalidOperationException(description);passed.Add(description);Console.WriteLine("MAC_PROGRESS:"+description);}
     static async Task Wait(Func<bool> condition){for(var i=0;i<600;i++){if(condition())return;await Task.Delay(100);}throw new InvalidOperationException("Mac native UI timeout");}
     static void Capture(string name)
     {
@@ -44,10 +44,13 @@ internal static class MacRuntimeChecks
             Check(Page.Content is Grid grid&&grid.ColumnDefinitions.Count==2,"Native desktop sidebar and separate content column");Capture("mac-login.png");
             await Page.MacVerifyLogin(fixture.GetProperty("office").GetString()!.Replace("127.0.0.1","localhost"),fixture.GetProperty("password").GetString()!);
             Check(Page.MacVerifyApi.ProductCode=="teacher-macos"&&!Page.MacVerifyApi.Remember,"Mac product identity and session kept in memory for ad-hoc verification");
-            await Wait(()=>Page.MacVerifyConnected);Check(true,"Authenticated desktop SignalR presence connects without mobile lease");Capture("mac-messages.png");
+            await Wait(()=>Page.MacVerifyConnected);
+            var people=await Page.MacVerifyApi.Get("api/users");var self=people.EnumerateArray().Single(p=>p.GetProperty("id").GetString()==Page.MacVerifyApi.Session.GetProperty("user").GetProperty("id").GetString());
+            Check(self.GetProperty("online").GetBoolean()&&!self.GetProperty("mobile").GetBoolean(),"Server reports Mac as desktop online, without a phone lease");Capture("mac-messages.png");
             var before=await Page.MacVerifyApi.Get("api/messages?box=received&offset=0");
             await Page.MacVerifyCompose();var compose=(ContentPage)Page.Navigation.NavigationStack.Last();var controls=Views(compose.Content).ToArray();
-            controls.OfType<CheckBox>().First().IsChecked=true;controls.OfType<Entry>().Single().Text="Mac 네이티브 전송 검증";controls.OfType<Editor>().Single().Text="가상 학교 데이터로 Mac 메시지 작성과 수신 연결을 검사합니다.";Capture("mac-compose.png");
+            ((IButtonController)controls.OfType<Button>().Single(b=>b.Text=="나에게 전송")).SendClicked();
+            controls.OfType<Entry>().Single().Text="Mac 네이티브 전송 검증";controls.OfType<Editor>().Single().Text="가상 학교 데이터로 Mac 메시지 작성과 수신 연결을 검사합니다.";Capture("mac-compose.png");
             var send=controls.OfType<Button>().Single(b=>b.Text=="메시지 보내기");((IButtonController)send).SendClicked();
             await Wait(()=>Page.Navigation.NavigationStack.Count==1);
             var rows=await Page.MacVerifyApi.Get("api/messages?box=sent&offset=0");var sent=rows.EnumerateArray().Single(r=>r.GetProperty("title").GetString()=="Mac 네이티브 전송 검증");
@@ -57,9 +60,9 @@ internal static class MacRuntimeChecks
             Capture("mac-message-detail.png");await Page.Navigation.PopAsync();await Page.MacVerifyLogout();
             Check(!Page.MacVerifyConnected,"Logout closes the desktop connection");
             try{_ =new MessengerApi("http://example.com",true);throw new InvalidOperationException("Unsafe HTTP accepted");}catch(InvalidOperationException e)when(e.Message.Contains("https://")){Check(true,"Non-local cleartext server address is rejected");}
-            await File.WriteAllTextAsync(report,JsonSerializer.Serialize(new{ok=true,passed}));
+            await File.WriteAllTextAsync(report+".tmp",JsonSerializer.Serialize(new{ok=true,passed}));File.Move(report+".tmp",report,true);
         }
-        catch(Exception e){await File.WriteAllTextAsync(report,JsonSerializer.Serialize(new{ok=false,passed,error=e.ToString()}));}
+        catch(Exception e){await File.WriteAllTextAsync(report+".tmp",JsonSerializer.Serialize(new{ok=false,passed,error=e.ToString()}));File.Move(report+".tmp",report,true);}
     }
 }
 #endif
