@@ -74,17 +74,24 @@ public sealed partial class MessengerPage
         var filters=new HorizontalStackLayout{Spacing=6};var received=DesktopButton("받은",async()=>{view="received";offset=0;await DesktopMailbox(query);});received.AutomationId="mac-filter-received";var unreadButton=DesktopButton("미확인",async()=>{view="unread";offset=0;await DesktopMailbox(query);});unreadButton.AutomationId="mac-filter-unread";foreach(var filter in new[]{received,unreadButton}){filter.FontSize=13;filter.MinimumHeightRequest=34;filter.Padding=new Thickness(10,5);filters.Add(filter);}list.Add(filters,0,1);
         var messages=new VerticalStackLayout{Spacing=6};var choices=new List<(Border Row,string Id)>();desktopReader=new ContentView{BackgroundColor=Colors.White};
         var empty=new VerticalStackLayout{Spacing=10,VerticalOptions=LayoutOptions.Center,HorizontalOptions=LayoutOptions.Center};empty.Add(new Image{Source="nav_notices.png",HeightRequest=32,WidthRequest=32});var hint=Text("왼쪽에서 메시지를 선택하세요",13);hint.TextColor=Muted;empty.Add(hint);desktopReader.Content=empty;panes.Add(desktopReader,1);
+        async Task OpenMessage(string id,Border selected,long createdAt)
+        {
+            foreach(var choice in choices)choice.Row.BackgroundColor=choice.Id==id?Pale:Colors.Transparent;
+            await OfficeDetail(id);if(!Current(source,version))return;
+            var content=(VerticalStackLayout)selected.Content;((Button)content.Children[0]).FontAttributes=FontAttributes.None;((Label)content.Children[content.Children.Count-1]).Text=Date(createdAt);
+        }
         foreach(var message in rows.EnumerateArray())
         {
             var id=message.GetProperty("id").GetString()!;var label=message.GetProperty("title").GetString()??"";var card=new VerticalStackLayout{Spacing=4};var border=DesktopPanel(card,12,Colors.Transparent);border.StrokeThickness=0;
-            var subject=DesktopButton(label,async()=>{foreach(var choice in choices)choice.Row.BackgroundColor=choice.Id==id?Pale:Colors.Transparent;await OfficeDetail(id);});subject.ClassId="school-story";subject.AutomationId="mac-message-"+id;subject.BackgroundColor=Colors.Transparent;subject.BorderWidth=0;subject.Padding=0;subject.FontSize=16;subject.MinimumHeightRequest=28;subject.HorizontalOptions=LayoutOptions.Fill;subject.ContentLayout=new(Button.ButtonContentLayout.ImagePosition.Left,0);card.Add(subject);
+            var createdAt=message.GetProperty("createdAt").GetInt64();
+            var subject=DesktopButton(label,()=>OpenMessage(id,border,createdAt));subject.ClassId="school-story";subject.AutomationId="mac-message-"+id;subject.BackgroundColor=Colors.Transparent;subject.BorderWidth=0;subject.Padding=0;subject.FontSize=16;subject.FontAttributes=message.GetProperty("readAt").ValueKind==JsonValueKind.Null&&view!="sent"?FontAttributes.Bold:FontAttributes.None;subject.MinimumHeightRequest=28;subject.HorizontalOptions=LayoutOptions.Fill;subject.ContentLayout=new(Button.ButtonContentLayout.ImagePosition.Left,0);card.Add(subject);
             var author=Text(message.GetProperty("senderName").GetString()??"",11);author.TextColor=Muted;card.Add(author);var stamp=Text(Date(message.GetProperty("createdAt").GetInt64())+(message.GetProperty("readAt").ValueKind==JsonValueKind.Null&&view!="sent"?" · 미확인":""),10);stamp.TextColor=Muted;card.Add(stamp);messages.Add(border);choices.Add((border,id));
         }
         if(rows.GetArrayLength()==0){var noMessages=Text("표시할 메시지가 없습니다",12);noMessages.TextColor=Muted;messages.Add(noMessages);}
         list.Add(new ScrollView{Content=messages},0,2);
         var more=DesktopButton(rows.GetArrayLength()==100?"다음 메시지":"새로고침",async()=>{if(rows.GetArrayLength()==100)offset+=100;await DesktopMailbox(query);});more.FontSize=13;more.MinimumHeightRequest=36;list.Add(more,0,3);panes.Add(list);desktopContent.Content=root;
         foreach(var pair in desktopMenu){pair.Value.BackgroundColor=pair.Key==view?Pale:Colors.Transparent;pair.Value.TextColor=pair.Key==view?Blue:Muted;}
-        if(rows.GetArrayLength()>0){choices[0].Row.BackgroundColor=Pale;await OfficeDetail(choices[0].Id);}
+        if(rows.GetArrayLength()>0)await OpenMessage(choices[0].Id,choices[0].Row,rows[0].GetProperty("createdAt").GetInt64());
     }
     partial void DisplayDesktopDetail(ContentPage page,ref bool handled)
     {

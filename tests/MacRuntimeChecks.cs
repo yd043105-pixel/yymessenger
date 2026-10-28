@@ -54,6 +54,7 @@ internal static class MacRuntimeChecks
             var people=await Page.MacVerifyApi.Get("api/users");var self=people.EnumerateArray().Single(p=>p.GetProperty("id").GetString()==Page.MacVerifyApi.Session.GetProperty("user").GetProperty("id").GetString());
             Check(self.GetProperty("online").GetBoolean()&&!self.GetProperty("mobile").GetBoolean(),"Server reports Mac as desktop online, without a phone lease");
             Check(Page.MacVerifyReader?.Content is Grid&&Views(Page.Content).OfType<Button>().Any(b=>b.AutomationId=="mac-filter-unread"),"Desktop message list and reader remain side by side with a native unread filter");
+            Check(!Views(Page.Content).OfType<Label>().Any(label=>label.Text?.EndsWith(" · 미확인")==true),"Opening the selected message updates its unread indicator after the server read acknowledgement");
             Check(!Views(Page.Content).OfType<Button>().Any(b=>b.AutomationId?.StartsWith("school-tab-")==true),"Mac uses desktop navigation without duplicate mobile bottom tabs");await Capture("mac-messages.png");
             var before=await Page.MacVerifyApi.Get("api/messages?box=received&offset=0");
             await Page.MacVerifyCompose();var compose=(ContentPage)Page.Navigation.NavigationStack.Last();var controls=Views(compose.Content).ToArray();

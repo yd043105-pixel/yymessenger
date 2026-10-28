@@ -80,7 +80,7 @@ public sealed partial class MessengerPage
         }
         ShowRecipients();var targets=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Auto),new(GridLength.Auto)},ColumnSpacing=8};recipientCount.VerticalOptions=LayoutOptions.Center;targets.Add(recipientCount);fields.Add(targets);
         fields.Add(DesktopPanel(new ScrollView{Content=recipientRows,HeightRequest=64},8,Color.FromArgb("#F3F6FB")),0,1);
-        var add=MakeAction("대상 추가",async()=>
+        var add=MakeAction("수신자 추가",async()=>
         {
             var selection=new VerticalStackLayout{Padding=20,Spacing=8};var search=new SearchBar{Placeholder="이름·부서 검색"};selection.Add(search);
             var rows=new VerticalStackLayout();selection.Add(rows);var entries=new List<(View Row,string Name)>();
