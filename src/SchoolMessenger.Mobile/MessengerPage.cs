@@ -58,7 +58,13 @@ public sealed partial class MessengerPage : ContentPage
         if(api is {Session.ValueKind:JsonValueKind.Object} source&&source.Session.GetProperty("user").ValueKind!=JsonValueKind.Null&&!covered)
             await Run(async()=>{await source.Refresh();if(source.Session.GetProperty("user").ValueKind!=JsonValueKind.Null)await Home();});
     }
-    static Label Text(string value,int size=15,bool bold=false)=>new(){Text=value,TextColor=Navy,FontSize=size,FontAttributes=bold?FontAttributes.Bold:FontAttributes.None,LineBreakMode=LineBreakMode.WordWrap};
+    static Label Text(string value,int size=15,bool bold=false)=>new(){Text=value,TextColor=Navy,FontSize=
+#if MACCATALYST
+        size*1.25,
+#else
+        size,
+#endif
+        FontAttributes=bold?FontAttributes.Bold:FontAttributes.None,LineBreakMode=LineBreakMode.WordWrap};
     void Header(string caption,string title,bool signedIn=false)
     {
         body.Clear();identityHeader.Content=Brand(signedIn?(api?.Office==true?OfficeSpaceLabel:"학생·학부모용 학교 앱"):"학교와 일상을 잇다",signedIn);
@@ -117,9 +123,11 @@ public sealed partial class MessengerPage : ContentPage
         }
         var userId=source.Session.GetProperty("user").GetProperty("id").GetString();
         ConfigureDesktopDetail(page,value,source);
-        if(value.GetProperty("recipients").EnumerateArray().Any(r=>r.GetProperty("id").GetString()==userId))await source.Send("api/messages/"+id+"/read");if(Current(source,version))await Navigation.PushAsync(page);
+        if(value.GetProperty("recipients").EnumerateArray().Any(r=>r.GetProperty("id").GetString()==userId))await source.Send("api/messages/"+id+"/read");
+        if(!Current(source,version))return;var handled=false;DisplayDesktopDetail(page,ref handled);if(!handled)await Navigation.PushAsync(page);
     }
     partial void ConfigureDesktopDetail(ContentPage page,JsonElement value,MessengerApi source);
+    partial void DisplayDesktopDetail(ContentPage page,ref bool handled);
     ContentPage Detail(string title,string text,JsonElement files,MessengerApi source,bool inline=false)
     {
         var page=new ContentPage{Title=title,BackgroundColor=BackgroundColor};var stack=new VerticalStackLayout{Padding=24,Spacing=18};page.Content=new ScrollView{Content=stack};stack.Add(Text(title,24,true));stack.Add(Text(text,16));

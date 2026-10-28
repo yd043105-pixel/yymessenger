@@ -29,10 +29,16 @@ public sealed partial class MessengerPage
     Button MakeAction(string label,Func<Task> action,bool primary=false)
     {
         var button=new Button{Text=label,BackgroundColor=primary?Blue:Colors.White,TextColor=primary?Colors.White:Navy,BorderColor=primary?Blue:Line,BorderWidth=1,CornerRadius=10,Padding=new Thickness(16,10),FontSize=14,MinimumHeightRequest=48,LineBreakMode=LineBreakMode.WordWrap};
+#if MACCATALYST
+        button.FontSize=16;button.MinimumHeightRequest=42;button.Padding=new Thickness(14,8);
+#endif
         button.Clicked+=async(_,_)=>await Run(action);return button;
     }
     void NavigationTabs(bool office)
     {
+#if MACCATALYST
+        tabs.IsVisible=false;
+#else
         tabs.Clear();tabs.IsVisible=true;
         var options=new[]{("home","홈","nav_home.png"),("notices",office?"메시지":"소식","nav_notices.png"),("account","내 정보","nav_profile.png")};
         for(var index=0;index<options.Length;index++)
@@ -43,9 +49,11 @@ public sealed partial class MessengerPage
             button.BackgroundColor=selected?Pale:Colors.Transparent;button.BorderWidth=0;button.CornerRadius=12;button.MinimumHeightRequest=54;button.TextColor=selected?Blue:Muted;button.FontSize=11;button.FontAttributes=selected?FontAttributes.Bold:FontAttributes.None;button.Padding=new Thickness(6,7);
             tabs.Add(button,index);
         }
+#endif
     }
     void Login()
     {
+        ResetDesktopView();
         StopPhonePresence();schoolName="교무톡";schoolIdentitySource=null;Title="교무톡 · 학교 앱";homeTab="home";tabs.IsVisible=false;updateNoticeOffered=false;
 #if TEACHER_APP
         Header("교직원을 위한 우리 학교 공간","온라인 교무실");
@@ -108,6 +116,7 @@ public sealed partial class MessengerPage
 #endif
         var privacy=Text("자동 로그인 시 비밀번호는 저장하지 않습니다.",11);privacy.TextColor=Muted;privacy.HorizontalTextAlignment=TextAlignment.Center;body.Add(privacy);
     }
+    partial void ResetDesktopView();
     async Task Home()
     {
         var source=api!;var user=source.Session.GetProperty("user");var version=++epoch;
@@ -122,6 +131,10 @@ public sealed partial class MessengerPage
         var name=user.GetProperty("name").GetString()!;var role=source.Office?"teacher":user.GetProperty("role").GetString();
         Header(name+"님, 안녕하세요",homeTab=="account"?"내 정보":source.Office?"온라인 교무실":"학교 소식",true);NavigationTabs(source.Office);
         await ShowUpdates();if(!Current(source,version))return;
+#if MACCATALYST
+        if(homeTab!="account"){await DesktopMailbox();return;}
+        desktopContent.Content=desktopShared;desktopReader=null;
+#endif
         if(homeTab=="account")
         {
             var info=new VerticalStackLayout{Spacing=5};info.Add(Text(name,18,true));var status=Text(source.Office?"교직원 계정":role switch{"parent"=>"학부모 계정","student"=>"학생 계정","teacher"=>"교사 계정",_=>"관리자 계정"},12);status.TextColor=Muted;info.Add(status);body.Add(Card(info));

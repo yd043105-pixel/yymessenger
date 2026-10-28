@@ -13,6 +13,8 @@ public sealed partial class MessengerPage
     internal bool MacVerifyConnected=>desktopHub?.State==Microsoft.AspNetCore.SignalR.Client.HubConnectionState.Connected;
     internal Task MacVerifyCompose()=>MacCompose();
     internal Task MacVerifyDetail(string id)=>OfficeDetail(id);
+    internal ContentView? MacVerifyReader=>desktopReader;
+    internal bool MacVerifyReady=>!busy&&!resuming&&desktopReader?.Content is Grid;
     internal async Task MacVerifyLogout(){var source=api!;await source.Logout();source.Dispose();api=null;Login();}
 }
 internal static class MacRuntimeChecks
@@ -51,20 +53,21 @@ internal static class MacRuntimeChecks
             await Wait(()=>Page.MacVerifyConnected);
             var people=await Page.MacVerifyApi.Get("api/users");var self=people.EnumerateArray().Single(p=>p.GetProperty("id").GetString()==Page.MacVerifyApi.Session.GetProperty("user").GetProperty("id").GetString());
             Check(self.GetProperty("online").GetBoolean()&&!self.GetProperty("mobile").GetBoolean(),"Server reports Mac as desktop online, without a phone lease");
-            var mailbox=Views(Page.Content).OfType<Picker>().Single(p=>p.Title=="업무");mailbox.Focus();await Task.Delay(300);mailbox.Unfocus();
-            Check(mailbox.Handler is not null,"Native mailbox picker opens and closes in the supported Catalyst idiom");await Capture("mac-messages.png");
+            Check(Page.MacVerifyReader?.Content is Grid&&Views(Page.Content).OfType<Button>().Any(b=>b.AutomationId=="mac-filter-unread"),"Desktop message list and reader remain side by side with a native unread filter");
+            Check(!Views(Page.Content).OfType<Button>().Any(b=>b.AutomationId?.StartsWith("school-tab-")==true),"Mac uses desktop navigation without duplicate mobile bottom tabs");await Capture("mac-messages.png");
             var before=await Page.MacVerifyApi.Get("api/messages?box=received&offset=0");
             await Page.MacVerifyCompose();var compose=(ContentPage)Page.Navigation.NavigationStack.Last();var controls=Views(compose.Content).ToArray();
             ((IButtonController)controls.OfType<Button>().Single(b=>b.Text=="나에게 전송")).SendClicked();
             controls.OfType<Entry>().Single().Text="Mac 네이티브 전송 검증";controls.OfType<Editor>().Single().Text="가상 학교 데이터로 Mac 메시지 작성과 수신 연결을 검사합니다.";await Capture("mac-compose.png");
-            var send=controls.OfType<Button>().Single(b=>b.Text=="메시지 보내기");((IButtonController)send).SendClicked();
-            await Wait(()=>Page.Navigation.NavigationStack.Count==1);
+            var send=controls.OfType<Button>().Single(b=>b.AutomationId=="mac-send");((IButtonController)send).SendClicked();
+            await Wait(()=>Page.Navigation.NavigationStack.Count==1&&Page.MacVerifyReady);
             var rows=await Page.MacVerifyApi.Get("api/messages?box=sent&offset=0");var sent=rows.EnumerateArray().Single(r=>r.GetProperty("title").GetString()=="Mac 네이티브 전송 검증");
             Check(sent.GetProperty("recipientCount").GetInt32()==1,"Native composer sends through authenticated server with one selected recipient");
-            await Page.MacVerifyDetail(sent.GetProperty("id").GetString()!);var detail=(ContentPage)Page.Navigation.NavigationStack.Last();
-            Check(detail.Content is Grid details&&details.RowDefinitions.Count==2&&details.Children.OfType<Button>().Any(b=>b.Text=="답장"),"Reply remains in fixed footer outside the message scroll area");
-            await Capture("mac-message-detail.png");await Page.Navigation.PopAsync();await Page.MacVerifyLogout();
+            await Page.MacVerifyDetail(sent.GetProperty("id").GetString()!);
+            Check(Page.MacVerifyReader?.Content is Grid details&&details.RowDefinitions.Count==2&&details.Children.OfType<Button>().Any(b=>b.Text=="답장"),"Reply remains in fixed footer outside the message scroll area");
+            await Capture("mac-message-detail.png");await Page.MacVerifyLogout();
             Check(!Page.MacVerifyConnected,"Logout closes the desktop connection");
+            Check(Page.MacVerifyReader is null&&!Views(Page.Content).OfType<Button>().Any(b=>b.AutomationId?.StartsWith("mac-message-")==true),"Logout removes the message reader and restores the login screen");
             try{_ =new MessengerApi("http://example.com",true);throw new InvalidOperationException("Unsafe HTTP accepted");}catch(InvalidOperationException e)when(e.Message.Contains("https://")){Check(true,"Non-local cleartext server address is rejected");}
             await File.WriteAllTextAsync(report+".tmp",JsonSerializer.Serialize(new{ok=true,passed}));File.Move(report+".tmp",report,true);
         }
