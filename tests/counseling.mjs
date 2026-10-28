@@ -15,7 +15,7 @@ async function address(){const socket=net.createServer();await new Promise(r=>so
 const portal=await address(),office=await address();
 function start(name,base,env){const child=spawn(dotnet,[path.join(root,`src/SchoolMessenger.${name}/bin/Debug/net10.0/SchoolMessenger.${name}.dll`),'--urls',base],{windowsHide:true,cwd:root,env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',...env}});child.stdout.on('data',b=>logs+=b);child.stderr.on('data',b=>logs+=b);return child;}
 async function stop(p){if(p?.exitCode===null){p.kill();await new Promise(r=>p.once('exit',r));}}
-async function until(action){for(let n=0;n<100;n++){try{const result=await action();if(result)return result;}catch{}await delay(100);}throw Error('Fixture did not become ready: '+logs.slice(-1800));}
+async function until(action,timeout=10000,child){const deadline=Date.now()+timeout;let lastError;while(Date.now()<deadline){if(child?.exitCode!==null&&child?.exitCode!==undefined)throw Error('Fixture exited with code '+child.exitCode+': '+logs.slice(-1800));try{const result=await action();if(result)return result;}catch(error){lastError=error;}await delay(100);}throw Error('Fixture did not become ready within '+timeout+'ms: '+(lastError?.message??'condition not met')+'\n'+logs.slice(-1800));}
 class Client{
  constructor(base){this.base=base;this.cookies=new Map();this.csrf='';}
  async req(route,method='GET',body,expected=200){
@@ -35,7 +35,7 @@ function db(){const d=new DatabaseSync(path.join(portalData,'announcements.db'))
 try{
  portalProcess=start('AnnouncementServer',portal,{Portal__DataDirectory:portalData,Portal__AdminPassword:password,Portal__BridgeKey:key,Portal__CleanupSeconds:'3600'});
  officeProcess=start('Server',office,{School__DataDirectory:officeData,School__AdminPassword:password,Announcements__Address:portal,Announcements__BridgeKey:key});
- await Promise.all([until(async()=> (await fetch(portal+'/health')).ok),until(async()=> (await fetch(office+'/health')).ok)]);
+ await Promise.all([[portal,portalProcess],[office,officeProcess]].map(([base,child])=>until(async()=> (await fetch(base+'/health',{signal:AbortSignal.timeout(1000)})).ok,60000,child)));
  const admin=await new Client(portal).login(),teacher=await new Client(office).login();
  const roomA=(await admin.json('admin/classes','POST',{name:'가상 1-1',grade:1})).id,roomB=(await admin.json('admin/classes','POST',{name:'가상 2-1',grade:2})).id;
  await teacher.json('admin/users','POST',{username:'teacher2',name:'가상 다른 교사',department:'가상 부서',password,isAdmin:false,canBroadcast:false});const teacher2=await new Client(office).login('teacher2');

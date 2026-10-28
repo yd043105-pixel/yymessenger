@@ -65,9 +65,11 @@ try{
     $expectedTarget=Join-Path $install 'admin\SchoolMessenger.exe'
     if($shortcut.TargetPath -ne $expectedTarget -or $shortcut.Arguments -ne '--server-manager'){
         $evidence=@{expectedTarget=$expectedTarget;target=[string]$shortcut.TargetPath;arguments=[string]$shortcut.Arguments;shortcut=$shortcutPath;shortcutBytes=(Get-Item -LiteralPath $shortcutPath).Length}
-        $shellFolder=(New-Object -ComObject Shell.Application).NameSpace((Split-Path $shortcutPath -Parent))
-        $shellLink=$shellFolder.ParseName((Split-Path $shortcutPath -Leaf)).GetLink
-        $evidence.shellTarget=[string]$shellLink.Path;$evidence.shellArguments=[string]$shellLink.Arguments
+        try{
+            $shellFolder=(New-Object -ComObject Shell.Application).NameSpace((Split-Path $shortcutPath -Parent))
+            $shellLink=$shellFolder.ParseName((Split-Path $shortcutPath -Leaf)).GetLink
+            $evidence.shellTarget=[string]$shellLink.Path;$evidence.shellArguments=[string]$shellLink.Arguments
+        }catch{$evidence.shellInspectionError=$_.Exception.Message}
         $evidence|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $OutputDirectory 'server-shortcut-failure.json') -Encoding UTF8
         throw ('Incorrect server manager shortcut: '+($evidence|ConvertTo-Json -Compress))
     }
