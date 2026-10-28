@@ -24,8 +24,9 @@ public sealed class SchoolPolicyWindow:Window
         Text("검토용 JSON 파일만 만듭니다. 전문·처리 근거·보유 기간·위탁·만 14세 미만 절차와 학교 확정 사항을 검토한 뒤, 서버 운영 설정의 registrationPolicyFile에 절대 경로를 지정하고 계획된 재시작 때 적용하세요. 업무·학교 소식 서버는 각각 설정합니다.");
         var result=new TextBlock{TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,12,0,0)};var save=new Button{Content="학교 검토용 초안 파일 만들기",IsEnabled=false,Margin=new Thickness(0,12,0,0)};body.Children.Add(save);body.Children.Add(result);
         RegistrationPolicySet? policy=null;
-        Loaded+=async(_,_)=>
+        var initialized=false;body.Loaded+=async(_,_)=>
         {
+            if(initialized)return;initialized=true;
             try
             {
                 await api.Get<JsonElement>("api/admin/server-resources");
@@ -52,7 +53,7 @@ public sealed class SchoolPolicyWindow:Window
                 }
                 var documents=policy.Documents.Select(d=>d with{Version=DateTime.Now.ToString("yyyy-MM-dd")+"-school-draft-"+Guid.NewGuid().ToString("N")[..8],Body=Replace(d.Body)+(d.Id=="privacy"?"\n\n학교별 운영 설정 (확정 전 초안)\n처리 주체: "+school.Text.Trim()+"\n권리 행사 창구: "+newContact+"\n개인정보 보호책임자: "+(string.IsNullOrWhiteSpace(responsible.Text)?"[학교 확정 필요]":responsible.Text.Trim())+"\n보호책임자 연락처: "+(string.IsNullOrWhiteSpace(contact.Text)?"[학교 확정 필요]":contact.Text.Trim())+"\n앱 설정의 개인정보 권리 요청에서도 접수·회신을 확인할 수 있습니다. 아직 학교가 승인한 운영 문서가 아닙니다.":"")}).ToArray();
                 var file=new Microsoft.Win32.SaveFileDialog{FileName="registration-policy.local.json",Filter="학교별 약관 설정 (*.json)|*.json"};
-                if(file.ShowDialog(this)!=true)return;
+                if(file.ShowDialog(Window.GetWindow(body)??this)!=true)return;
                 File.WriteAllText(file.FileName,JsonSerializer.Serialize(new{approvedForProduction=false,@operator=school.Text.Trim(),contact=newContact,documents},new JsonSerializerOptions(JsonSerializerDefaults.Web){WriteIndented=true}));
                 result.Text="검토용 초안을 저장했습니다. 운영 가입 승인·서버 적용은 수행하지 않았습니다. 학교 책임자의 검토 후 운영 안내에 따라 설정하세요.";
             }

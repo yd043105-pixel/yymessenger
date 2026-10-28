@@ -46,16 +46,17 @@ public sealed partial class LocalServerWindow:Window
     internal LocalServerWindow(string installedRoot,string settingsDirectory,string? registry)
     {
         root=Path.GetFullPath(installedRoot);directory=settingsDirectory;Directory.CreateDirectory(directory);startup=Startup(registry);
-        Title="여양메신저 · 서버 관리";Width=960;Height=760;MinWidth=760;MinHeight=560;MaxHeight=SystemParameters.WorkArea.Height-25;
+        Title="여양메신저 관리자";Width=1060;Height=780;MinWidth=760;MinHeight=560;MaxHeight=SystemParameters.WorkArea.Height-25;
         Style=(Style)FindResource("SchoolWindow");
         BuildDashboard();
         autoProgram.IsChecked=startup.Enabled;
         autoProgram.Click+=(_,_)=>{try{startup.SetEnabled(autoProgram.IsChecked==true);}catch(Exception e){autoProgram.IsChecked=startup.Enabled;MessageBox.Show(this,e.Message,"자동 실행 설정 실패");}};
         LoadSettings();
-        tray=new System.Windows.Forms.NotifyIcon{Icon=System.Drawing.SystemIcons.Application,Text="여양메신저 서버 관리",Visible=true};var menu=new System.Windows.Forms.ContextMenuStrip();
-        menu.Items.Add("서버 관리 열기",null,(_,_)=>Dispatcher.Invoke(()=>{Show();WindowState=WindowState.Normal;Activate();}));menu.Items.Add("서버 중지 후 프로그램 종료",null,async(_,_)=>await Dispatcher.InvokeAsync(Exit).Task.Unwrap());tray.ContextMenuStrip=menu;tray.DoubleClick+=(_,_)=>Dispatcher.Invoke(()=>{Show();Activate();});
-        Closing+=(_,e)=>{if(!quitting){e.Cancel=true;SaveSettings();Hide();}};Closed+=(_,_)=>{timer.Stop();tray.Dispose();};
-        timer.Tick+=(_,_)=>Refresh();Loaded+=async(_,_)=>{Refresh();timer.Start();if(!Environment.GetCommandLineArgs().Contains("--verify-server-manager"))await StartSelected();};
+        tray=new System.Windows.Forms.NotifyIcon{Icon=System.Drawing.SystemIcons.Application,Text="여양메신저 관리자",Visible=true};var menu=new System.Windows.Forms.ContextMenuStrip();
+        menu.Items.Add("관리자 프로그램 열기",null,(_,_)=>Dispatcher.Invoke(()=>{Show();WindowState=WindowState.Normal;Activate();}));menu.Items.Add("서버 중지 후 프로그램 종료",null,async(_,_)=>await Dispatcher.InvokeAsync(Exit).Task.Unwrap());tray.ContextMenuStrip=menu;tray.DoubleClick+=(_,_)=>Dispatcher.Invoke(()=>{Show();Activate();});
+        Closing+=(_,e)=>{if(!quitting){e.Cancel=true;SaveSettings();Hide();_ = SignOutAdministrators();}};Closed+=(_,_)=>{timer.Stop();sessionTimer.Stop();foreach(var source in adminSessions.Values)source.Dispose();tray.Dispose();};
+        sessionTimer.Tick+=async(_,_)=>await CheckAdministratorSessions();
+        timer.Tick+=(_,_)=>Refresh();Loaded+=async(_,_)=>{Refresh();timer.Start();sessionTimer.Start();if(!Environment.GetCommandLineArgs().Contains("--verify-server-manager"))await StartSelected();if(cards.All(c=>!c.Host.Installed))await OpenAdministration("members","office");};
     }
     void Refresh()
     {
@@ -70,6 +71,7 @@ public sealed partial class LocalServerWindow:Window
             c.PasswordFields.Visibility=trial&&!File.Exists(Path.Combine(c.Data.Text,".initialized"))?Visibility.Visible:Visibility.Collapsed;
             c.Data.IsEnabled=c.TrialFields.IsEnabled=c.ProductionFields.IsEnabled=c.Mode.IsEnabled=!running&&!c.Busy;
             c.Start.IsEnabled=c.Host.Installed&&!running&&!c.Busy;c.Stop.IsEnabled=running&&!c.Busy;c.Admin.IsEnabled=running&&!c.Busy;
+            c.Admin.Content=adminSessions.ContainsKey(c.Service)?"관리 기능 열기":"관리자 로그인";
             c.Auto.IsEnabled=!c.Busy&&(!trial||File.Exists(Path.Combine(c.Data.Text,".initialized")));c.Log.Text=c.Host.Output;c.Details.Visibility=string.IsNullOrEmpty(c.Log.Text)?Visibility.Collapsed:Visibility.Visible;
             c.Address.Text=trial?(c.Service=="office"?"이 PC 접속 주소: http://localhost:5080":"이 PC 학교 소식 주소: http://localhost:5081"):"학교 운영 설정의 HTTPS 주소로 접속합니다. 실행 후 관리자 로그인으로 연결을 확인하세요.";
         }
@@ -91,18 +93,17 @@ public sealed partial class LocalServerWindow:Window
     {
         if(c.Busy)return;
         if(MessageBox.Show(this,"연결된 사용자의 서비스가 중단됩니다. 이 서버를 중지할까요?","서버 중지",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;
-        c.Busy=true;Refresh();try{await c.Host.Stop();}catch(Exception e){c.Host.WriteOutput(e.Message);}finally{c.Busy=false;Refresh();}
+        c.Busy=true;Refresh();try{await SignOutAdministrator(c.Service);await c.Host.Stop();}catch(Exception e){c.Host.WriteOutput(e.Message);}finally{c.Busy=false;Refresh();}
     }
     void OpenAdmin(ServerCard c)
     {
-        if(c.Service=="announcements"){new PortalAdministrationWindow(this,c.Mode.SelectedIndex==0?"http://localhost:5081":null).Show();return;}
-        var messenger=new MainWindow{Owner=this};if(c.Mode.SelectedIndex==0){messenger.ServerAddress.Text="http://localhost:5080";messenger.UsernameBox.Text="admin";}messenger.Show();
+        _ = OpenAdministration(c.Service=="office"?"members":"portal",c.Service);
     }
     async Task Exit()
     {
         if(cards.Any(c=>c.Busy))return;
         if(cards.Any(c=>c.Host.Running)&&MessageBox.Show(this,"가동 중인 서버를 정상 중지한 뒤 관리 프로그램을 종료할까요?","프로그램 종료",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;
-        try{foreach(var c in cards){c.Busy=true;Refresh();await c.Host.Stop();}SaveSettings();quitting=true;Close();Application.Current.Shutdown();}
+        try{await SignOutAdministrators();foreach(var c in cards){c.Busy=true;Refresh();await c.Host.Stop();}SaveSettings();quitting=true;Close();Application.Current.Shutdown();}
         catch(Exception e){MessageBox.Show(this,e.Message,"종료 대기");}finally{foreach(var c in cards)c.Busy=false;Refresh();}
     }
     void SaveSettings()

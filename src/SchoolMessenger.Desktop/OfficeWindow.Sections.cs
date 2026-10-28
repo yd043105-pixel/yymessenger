@@ -29,11 +29,11 @@ public sealed partial class OfficeWindow
         body.Children.Add(Text("담당 교사",18));foreach(var person in directory.GetProperty("people").EnumerateArray().Where(p=>p.GetProperty("role").GetString()=="teacher")){var id=person.GetProperty("id").GetString()!;var check=new CheckBox{Content=person.GetProperty("name").GetString(),IsChecked=selectedTeachers.Contains(id),Margin=new Thickness(0,3,0,3)};teachers[id]=check;body.Children.Add(check);}
         Button("학생 ID 명부 불러오기 · 텍스트/CSV",()=>
         {
-            var open=new OpenFileDialog{Filter="학생 ID 명부|*.txt;*.csv"};if(open.ShowDialog(this)!=true)return Task.CompletedTask;
+            var open=new OpenFileDialog{Filter="학생 ID 명부|*.txt;*.csv"};if(open.ShowDialog(InteractionOwner)!=true)return Task.CompletedTask;
             var ids=File.ReadAllLines(open.FileName).Select(line=>line.Trim().Trim('"')).Where(line=>line.Length>0&&line!="studentId").ToArray();if(ids.Length>1000||ids.Any(id=>!students.ContainsKey(id))||ids.Distinct().Count()!=ids.Length)throw new InvalidOperationException("파일은 studentId 한 열 또는 학생 ID 한 줄씩이어야 합니다. 명부에 없는 ID나 중복이 있습니다.");
             foreach(var entry in students)entry.Value.IsChecked=ids.Contains(entry.Key);error.Text="수강생 "+ids.Length+"명을 선택했습니다. 저장 전 확인하세요.";return Task.CompletedTask;
         });
-        Button("학생 ID 명부 양식 저장",()=>{var save=new SaveFileDialog{Filter="CSV|*.csv",FileName="분반-수강생-ID-양식.csv"};if(save.ShowDialog(this)==true)File.WriteAllText(save.FileName,"studentId\r\n");return Task.CompletedTask;});
+        Button("학생 ID 명부 양식 저장",()=>{var save=new SaveFileDialog{Filter="CSV|*.csv",FileName="분반-수강생-ID-양식.csv"};if(save.ShowDialog(InteractionOwner)==true)File.WriteAllText(save.FileName,"studentId\r\n");return Task.CompletedTask;});
         body.Children.Add(Text("수강 학생 · 학교 승인 계정",18));foreach(var person in directory.GetProperty("people").EnumerateArray().Where(p=>p.GetProperty("role").GetString()=="student")){var id=person.GetProperty("id").GetString()!;var check=new CheckBox{Content=person.GetProperty("name").GetString()+" · "+id,IsChecked=selectedStudents.Contains(id),Margin=new Thickness(0,3,0,3)};students[id]=check;body.Children.Add(check);}
         Button("분반 · 수강 명부 저장",async()=>{await api.Send<JsonElement>(HttpMethod.Post,"api/admin/sections"+(existing is{} section?"/"+section.GetProperty("id").GetString():""),new{name=name.Text,term=term.Text,teacherIds=teachers.Where(p=>p.Value.IsChecked==true).Select(p=>p.Key).ToArray(),studentIds=students.Where(p=>p.Value.IsChecked==true).Select(p=>p.Key).ToArray(),revision=existing?.GetProperty("revision").GetInt32()??0});await Sections();});return Task.CompletedTask;
     }

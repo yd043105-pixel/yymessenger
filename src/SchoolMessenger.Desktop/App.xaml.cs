@@ -2,7 +2,8 @@ using System.Windows;
 namespace SchoolMessenger.Desktop;
 public partial class App : System.Windows.Application
 {
-    readonly System.Threading.Mutex running = new(false, Environment.GetCommandLineArgs().Contains("--server-manager")?@"Local\YeoyangMessengerServerManager.Running":@"Local\YeoyangSchoolMessenger.Running");
+    static bool AdministratorMode=>Environment.GetCommandLineArgs().Contains("--server-manager")||(new DirectoryInfo(AppContext.BaseDirectory).Name.Equals("admin",StringComparison.OrdinalIgnoreCase)&&File.Exists(Path.Combine(AppContext.BaseDirectory,"..","VERSION.txt"))&&File.Exists(Path.Combine(AppContext.BaseDirectory,"..","docs","server-installer.md")));
+    readonly System.Threading.Mutex running = new(false, AdministratorMode?@"Local\YeoyangMessengerServerManager.Running":@"Local\YeoyangSchoolMessenger.Running");
     System.Threading.Mutex? serverExclusive;
     bool ownsServer;
     protected override void OnExit(ExitEventArgs e) { if(ownsServer)serverExclusive?.ReleaseMutex();serverExclusive?.Dispose();running.Dispose();base.OnExit(e); }
@@ -13,7 +14,7 @@ public partial class App : System.Windows.Application
         {
             try
             {
-                var manager=e.Args.Contains("--server-manager");var entry=manager?"YeoyangMessengerServerManager":"YeoyangSchoolMessenger";
+                var manager=AdministratorMode;var entry=manager?"YeoyangMessengerServerManager":"YeoyangSchoolMessenger";
                 var index=Array.IndexOf(e.Args,"--startup-entry-name");
                 if(index>=0)
                 {
@@ -38,10 +39,10 @@ public partial class App : System.Windows.Application
             var window=new LocalServerWindow(root,state,@"Software\YeoyangSchoolMessenger\ManagerTests\"+Path.GetFileName(state));MainWindow=window;
             window.Loaded+=async(_,_)=>await window.Verify(Environment.GetEnvironmentVariable("YY_MANAGER_OUTPUT")??state,e.Args.Contains("--owner-exit"));window.Show();
         }
-        else if(e.Args.Contains("--server-manager"))
+        else if(AdministratorMode)
         {
             serverExclusive=new System.Threading.Mutex(true,@"Local\YeoyangMessengerServerManager.Exclusive",out ownsServer);
-            if(!ownsServer){MessageBox.Show("서버 관리 프로그램이 이미 실행 중입니다. 알림 영역에서 ‘여양메신저 서버 관리’를 여세요.");Shutdown();return;}
+            if(!ownsServer){MessageBox.Show("관리자 프로그램이 이미 실행 중입니다. 알림 영역에서 ‘여양메신저 관리자’를 여세요.");Shutdown();return;}
             MainWindow=new LocalServerWindow();MainWindow.Show();
         }
         else{MainWindow=new MainWindow();MainWindow.Show();}

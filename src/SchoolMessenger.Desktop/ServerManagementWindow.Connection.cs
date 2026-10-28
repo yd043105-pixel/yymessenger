@@ -14,7 +14,7 @@ namespace SchoolMessenger.Desktop;
 
 public sealed partial class ServerManagementWindow
 {
-    Window Dialog(string title,StackPanel panel)=>new(){Owner=this,Title=title,Width=580,Height=550,Resources=Resources,Style=(Style)FindResource("SchoolWindow"),WindowStartupLocation=WindowStartupLocation.CenterOwner,Content=new ScrollViewer{Content=panel}};
+    Window Dialog(string title,StackPanel panel)=>new(){Owner=InteractionOwner,Title=title,Width=580,Height=550,Resources=Resources,Style=(Style)FindResource("SchoolWindow"),WindowStartupLocation=WindowStartupLocation.CenterOwner,Content=new ScrollViewer{Content=panel}};
     async Task OpenDiscovery()
     {
         try

@@ -43,7 +43,7 @@ public sealed partial class LocalServerWindow
             Check(cards[1].ProductionFields.IsVisible&&!cards[1].TrialFields.IsVisible,"production configuration and trial credentials are never shown together");cards[1].Mode.SelectedIndex=0;
             Width=760;Height=560;UpdateLayout();
             Check(new[]{cards[1].Start,cards[1].Stop,cards[1].Admin}.All(b=>b.IsVisible&&b.TransformToAncestor(this).Transform(new Point()).Y+b.ActualHeight<ActualHeight),"all primary server controls remain visible at the minimum window size");
-            Capture("server-manager-compact.png");Width=960;Height=760;SelectCard(cards[0]);UpdateLayout();
+            Capture("server-manager-compact.png");Width=1060;Height=780;SelectCard(cards[0]);UpdateLayout();
             await Start(cards[0]);Check(!cards[0].Host.Running&&cards[0].Host.Output.Contains("12~128"),"missing first password is shown inside the window without launching a server");
             var password="Synthetic-"+Guid.NewGuid().ToString("N");
             foreach(var c in cards)
@@ -65,6 +65,7 @@ public sealed partial class LocalServerWindow
                 }
                 c.Auto.IsChecked=true;
             }
+            await VerifyAdministration(password,Check,Capture);
             SaveSettings();var saved=File.ReadAllText(Path.Combine(directory,"manager.json"));
             Check(!saved.Contains(password)&&File.Exists(Path.Combine(directory,"trial-bridge.dpapi")),"settings retain paths and choices without storing the administrator password; trial bridge key is DPAPI protected");
             LoadSettings();Check(cards.All(c=>c.Auto.IsChecked==true&&c.Data.Text==Path.Combine(directory,c.Service)),"both server roles restore their settings without overwriting the other role");
@@ -81,7 +82,7 @@ public sealed partial class LocalServerWindow
         }
         finally
         {
-            if(!ownerExit){foreach(var c in cards){try{await c.Host.Stop();}catch{}}startup.SetEnabled(false);quitting=true;Application.Current.Shutdown(Environment.ExitCode);}
+            if(!ownerExit){await SignOutAdministrators();foreach(var c in cards){try{await c.Host.Stop();}catch{}}startup.SetEnabled(false);quitting=true;Application.Current.Shutdown(Environment.ExitCode);}
         }
     }
 }

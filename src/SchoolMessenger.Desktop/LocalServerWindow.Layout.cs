@@ -23,17 +23,24 @@ public sealed partial class LocalServerWindow
     {
         var layout=new Grid();layout.ColumnDefinitions.Add(new ColumnDefinition{Width=new GridLength(224)});layout.ColumnDefinitions.Add(new ColumnDefinition());Content=layout;
         var side=new DockPanel{Margin=new Thickness(16,24,16,20)};
-        var heading=new StackPanel();var title=Text("서버 관리",22);title.FontWeight=FontWeights.Bold;heading.Children.Add(title);heading.Children.Add(Note("이 컴퓨터에서 실행할 서버"));DockPanel.SetDock(heading,Dock.Top);side.Children.Add(heading);
-        var bottom=new StackPanel();bottom.Children.Add(Note("시작 설정"));autoProgram.Content=new TextBlock{Text="Windows 로그인 시\n관리 프로그램 자동 실행",TextWrapping=TextWrapping.Wrap};autoProgram.VerticalContentAlignment=VerticalAlignment.Top;bottom.Children.Add(autoProgram);
+        var heading=new StackPanel();var title=Text("관리자",22);title.FontWeight=FontWeights.Bold;heading.Children.Add(title);heading.Children.Add(Note("운영 · 구성원 · 학교 설정"));DockPanel.SetDock(heading,Dock.Top);side.Children.Add(heading);
+        var bottom=new StackPanel();autoProgram.Content=new TextBlock{Text="Windows 로그인 시\n관리자 프로그램 자동 실행",TextWrapping=TextWrapping.Wrap};autoProgram.VerticalContentAlignment=VerticalAlignment.Top;bottom.Children.Add(autoProgram);
         var guide=new Button{Content="운영 안내 열기",MinHeight=38};guide.Click+=(_,_)=>OpenGuide();bottom.Children.Add(guide);DockPanel.SetDock(bottom,Dock.Bottom);side.Children.Add(bottom);
-        var navigation=new StackPanel{Margin=new Thickness(0,28,0,0)};side.Children.Add(navigation);layout.Children.Add(Surface(side,new Thickness(0)));
+        var navigation=new StackPanel{Margin=new Thickness(0,16,0,10)};side.Children.Add(new ScrollViewer{Content=navigation,VerticalScrollBarVisibility=ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled});layout.Children.Add(Surface(side,new Thickness(0)));
         var main=new DockPanel{Margin=new Thickness(28,24,28,16)};Grid.SetColumn(main,1);layout.Children.Add(main);
-        var footer=Note("창을 닫으면 알림 영역에서 계속 실행됩니다.");footer.Margin=new Thickness(0,16,0,0);DockPanel.SetDock(footer,Dock.Bottom);main.Children.Add(footer);main.Children.Add(serverViews);
+        var footer=Note("창을 닫아도 서버는 알림 영역에서 계속 실행됩니다. 관리 계정은 로그아웃됩니다.");footer.Margin=new Thickness(0,16,0,0);DockPanel.SetDock(footer,Dock.Bottom);main.Children.Add(footer);
+        var identityBar=new DockPanel{Margin=new Thickness(0,0,0,18)};signOut.Margin=new Thickness(16,0,0,0);DockPanel.SetDock(signOut,Dock.Right);identityBar.Children.Add(signOut);identityBar.Children.Add(adminIdentity);signOut.Click+=async(_,_)=>await SignOutAdministrator(activeService);DockPanel.SetDock(identityBar,Dock.Top);main.Children.Add(identityBar);
+        var views=new Grid();views.Children.Add(serverViews);views.Children.Add(administrationView);main.Children.Add(views);
+        navigation.Children.Add(Note("서버 운영"));
         foreach(var service in new[]{"office","announcements"})AddCard(navigation,service);
+        void Menu(string label,string page,string? role=null){var button=new Button{Content=label,Tag=page,MinHeight=32,Padding=new Thickness(10,5,10,5),Margin=new Thickness(0,0,0,3),HorizontalContentAlignment=HorizontalAlignment.Left,BorderThickness=new Thickness(0)};button.SetResourceReference(Control.BackgroundProperty,"Surface");button.Click+=async(_,_)=>await OpenAdministration(page,role);navigation.Children.Add(button);administrationNavigation.Add(button);}
+        Menu("운영 현황","resources");navigation.Children.Add(Note("프로그램 관리"));Menu("교직원·권한","members","office");Menu("학급·분반","sections","office");Menu("특별실","rooms","office");Menu("학사일정","calendar","office");Menu("학생·학부모","portal","announcements");Menu("약관·개인정보","policy");Menu("오류·의견","feedback");Menu("운영 변경 기록","audit","office");
         SelectCard(cards.FirstOrDefault(c=>c.Host.Installed)??cards[0]);
     }
     void SelectCard(ServerCard card)
     {
+        CloseAdministrationPage();activeService=card.Service;activePage="server";administrationView.Visibility=Visibility.Collapsed;serverViews.Visibility=Visibility.Visible;UpdateAdminIdentity();
+        foreach(var button in administrationNavigation)button.SetResourceReference(Control.BackgroundProperty,"Surface");
         foreach(var c in cards)
         {
             c.View.Visibility=c==card?Visibility.Visible:Visibility.Collapsed;
@@ -46,8 +53,8 @@ public sealed partial class LocalServerWindow
     void AddCard(StackPanel navigation,string service)
     {
         var card=new ServerCard(service,new LocalServerProcess(root,service));cards.Add(card);
-        var navContent=new StackPanel();var navTitle=Text(service=="office"?"교내 업무":"학생·학부모 소식",14);navTitle.FontWeight=FontWeights.SemiBold;navContent.Children.Add(navTitle);navContent.Children.Add(card.NavigationStatus);
-        card.Navigation.Content=navContent;card.Navigation.Padding=new Thickness(12,10,12,10);card.Navigation.Margin=new Thickness(0,0,0,8);card.Navigation.Click+=(_,_)=>SelectCard(card);navigation.Children.Add(card.Navigation);
+        var navContent=new StackPanel();var navTitle=Text(service=="office"?"교내 업무 서버":"학교 소식 서버",13);navTitle.FontWeight=FontWeights.SemiBold;navTitle.Margin=new Thickness(0);navContent.Children.Add(navTitle);card.NavigationStatus.FontSize=10;card.NavigationStatus.Margin=new Thickness(0,3,0,0);navContent.Children.Add(card.NavigationStatus);
+        card.Navigation.Content=navContent;card.Navigation.Padding=new Thickness(10,8,10,8);card.Navigation.Margin=new Thickness(0,0,0,4);card.Navigation.Click+=(_,_)=>SelectCard(card);navigation.Children.Add(card.Navigation);
         System.Windows.Automation.AutomationProperties.SetName(card.Navigation,navTitle.Text+" 서버 선택");
         card.View.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});card.View.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});card.View.RowDefinitions.Add(new RowDefinition());serverViews.Children.Add(card.View);
         var heading=new StackPanel{Margin=new Thickness(0,0,0,22)};var title=Text(service=="office"?"교내 업무 서버":"학생·학부모 소식 서버",22);title.FontWeight=FontWeights.Bold;heading.Children.Add(title);heading.Children.Add(Note(service=="office"?"교직원 메신저와 교사용 앱의 업무를 연결합니다.":"학생·학부모 앱으로 학교의 공지와 소식을 전달합니다."));card.View.Children.Add(heading);

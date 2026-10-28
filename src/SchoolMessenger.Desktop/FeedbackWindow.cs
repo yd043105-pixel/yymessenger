@@ -18,11 +18,12 @@ public sealed class FeedbackWindow:Window
     bool busy;
     readonly bool administration;
     bool privacy;
+    Window InteractionOwner=>Window.GetWindow(body)??this;
     public FeedbackWindow(MainWindow main):this(main,main.Api!,false){}
     public FeedbackWindow(Window owner,Api source,bool administration,bool privacy=false)
     {
         Owner=owner;api=source;this.administration=administration;this.privacy=privacy;Title=privacy?"개인정보 권리 요청":"오류 신고 · 개선 의견";Width=620;Height=640;MinWidth=450;MinHeight=400;
-        Content=new ScrollViewer{Content=body};Loaded+=async(_,_)=>await Run(administration?()=>List(true):Home);
+        var view=new ScrollViewer{Content=body};Content=view;var initialized=false;view.Loaded+=async(_,_)=>{if(initialized)return;initialized=true;await Run(administration?()=>List(true):Home);};
     }
     void Text(string text)=>body.Children.Add(new TextBlock{Text=text,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,5,0,5)});
     void Button(string label,Func<Task> action){var button=new Button{Content=label,Margin=new Thickness(0,6,0,0),Padding=new Thickness(8)};button.Click+=async(_,_)=>await Run(action);body.Children.Add(button);}
@@ -63,7 +64,7 @@ public sealed class FeedbackWindow:Window
         {
             var export=await api.Get<JsonElement>("api/admin/feedback/development-export");
             var dialog=new Microsoft.Win32.SaveFileDialog{FileName="feedback-office-"+DateTime.Now.ToString("yyyyMMdd")+".json",Filter="JSON|*.json"};
-            if(dialog.ShowDialog(this)==true){await File.WriteAllTextAsync(dialog.FileName,JsonSerializer.Serialize(export,new JsonSerializerOptions{WriteIndented=true}));result.Text="저장 완료. 개인정보를 확인한 개발 자료만 유지보수 PC의 .maintenance/inbox에 전달하세요.";}
+            if(dialog.ShowDialog(InteractionOwner)==true){await File.WriteAllTextAsync(dialog.FileName,JsonSerializer.Serialize(export,new JsonSerializerOptions{WriteIndented=true}));result.Text="저장 완료. 개인정보를 확인한 개발 자료만 유지보수 PC의 .maintenance/inbox에 전달하세요.";}
         });
         foreach(var row in await api.Get<JsonElement[]>("api/admin/feedback"))
         {

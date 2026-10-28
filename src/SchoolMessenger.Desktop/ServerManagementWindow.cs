@@ -23,6 +23,7 @@ public sealed partial class ServerManagementWindow:Window
     readonly Button apply=new(){Content="부하 설정 적용",Margin=new Thickness(0,12,0,0)};
     readonly DispatcherTimer timer=new(){Interval=TimeSpan.FromSeconds(10)};bool busy,loaded;
     public bool Ready{get;private set;}
+    Window InteractionOwner=>Window.GetWindow(body)??this;
     public ServerManagementWindow(Window owner,Api api)
     {
         this.api=api;Owner=owner;Resources=owner.Resources;Title="관리자 시스템 · 서버 운영";Width=940;Height=760;MinWidth=760;MinHeight=560;Style=(Style)FindResource("SchoolWindow");
@@ -35,7 +36,7 @@ public sealed partial class ServerManagementWindow:Window
         localControl.IsEnabled=Application.Current.MainWindow is LocalServerWindow||File.Exists(Path.Combine(localRoot,"server","SchoolMessenger.Server.exe"))||File.Exists(Path.Combine(localRoot,"announcement-server","SchoolMessenger.AnnouncementServer.exe"));
         localControl.Click+=(_,_)=>
         {
-            if(Application.Current.MainWindow is LocalServerWindow manager){manager.Show();manager.Activate();return;}
+            if(Application.Current.MainWindow is LocalServerWindow manager){manager.Show();manager.ShowServerControls();manager.Activate();return;}
             var start=new ProcessStartInfo(Environment.ProcessPath!){UseShellExecute=false,CreateNoWindow=true};start.ArgumentList.Add("--server-manager");Process.Start(start);
         };localControl.Content="이 PC 서버 시작·중지";localControl.VerticalAlignment=VerticalAlignment.Center;DockPanel.SetDock(localControl,Dock.Right);header.Children.Add(localControl);
         var heading=new StackPanel();var title=Label("서버 운영",22);title.FontWeight=FontWeights.Bold;heading.Children.Add(title);heading.Children.Add(Label("접속 서버  "+api.Address,12));header.Children.Add(heading);DockPanel.SetDock(header,Dock.Top);dock.Children.Add(header);
@@ -49,7 +50,7 @@ public sealed partial class ServerManagementWindow:Window
         var connection=new StackPanel{Margin=new Thickness(0,16,0,0)};tabs.Items.Add(new TabItem{Header="시작·연결",Content=new ScrollViewer{Content=connection,VerticalScrollBarVisibility=ScrollBarVisibility.Auto}});
         var discovery=new Button{Content="교내 서버 자동검색 설정",HorizontalAlignment=HorizontalAlignment.Left};discovery.Click+=async(_,_)=>await OpenDiscovery();connection.Children.Add(Section("교사용 PC 연결",discovery));
         var boot=new Button{Content="서버 PC 재시작 후 자동 구동 설정",HorizontalAlignment=HorizontalAlignment.Left};boot.Click+=(_,_)=>OpenServerStartup();connection.Children.Add(Section("서버 자동 시작",boot));
-        var policy=new Button{Content="학교별 약관 · 개인정보 설정 초안",HorizontalAlignment=HorizontalAlignment.Left};policy.Click+=(_,_)=>new SchoolPolicyWindow(this,api).ShowDialog();school.Children.Add(Section("학교 운영 정책",policy));
+        var policy=new Button{Content="학교별 약관 · 개인정보 설정 초안",HorizontalAlignment=HorizontalAlignment.Left};policy.Click+=async(_,_)=>{if(InteractionOwner is LocalServerWindow manager)await manager.OpenAdministration("policy");else new SchoolPolicyWindow(InteractionOwner,api).ShowDialog();};school.Children.Add(Section("학교 운영 정책",policy));
         if(owner is MainWindow main)
         {
             var actions=new WrapPanel();var accounts=new Button{Content="교직원 계정 · 승인",Margin=new Thickness(0,4,8,8)};accounts.Click+=(_,_)=>new OfficeWindow(main,true).Show();actions.Children.Add(accounts);
@@ -63,7 +64,7 @@ public sealed partial class ServerManagementWindow:Window
             catch(Exception e){feedback.Text=e.Message;}
             finally{busy=false;}await Refresh(false);
         };
-        Loaded+=async(_,_)=>{await Refresh(true);timer.Start();};timer.Tick+=async(_,_)=>{if(IsActive)await Refresh(false);};
+        dock.Loaded+=async(_,_)=>{await Refresh(true);timer.Start();};dock.Unloaded+=(_,_)=>timer.Stop();timer.Tick+=async(_,_)=>{if(InteractionOwner.IsActive)await Refresh(false);};
         Closed+=(_,_)=>timer.Stop();
     }
     static TextBlock Label(string value,int size=14)=>new(){Text=value,FontSize=size,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,7,0,7)};

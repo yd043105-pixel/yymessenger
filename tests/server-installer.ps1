@@ -58,7 +58,7 @@ try{
     if(Test-Path -LiteralPath (Join-Path $install 'announcement-server\SchoolMessenger.AnnouncementServer.exe')){throw 'Unselected public server was installed'}
     $key=Key;if($null -eq $key){throw 'Uninstall registration missing'};$key.Dispose()
     Check 'Office selection installs the self-contained server, administrator messenger and operating tools; unselected public server is absent'
-    $shortcutPath=Join-Path ([Environment]::GetFolderPath('Programs')) ($testGroup+'\서버 관리 프로그램.lnk')
+    $shortcutPath=Join-Path ([Environment]::GetFolderPath('Programs')) ($testGroup+'\관리자 프로그램.lnk')
     if(-not(Test-Path -LiteralPath $shortcutPath)){throw 'Server manager shortcut missing'}
     $shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
     if($shortcut.TargetPath -ne (Join-Path $install 'admin\SchoolMessenger.exe') -or $shortcut.Arguments -ne '--server-manager'){throw 'Incorrect server manager shortcut'}
@@ -77,6 +77,14 @@ try{
         if(-not(Test-Path -LiteralPath (Join-Path $install 'announcement-server\SchoolMessenger.AnnouncementServer.exe')) -or -not(Test-Path -LiteralPath (Join-Path $install 'admin\SchoolMessenger.exe')) -or (Test-Path -LiteralPath (Join-Path $install 'server\SchoolMessenger.Server.exe'))){throw 'Public role manager payload is incorrect'}
         if(Test-Path -LiteralPath $desktop){throw 'Unselected desktop shortcut was created'}
         Check 'Public-only installation includes its server manager while unchecked desktop creation remains off'
+        Uninstall
+        Setup 'administrator-only' -Components 'admin' -CreateIcons
+        if(-not(Test-Path -LiteralPath (Join-Path $install 'admin\SchoolMessenger.exe')) -or (Test-Path -LiteralPath (Join-Path $install 'server\SchoolMessenger.Server.exe')) -or (Test-Path -LiteralPath (Join-Path $install 'announcement-server\SchoolMessenger.AnnouncementServer.exe')) -or -not(Test-Path -LiteralPath $shortcutPath)){throw 'Administrator-only installation incorrectly requires backend payloads'}
+        Check 'Administrator-only custom installation has the management program and shortcut without installing either backend'
+        $direct=Start-Process -FilePath (Join-Path $install 'admin\SchoolMessenger.exe') -ArgumentList @('--configure-startup','enable','--startup-entry-name',$startupEntry) -WindowStyle Hidden -Wait -PassThru
+        if($direct.ExitCode -ne 0){throw 'Direct administrator executable startup configuration failed'}
+        $run=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Microsoft\Windows\CurrentVersion\Run');try{if($run.GetValue($startupEntry) -ne ('"'+(Join-Path $install 'admin\SchoolMessenger.exe')+'" --server-manager --startup')){throw 'Direct administrator executable was treated as a teacher messenger'}}finally{$run.Dispose()}
+        Check 'Installed administrator executable identifies its own program mode without a launcher flag and keeps its separate startup entry'
         Uninstall
         if((@($tasksBefore) -join "`n") -ne (@(TaskNames) -join "`n")){throw 'Installer changed operational tasks'}
         Check 'Shortcut-only verification removes its isolated test installation and leaves operating tasks unchanged'

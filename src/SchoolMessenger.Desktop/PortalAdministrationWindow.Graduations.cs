@@ -33,7 +33,7 @@ public sealed partial class PortalAdministrationWindow
             var at=new DateTimeOffset(DateTime.SpecifyKind(parsed,DateTimeKind.Unspecified),TimeSpan.FromHours(9)).ToUnixTimeMilliseconds();
             var ids=choices.Where(c=>c.Value.IsChecked==true).Select(c=>c.Key).ToArray();
             if(ids.Length==0)throw new InvalidOperationException("학교가 확인한 졸업 대상 학생을 선택하세요.");
-            if(MessageBox.Show(this,$"선택 학생 {ids.Length}명 · {time.Text} (한국 시간)\n예약 시각에 학생 계정과 마지막 자녀가 졸업하는 학부모 계정을 탈퇴·파기합니다. 저장할까요?","졸업 파기 예약",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;
+            if(MessageBox.Show(InteractionOwner,$"선택 학생 {ids.Length}명 · {time.Text} (한국 시간)\n예약 시각에 학생 계정과 마지막 자녀가 졸업하는 학부모 계정을 탈퇴·파기합니다. 저장할까요?","졸업 파기 예약",MessageBoxButton.YesNo)!=MessageBoxResult.Yes)return;
             await api.Send<JsonElement>(HttpMethod.Post,"api/admin/graduations",new{studentIds=ids,at,confirmation=confirmation.Text});await Graduations();
         });
     }
