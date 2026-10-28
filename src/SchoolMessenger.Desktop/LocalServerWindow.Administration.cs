@@ -97,8 +97,8 @@ public sealed partial class LocalServerWindow
     {
         var role=service??activeService;CloseAdministrationPage();activeService=role;activePage=page;
         serverViews.Visibility=Visibility.Collapsed;administrationView.Visibility=Visibility.Visible;UpdateAdminIdentity();
-        foreach(var card in cards){card.Navigation.SetResourceReference(Control.BackgroundProperty,"Surface");card.Navigation.SetResourceReference(Control.ForegroundProperty,"Ink");card.Navigation.BorderThickness=new Thickness(0);}
-        foreach(var button in administrationNavigation)button.SetResourceReference(Control.BackgroundProperty,Equals(button.Tag,page)?"Pale":"Surface");
+        foreach(var card in cards)NavigationState(card.Navigation,false);
+        foreach(var button in administrationNavigation)NavigationState(button,Equals(button.Tag,page));
         if(!adminSessions.TryGetValue(role,out var source)){ShowAdministratorLogin(role,page);return;}
         var revision=viewRevision;
         administrationView.Children.Add(Surface(Note("관리자 권한을 확인하고 있습니다…")));

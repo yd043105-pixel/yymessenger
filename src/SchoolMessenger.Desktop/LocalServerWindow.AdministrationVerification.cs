@@ -30,6 +30,8 @@ public sealed partial class LocalServerWindow
         var teacher=await source.Send<JsonElement>(HttpMethod.Post,"api/admin/users",new{username=login,name,department="가상 교무부",password,isAdmin=false,canBroadcast=false});
         await OpenAdministration("members","office");await Wait(()=>HasText(name),"구성원 목록이 로드되지 않았습니다.");
         check(administrationController is OfficeWindow&&!administrationController.IsVisible&&!OwnedWindows.Cast<Window>().Any(w=>w.IsVisible),"existing member settings load inside the single administrator window");capture("administrator-members.png",this);
+        Width=760;Height=560;UpdateLayout();
+        check(ViewControls<Button>(administrationView).Where(b=>System.Windows.Automation.AutomationProperties.GetName(b).EndsWith(" 계정 설정",StringComparison.Ordinal)||b.Content?.ToString()=="교직원 등록 · 승인").All(b=>b.ActualWidth>0&&b.TransformToAncestor(this).Transform(new Point()).X+b.ActualWidth<=ActualWidth-8),"member table actions stay within the administrator window at its minimum width");capture("administrator-members-compact.png",this);Width=1060;Height=780;UpdateLayout();
         Click(ViewControls<Button>(administrationView).Single(b=>System.Windows.Automation.AutomationProperties.GetName(b)==name+" 계정 설정"));await Wait(()=>ViewControls<Button>(administrationView).Any(b=>b.Content?.ToString()=="계정 상태 저장 · 기존 세션 회수"),"교직원 설정을 열지 못했습니다.");
         var fields=ViewControls<TextBox>(administrationView).ToArray();fields[2].Text="수정된 가상 부서";fields[3].Text="가상부장";Click(Action("계정 상태 저장 · 기존 세션 회수"));
         await Wait(()=>HasText("수정된 가상 부서"),"교직원 설정 저장이 반영되지 않았습니다.");
