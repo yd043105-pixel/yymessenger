@@ -8,7 +8,7 @@ project=src/SchoolMessenger.Mac/SchoolMessenger.Mac.csproj
 mkdir -p artifacts/mac
 dotnet publish "$project" -c Release -r "$runtime" --no-restore --nologo \
   -p:CreatePackage=false -p:CodesignKey=- -p:CodesignRequireProvisioningProfile=false
-bundle="src/SchoolMessenger.Mac/bin/Release/net10.0-maccatalyst/$runtime/SchoolMessenger.Mac.app"
+bundle="$(find "src/SchoolMessenger.Mac/bin/Release/net10.0-maccatalyst/$runtime" -maxdepth 1 -type d -name '*.app' -print -quit)"
 [[ -d "$bundle" ]] || { echo 'Mac application bundle missing' >&2; exit 1; }
 python3 tests/mac-bundle.py "$bundle" "${runtime#maccatalyst-}"
 archive="artifacts/mac/yymessenger-1.0.0-macos-${runtime#maccatalyst-}-trial.zip"

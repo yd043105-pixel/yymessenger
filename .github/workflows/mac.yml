@@ -27,16 +27,13 @@ jobs:
           dotnet workload install maui-maccatalyst --version 10.0.401
       - name: Restore native Mac dependencies
         run: |
-          if [[ -f src/SchoolMessenger.Mac/packages.lock.json ]]; then
-            dotnet restore src/SchoolMessenger.Mac --locked-mode
-          else
-            dotnet restore src/SchoolMessenger.Mac
-          fi
+          dotnet restore src/SchoolMessenger.Mac --locked-mode
       - name: Build native verification app and synthetic servers
         run: |
           runtime=maccatalyst-x64
           [[ "$(uname -m)" != arm64 ]] || runtime=maccatalyst-arm64
           dotnet build src/SchoolMessenger.Mac -c Debug -r "$runtime" --no-restore -p:MacVerification=true -p:CodesignKey=- -p:CodesignRequireProvisioningProfile=false
+          find src/SchoolMessenger.Mac/bin/Debug -maxdepth 5 -name '*.app' -print
           dotnet build src/SchoolMessenger.Server -p:RestoreLockedMode=true
           dotnet build src/SchoolMessenger.AnnouncementServer -p:RestoreLockedMode=true
       - name: Run actual native Mac client
