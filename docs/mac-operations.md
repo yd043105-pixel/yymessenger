@@ -49,7 +49,7 @@ bash scripts/Build-Mac.sh maccatalyst-arm64
 bash scripts/Build-Mac.sh maccatalyst-x64
 ```
 
-초기 잠금 파일은 실제 Mac 복원 결과로 생성해 저장한다. 이후 `--locked-mode`로 의존성 변경을 차단한다. 출력은 `artifacts/mac`이며 ZIP마다 SHA-256 파일을 함께 만든다. GitHub CI는 가상 학교 서버를 이용한 실제 네이티브 실행, 메시지 전송, 창 구성, 접속·로그아웃과 Release 번들의 아키텍처·HTTPS·샌드박스·서명 무결성을 검사한다. 실제 학교망·Finder 첨부 선택·Apple Keychain 배포 권한·실제 Intel 하드웨어 시험을 대신하지 않는다.
+잠금 파일은 실제 Mac 복원 결과로 생성해 저장했다. 이후 `--locked-mode`로 의존성 변경을 차단한다. 출력은 `artifacts/mac`이며 ZIP마다 SHA-256 파일을 함께 만든다. GitHub CI는 가상 학교 서버를 이용한 실제 네이티브 실행, 메시지 전송, 창 구성, 접속·로그아웃과 Release 번들의 아키텍처·HTTPS·샌드박스·서명 무결성을 검사한다. [2026-10-28 실제 실행 결과](mac-verification-2026-10-28.md)에 사용한 소스·CI·검증 범위를 기록했다. 실제 학교망·Finder 첨부 선택·Apple Keychain 배포 권한·실제 Intel 하드웨어 시험을 대신하지 않는다.
 
 ## 일반 배포 전 필요한 Apple 작업
 

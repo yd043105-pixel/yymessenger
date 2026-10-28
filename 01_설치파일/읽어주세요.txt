@@ -17,3 +17,7 @@
 
 처음 시험할 때는 02_설명서/00_설치와_기능테스트_안내.pdf부터 읽으세요.
 Android는 Debug 시험용이며, iPhone 서명·학교 배포자 코드서명·정식 공개 릴리즈는 별도 준비입니다.
+05_Mac : Mac 교직원 메신저 시험본
+  Apple Silicon은 arm64-trial.zip, Intel은 x64-trial.zip을 사용합니다.
+  Mac전달파일목록.json과 00_Mac설치안내.txt를 확인하세요.
+  Developer ID 서명·Apple 공증 전 시험본이며, 기존 7개 전달파일 목록과 별도로 검증합니다.
