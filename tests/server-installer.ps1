@@ -17,8 +17,9 @@ $owned=[Collections.Generic.List[Diagnostics.Process]]::new()
 function Check([string]$Name){$checks.Add($Name);Write-Host "PASS $Name"}
 function Key{[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($regName,$true)}
 function TaskNames{$scheduler=New-Object -ComObject Schedule.Service;$scheduler.Connect();@($scheduler.GetFolder('\').GetTasks(1) | Where-Object Name -Like 'YeoyangMessenger-*' | ForEach-Object Name | Sort-Object)}
-function Setup([string]$Name,[string]$Components='office,admin',[switch]$Reject,[switch]$CreateIcons,[string]$Tasks=''){
-    $arguments=@('/VERYSILENT','/SUPPRESSMSGBOXES','/SP-','/NORESTART',"/GROUP=$testGroup","/TASKS=$Tasks","/COMPONENTS=$Components",('/DIR="'+$install+'"'),('/LOG="'+(Join-Path $work ($Name+'.log'))+'"'))
+function Setup([string]$Name,[string]$Components='office,admin',[switch]$Reject,[switch]$CreateIcons,[string]$Tasks='',[string]$InstallType=''){
+    $arguments=@('/VERYSILENT','/SUPPRESSMSGBOXES','/SP-','/NORESTART',"/GROUP=$testGroup","/TASKS=$Tasks",('/DIR="'+$install+'"'),('/LOG="'+(Join-Path $work ($Name+'.log'))+'"'))
+    if($InstallType){$arguments+="/TYPE=$InstallType"}else{$arguments+="/COMPONENTS=$Components"}
     if(-not $CreateIcons){$arguments+='/NOICONS'}
     $process=Start-Process -FilePath $testSetup -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru
     if($Reject){if($process.ExitCode -eq 0){throw 'Unsafe installation was accepted'}}elseif($process.ExitCode -ne 0){throw "Installation failed: $Name / $($process.ExitCode) / $work"}
@@ -78,7 +79,7 @@ try{
         if(Test-Path -LiteralPath $desktop){throw 'Unselected desktop shortcut was created'}
         Check 'Public-only installation includes its server manager while unchecked desktop creation remains off'
         Uninstall
-        Setup 'administrator-only' -Components 'admin' -CreateIcons
+        Setup 'administrator-only' -InstallType 'administrator' -CreateIcons
         if(-not(Test-Path -LiteralPath (Join-Path $install 'admin\SchoolMessenger.exe')) -or (Test-Path -LiteralPath (Join-Path $install 'server\SchoolMessenger.Server.exe')) -or (Test-Path -LiteralPath (Join-Path $install 'announcement-server\SchoolMessenger.AnnouncementServer.exe')) -or -not(Test-Path -LiteralPath $shortcutPath)){throw 'Administrator-only installation incorrectly requires backend payloads'}
         Check 'Administrator-only custom installation has the management program and shortcut without installing either backend'
         $direct=Start-Process -FilePath (Join-Path $install 'admin\SchoolMessenger.exe') -ArgumentList @('--configure-startup','enable','--startup-entry-name',$startupEntry) -WindowStyle Hidden -Wait -PassThru

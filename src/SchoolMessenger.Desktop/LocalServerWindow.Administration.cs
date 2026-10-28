@@ -117,7 +117,7 @@ public sealed partial class LocalServerWindow
                 "portal"=>new PortalAdministrationWindow(this,source,()=>SignOutAdministrator(role)),
                 "policy"=>new SchoolPolicyWindow(this,source),
                 "feedback"=>new FeedbackWindow(this,source,true),
-                _=>new ServerManagementWindow(this,source)
+                _=>new ServerManagementWindow(this,source,role=="office")
             };
             var view=(FrameworkElement)controller.Content;controller.Content=null;view.Resources=controller.Resources;
             administrationController=controller;

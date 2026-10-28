@@ -36,7 +36,7 @@ public sealed partial class PortalAdministrationWindow:Window
         foreach(var window in OwnedWindows.Cast<Window>().ToArray())window.Close();
         body.Children.Clear();body.Children.Add(Text("외부 학교 소식 서버의 별도 관리자 계정으로 로그인하세요. 비밀번호와 로그인 쿠키는 이 창에서만 사용합니다."));
         var address=Field("학교 소식 서버 HTTPS 주소",initialAddress??"");var username=Field("학교 소식 관리자 아이디","admin");body.Children.Add(Text("관리자 비밀번호"));var password=new PasswordBox();body.Children.Add(password);
-        Button("관리자 로그인",async()=>{api?.Dispose();api=new Api(address.Text);try{await api.Login(username.Text,password.Password,false);}finally{password.Clear();}await api.Get<JsonElement>("api/admin/status");await Load();new ServerManagementWindow(this,api).Show();});
+        Button("관리자 로그인",async()=>{api?.Dispose();api=new Api(address.Text);try{await api.Login(username.Text,password.Password,false);}finally{password.Clear();}await api.Get<JsonElement>("api/admin/status");await Load();new ServerManagementWindow(this,api,false).Show();});
     }
     async Task Load()
     {

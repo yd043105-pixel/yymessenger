@@ -54,12 +54,13 @@ Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"
 [Types]
 Name: "office"; Description: "교내 업무 서버 PC · 관리자 프로그램 포함"
 Name: "announcements"; Description: "학생·학부모용 학교 소식 서버 PC"
+Name: "administrator"; Description: "관리자 전용 PC · 서버 설치 없이 학교 서버에 연결"
 Name: "custom"; Description: "사용자 지정 · 시험 환경"; Flags: iscustom
 
 [Components]
 Name: "office"; Description: "교내 업무 서버 · 교직원 메시지·업무"; Types: office
 Name: "announcements"; Description: "학교 소식 서버 · 학생·학부모 앱"; Types: announcements
-Name: "admin"; Description: "관리자 프로그램 · 서버·구성원·학교 설정"; Types: office announcements custom; Flags: fixed
+Name: "admin"; Description: "관리자 프로그램 · 서버·구성원·학교 설정"; Types: office announcements administrator custom; Flags: fixed
 
 [Tasks]
 Name: "desktopicon"; Description: "바탕화면에 관리자 프로그램 바로가기 만들기"; GroupDescription: "바로가기:"; Flags: unchecked
@@ -174,15 +175,6 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := MaintenanceBlock(False);
-end;
-
-function NextButtonClick(CurPageID: Integer): Boolean;
-begin
-  Result := True;
-  if CurPageID = wpSelectComponents then begin
-    Result := WizardIsComponentSelected('office') or WizardIsComponentSelected('announcements');
-    if not Result then MsgBox('교내 업무 서버 또는 학교 소식 서버를 선택하세요.', mbError, MB_OK);
-  end;
 end;
 
 function InitializeUninstall(): Boolean;

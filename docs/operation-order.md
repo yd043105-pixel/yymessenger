@@ -35,7 +35,7 @@
 | 학생·학부모 Android | `03_안드로이드\kr.school.yeoyang.family-Signed.apk` |
 | Mac 제작 담당자 | `04_iOS\yymessenger-1.0.0-ios-build-source.zip` |
 
-`server-setup`은 관리자 프로그램과 서버용, `setup`은 일반 교사 PC용이다. 서버 PC에 교사용 EXE를 또 설치할 필요는 없다. 별도 관리자 PC는 `server-setup`의 **사용자 지정**에서 서버 역할을 해제하고 **관리자 프로그램**만 설치한다. 서버 ZIP은 수동 배치용으로 남겨 두며 **EXE로 설치할 때 따로 압축 해제하지 않는다.** Windows 프로그램은 런타임을 포함하므로 개발용 .NET SDK·Node.js·소스 전체를 학교 PC에 설치하지 않는다.
+`server-setup`은 관리자 프로그램과 서버용, `setup`은 일반 교사 PC용이다. 서버 PC에 교사용 EXE를 또 설치할 필요는 없다. 별도 관리자 PC는 `server-setup`에서 **관리자 전용 PC**를 선택한다. 사용자 지정에서 서버 역할을 해제하고 관리자만 설치할 수도 있다. 서버 ZIP은 수동 배치용으로 남겨 두며 **EXE로 설치할 때 따로 압축 해제하지 않는다.** Windows 프로그램은 런타임을 포함하므로 개발용 .NET SDK·Node.js·소스 전체를 학교 PC에 설치하지 않는다.
 
 ## 3. 실제 서버 설치 전에 준비할 것
 

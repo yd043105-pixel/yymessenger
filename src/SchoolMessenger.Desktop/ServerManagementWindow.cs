@@ -15,6 +15,7 @@ namespace SchoolMessenger.Desktop;
 public sealed partial class ServerManagementWindow:Window
 {
     readonly Api api;readonly StackPanel body=new(){Margin=new Thickness(22)};
+    readonly DockPanel hostView=new();
     readonly TextBlock hardware=Label("서버 정보 확인 중"),traffic=Label(""),storage=Label(""),settings=Label(""),feedback=Label("");
     readonly TextBlock cpu=Label("샘플 수집 중",24),memory=Label("샘플 수집 중",24),process=Label("확인 중",24);
     readonly TextBlock memoryNote=Label("",12),processNote=Label("",12);
@@ -23,12 +24,12 @@ public sealed partial class ServerManagementWindow:Window
     readonly Button apply=new(){Content="부하 설정 적용",Margin=new Thickness(0,12,0,0)};
     readonly DispatcherTimer timer=new(){Interval=TimeSpan.FromSeconds(10)};bool busy,loaded;
     public bool Ready{get;private set;}
-    Window InteractionOwner=>Window.GetWindow(body)??this;
-    public ServerManagementWindow(Window owner,Api api)
+    internal Window InteractionOwner=>Window.GetWindow(hostView)??this;
+    public ServerManagementWindow(Window owner,Api api,bool officeService=true)
     {
         this.api=api;Owner=owner;Resources=owner.Resources;Title="관리자 시스템 · 서버 운영";Width=940;Height=760;MinWidth=760;MinHeight=560;Style=(Style)FindResource("SchoolWindow");
         MaxHeight=SystemParameters.WorkArea.Height-30;WindowStartupLocation=WindowStartupLocation.CenterOwner;
-        var dock=new DockPanel{Margin=new Thickness(24,18,24,12)};Content=dock;
+        var dock=hostView;dock.Margin=new Thickness(24,18,24,12);Content=dock;
         var footer=new DockPanel{Margin=new Thickness(0,12,0,0)};var refresh=new Button{Content="상태 새로고침",MinHeight=38,Margin=new Thickness(0,0,16,0)};refresh.Click+=async(_,_)=>await Refresh(true);DockPanel.SetDock(refresh,Dock.Left);footer.Children.Add(refresh);footer.Children.Add(feedback);DockPanel.SetDock(footer,Dock.Bottom);dock.Children.Add(footer);
         var header=new DockPanel{Margin=new Thickness(0,0,0,18)};
         var localControl=new Button{Content="이 PC 서버 시작 · 중지 관리",Margin=new Thickness(0,5,0,10)};
@@ -48,7 +49,7 @@ public sealed partial class ServerManagementWindow:Window
         var load=new StackPanel();var loadActions=new DockPanel();apply.MinHeight=38;apply.MinWidth=160;apply.Margin=new Thickness(16,0,0,0);apply.SetResourceReference(StyleProperty,"PrimaryButton");DockPanel.SetDock(apply,Dock.Right);loadActions.Children.Add(apply);loadActions.Children.Add(profile);load.Children.Add(loadActions);load.Children.Add(Label("새 파일 작업의 동시 실행과 전송 속도를 조정합니다. 서버 RAM 전체의 강제 상한은 아닙니다.",12));load.Children.Add(new Expander{Header="전송 제한과 현재 작업",Content=settings,Margin=new Thickness(0,8,0,0)});body.Children.Add(Section("부하 설정",load));
         var school=new StackPanel{Margin=new Thickness(0,16,0,0)};tabs.Items.Add(new TabItem{Header="계정·학교",Content=new ScrollViewer{Content=school,VerticalScrollBarVisibility=ScrollBarVisibility.Auto}});
         var connection=new StackPanel{Margin=new Thickness(0,16,0,0)};tabs.Items.Add(new TabItem{Header="시작·연결",Content=new ScrollViewer{Content=connection,VerticalScrollBarVisibility=ScrollBarVisibility.Auto}});
-        var discovery=new Button{Content="교내 서버 자동검색 설정",HorizontalAlignment=HorizontalAlignment.Left};discovery.Click+=async(_,_)=>await OpenDiscovery();connection.Children.Add(Section("교사용 PC 연결",discovery));
+        if(officeService){var discovery=new Button{Content="교내 서버 자동검색 설정",HorizontalAlignment=HorizontalAlignment.Left};discovery.Click+=async(_,_)=>await OpenDiscovery();connection.Children.Add(Section("교사용 PC 연결",discovery));}
         var boot=new Button{Content="서버 PC 재시작 후 자동 구동 설정",HorizontalAlignment=HorizontalAlignment.Left};boot.Click+=(_,_)=>OpenServerStartup();connection.Children.Add(Section("서버 자동 시작",boot));
         var policy=new Button{Content="학교별 약관 · 개인정보 설정 초안",HorizontalAlignment=HorizontalAlignment.Left};policy.Click+=async(_,_)=>{if(InteractionOwner is LocalServerWindow manager)await manager.OpenAdministration("policy");else new SchoolPolicyWindow(InteractionOwner,api).ShowDialog();};school.Children.Add(Section("학교 운영 정책",policy));
         if(owner is MainWindow main)
@@ -64,7 +65,7 @@ public sealed partial class ServerManagementWindow:Window
             catch(Exception e){feedback.Text=e.Message;}
             finally{busy=false;}await Refresh(false);
         };
-        dock.Loaded+=async(_,_)=>{await Refresh(true);timer.Start();};dock.Unloaded+=(_,_)=>timer.Stop();timer.Tick+=async(_,_)=>{if(InteractionOwner.IsActive)await Refresh(false);};
+        dock.Loaded+=async(_,_)=>{await Refresh(true);timer.Start();};dock.Unloaded+=(_,_)=>timer.Stop();timer.Tick+=async(_,_)=>{if(tabs.SelectedIndex==0&&InteractionOwner.IsActive)await Refresh(false);};
         Closed+=(_,_)=>timer.Stop();
     }
     static TextBlock Label(string value,int size=14)=>new(){Text=value,FontSize=size,TextWrapping=TextWrapping.Wrap,Margin=new Thickness(0,7,0,7)};
