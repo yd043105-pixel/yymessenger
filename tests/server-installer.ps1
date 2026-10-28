@@ -62,7 +62,15 @@ try{
     $shortcutPath=Join-Path ([Environment]::GetFolderPath('Programs')) ($testGroup+'\관리자 프로그램.lnk')
     if(-not(Test-Path -LiteralPath $shortcutPath)){throw 'Server manager shortcut missing'}
     $shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
-    if($shortcut.TargetPath -ne (Join-Path $install 'admin\SchoolMessenger.exe') -or $shortcut.Arguments -ne '--server-manager'){throw 'Incorrect server manager shortcut'}
+    $expectedTarget=Join-Path $install 'admin\SchoolMessenger.exe'
+    if($shortcut.TargetPath -ne $expectedTarget -or $shortcut.Arguments -ne '--server-manager'){
+        $evidence=@{expectedTarget=$expectedTarget;target=[string]$shortcut.TargetPath;arguments=[string]$shortcut.Arguments;shortcut=$shortcutPath;shortcutBytes=(Get-Item -LiteralPath $shortcutPath).Length}
+        $shellFolder=(New-Object -ComObject Shell.Application).NameSpace((Split-Path $shortcutPath -Parent))
+        $shellLink=$shellFolder.ParseName((Split-Path $shortcutPath -Leaf)).GetLink
+        $evidence.shellTarget=[string]$shellLink.Path;$evidence.shellArguments=[string]$shellLink.Arguments
+        $evidence|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $OutputDirectory 'server-shortcut-failure.json') -Encoding UTF8
+        throw ('Incorrect server manager shortcut: '+($evidence|ConvertTo-Json -Compress))
+    }
     $desktop=Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) ($startupEntry+'.lnk')
     if(-not(Test-Path -LiteralPath $desktop)){throw 'Selected desktop shortcut was not created'}
     $run=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Microsoft\Windows\CurrentVersion\Run');try{if($run.GetValue($startupEntry) -ne ('"'+(Join-Path $install 'admin\SchoolMessenger.exe')+'" --server-manager --startup')){throw 'Selected startup option was not applied'}}finally{$run.Dispose()}
