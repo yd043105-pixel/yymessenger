@@ -12,6 +12,8 @@ artifacts/
 *.log
 .env
 .env.*
+**/school-request-*.json
+**/school-registration-decision-*.json
 !.env.example
 **/appsettings.*.local.json
 **/appsettings.Production.json

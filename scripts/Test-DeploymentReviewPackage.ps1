@@ -15,4 +15,5 @@ foreach($file in Get-ChildItem -LiteralPath $PackageDirectory -Recurse -File -Fi
     if($file.Length -gt 262144){continue}
     try{$value=Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8|ConvertFrom-Json}catch{continue}
     if($value -and $value.PSObject.Properties['reviewAuthority'] -and $value.PSObject.Properties['externalServices'] -and $value.PSObject.Properties['documents'] -and $file.FullName -ne $template){throw 'A school review record was found in the distributable package.'}
+    if($value -and $value.PSObject.Properties['requestId'] -and ($value.PSObject.Properties['contactPhone'] -or $value.PSObject.Properties['requestSha256'])){throw 'Private school registration requests or decisions must not be packaged.'}
 }

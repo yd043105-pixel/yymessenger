@@ -1,18 +1,20 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
-import {mkdirSync} from 'node:fs';
+import {existsSync,mkdirSync} from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 const root=process.cwd(),folder=path.join(root,'.test-data','school-routing-'+randomUUID());mkdirSync(folder,{recursive:true});
-const dotnet=path.join(root,'.tools/dotnet/dotnet.exe'),password='Synthetic-'+randomUUID();
+const localDotnet=path.join(root,'.tools/dotnet/dotnet.exe');
+const dotnet=existsSync(localDotnet)?localDotnet:'dotnet',password='Synthetic-'+randomUUID();
 const children=[];
 async function launch(role,id){
  const listener=net.createServer();await new Promise(resolve=>listener.listen(0,'127.0.0.1',resolve));const port=listener.address().port;await new Promise(resolve=>listener.close(resolve));
  const project=role==='office'?'Server':'AnnouncementServer',prefix=role==='office'?'School':'Portal',address='http://127.0.0.1:'+port;
  const child=spawn(dotnet,[path.join(root,'src','SchoolMessenger.'+project,'bin/Debug/net10.0','SchoolMessenger.'+project+'.dll'),'--urls',address],{cwd:path.join(root,'src','SchoolMessenger.'+project),windowsHide:true,env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',Registration__PolicyFile:'',Operations__SecurityReviewFile:'',Operations__SchoolId:id,FeedbackMail__Enabled:'false',Operations__AlertMailEnabled:'false',Announcements__Address:'',Portal__TunnelOnly:'false',Portal__BridgeKey:password,[prefix+'__Name']:'Synthetic same-name school',[prefix+'__DataDirectory']:path.join(folder,id+'-'+role),[prefix+'__AdminPassword']:password}});
- children.push(child);let output='';child.stdout.on('data',chunk=>output+=chunk);child.stderr.on('data',chunk=>output+=chunk);
+ children.push(child);let output='',startupError;child.on('error',error=>startupError=error);child.stdout.on('data',chunk=>output+=chunk);child.stderr.on('data',chunk=>output+=chunk);
  for(let i=0;i<120;i++){
+  if(startupError)throw Error('School fixture process failed: '+startupError.message);
   if(child.exitCode!==null)throw Error('School fixture stopped: '+output);
   try{const response=await fetch(address+'/server-info',{signal:AbortSignal.timeout(1000)});if(response.ok)return {address,identity:await response.json()};}catch{}
   await new Promise(resolve=>setTimeout(resolve,200));
@@ -35,5 +37,5 @@ try{
  const bSession=await(await request(b.address,'/api/session')).json();assert.equal(bSession.user,null);
  assert.notEqual(a.identity.schoolId,b.identity.schoolId);assert.equal(a.identity.schoolName,b.identity.schoolName);
  console.log('PASS Same-name schools have separate identities and databases; even a copied other-school cookie cannot authorize access');
-}finally{await Promise.all(children.map(child=>child.exitCode===null?new Promise(resolve=>{child.once('exit',resolve);child.kill();}):Promise.resolve()));}
+}finally{await Promise.all(children.map(child=>child.pid&&child.exitCode===null?new Promise(resolve=>{child.once('exit',resolve);child.kill();}):Promise.resolve()));}
 console.log('2 real multi-school server checks passed; synthetic loopback data only.');

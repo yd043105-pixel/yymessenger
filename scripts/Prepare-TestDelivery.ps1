@@ -27,7 +27,7 @@ try{
     Copy-Item -LiteralPath (Join-Path $projectRoot 'tests\IosRuntimeChecks.cs') -Destination (Join-Path $sourceStage 'tests')
     foreach($doc in @('ios-operations.md','ios-verification.md','final-test-runbook.md','operation-order.md')){Copy-Item -LiteralPath (Join-Path $projectRoot "docs\$doc") -Destination (Join-Path $sourceStage 'docs')}
     $entries=@(Get-ChildItem -LiteralPath $sourceStage -Recurse -Force)
-    if(@($entries | Where-Object {($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $_.Name -match '(?i)(\.db($|-)|\.dpapi$|\.pfx$|\.pem$|\.key$|\.p12$|\.mobileprovision$|\.keystore$|\.jks$|^\.env|^secrets\.json$|^login\.dat$|^preferences\.json$|^appsettings\.Production\.json$)'}).Count){throw 'iOS 전달 소스에 비밀 파일 또는 링크가 있습니다.'}
+    if(@($entries | Where-Object {($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $_.Name -match '(?i)(\.db($|-)|\.dpapi$|\.pfx$|\.pem$|\.key$|\.p12$|\.mobileprovision$|\.keystore$|\.jks$|^\.env|^school-request-|^school-registration-decision-|^secrets\.json$|^login\.dat$|^preferences\.json$|^appsettings\.Production\.json$)'}).Count){throw 'iOS 전달 소스에 비밀 파일 또는 링크가 있습니다.'}
     $iosZip="yymessenger-$version-ios-build-source.zip"
     Compress-Archive -LiteralPath @(Get-ChildItem -LiteralPath $sourceStage | ForEach-Object FullName) -DestinationPath (Join-Path $artifacts $iosZip) -Force
     $files['04_iOS']=@($iosZip)

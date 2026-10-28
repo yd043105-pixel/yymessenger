@@ -60,6 +60,12 @@ var timer=System.Diagnostics.Stopwatch.StartNew();var expired=false;
 try{await SchoolDirectory.Verify(A,"office",handler:slow);}catch(OperationCanceledException){expired=true;}
 Require(expired&&timer.Elapsed<TimeSpan.FromSeconds(9),"response body can wait forever after headers");
 Pass("A stalled response body is cancelled by the six-second deadline after headers have arrived");
+var registration=SchoolRegistration.Create(A.Id,A.Name,A.Region,"061-000-0000",A.OfficeAddress,A.AnnouncementsAddress);
+using(var request=JsonDocument.Parse(registration.ToJson())){Require(request.RootElement.GetProperty("status").GetString()=="pending","request self-approved");Require(request.RootElement.GetProperty("contactPhone").GetString()=="061-000-0000","school verification contact missing");}
+Require(registration.Mailto("request.json").StartsWith("mailto:yd043105@gmail.com?subject="),"recipient changed");Require(!registration.Mailto("request.json").Contains("061-000-0000"),"phone leaked in draft URI");
+Pass("School requests remain pending; the mail draft uses the fixed developer address and excludes verification contact");
+foreach(var phone in new[]{"010-0000-0000","061-000-0000\r\nBcc:other@example.invalid","not a phone"}){var rejected=false;try{SchoolRegistration.Create(A.Id,A.Name,A.Region,phone,A.OfficeAddress,A.AnnouncementsAddress);}catch(InvalidOperationException){rejected=true;}Require(rejected,"private or injected phone accepted");}
+Pass("School requests reject personal mobile numbers and contact-field injection");
 Console.WriteLine(checks.Count+" school directory checks passed.");
 
 sealed class Fake(Func<HttpRequestMessage,HttpResponseMessage> response):HttpMessageHandler

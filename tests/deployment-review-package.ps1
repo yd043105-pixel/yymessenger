@@ -24,3 +24,13 @@ Copy-Item -LiteralPath (Join-Path $root 'config\deployment-review.draft.json') -
 $rejected=$false;try{& $checker -PackageDirectory $folder}catch{$rejected=$true}
 if(-not $rejected){throw 'Renamed school review was accepted'}
 Write-Host 'PASS Renamed review records are blocked outside the configuration directory'
+Remove-Item -LiteralPath (Join-Path $folder 'renamed-review.json')
+$private=Join-Path $folder 'renamed-application.json'
+@{schema=1;status='pending';requestId='synthetic';contactPhone='061-000-0000'}|ConvertTo-Json|Set-Content -LiteralPath $private -Encoding UTF8
+$rejected=$false;try{& $checker -PackageDirectory $folder}catch{$rejected=$true}
+if(-not $rejected){throw 'Private application was accepted'}
+Write-Host 'PASS Private school registration requests are blocked even under another filename'
+@{schema=1;requestId='synthetic';requestSha256='synthetic';decision='approved'}|ConvertTo-Json|Set-Content -LiteralPath $private -Encoding UTF8
+$rejected=$false;try{& $checker -PackageDirectory $folder}catch{$rejected=$true}
+if(-not $rejected){throw 'Private developer decision was accepted'}
+Write-Host 'PASS Private developer registration decisions are blocked even under another filename'
