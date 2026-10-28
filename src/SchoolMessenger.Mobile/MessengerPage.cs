@@ -14,7 +14,7 @@ public sealed partial class MessengerPage : ContentPage
     string homeTab="home";
     MessengerApi? api;
     MessengerApi? schoolIdentitySource;
-    string schoolName="여양메신저";
+    string schoolName="교무톡";
     bool busy,covered,restored,resuming,preserveComposerOnResume;
     ContentPage? composer;
     bool updateNoticeOpen,updateNoticeOffered;
@@ -23,7 +23,7 @@ public sealed partial class MessengerPage : ContentPage
     bool unread;
     public MessengerPage()
     {
-        MessengerApi.CleanupShares();Active=this;Title="여양메신저 · 학교 소식";BackgroundColor=Color.FromArgb("#F3F6FB");
+        MessengerApi.CleanupShares();Active=this;Title="교무톡 · 학교 소식";BackgroundColor=Color.FromArgb("#F3F6FB");
         NavigationPage.SetHasNavigationBar(this,false);
         var layout=new Grid{RowDefinitions={new(GridLength.Auto),new(GridLength.Star),new(GridLength.Auto)}};
         layout.Add(identityHeader);

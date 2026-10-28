@@ -46,13 +46,13 @@ public sealed partial class LocalServerWindow:Window
     internal LocalServerWindow(string installedRoot,string settingsDirectory,string? registry)
     {
         root=Path.GetFullPath(installedRoot);directory=settingsDirectory;Directory.CreateDirectory(directory);startup=Startup(registry);
-        Title="여양메신저 관리자";Width=1060;Height=780;MinWidth=760;MinHeight=560;MaxHeight=SystemParameters.WorkArea.Height-25;
+        Title="교무톡 관리자";Width=1060;Height=780;MinWidth=760;MinHeight=560;MaxHeight=SystemParameters.WorkArea.Height-25;
         Style=(Style)FindResource("SchoolWindow");
         BuildDashboard();
         autoProgram.IsChecked=startup.Enabled;
         autoProgram.Click+=(_,_)=>{try{startup.SetEnabled(autoProgram.IsChecked==true);}catch(Exception e){autoProgram.IsChecked=startup.Enabled;MessageBox.Show(this,e.Message,"자동 실행 설정 실패");}};
         LoadSettings();
-        tray=new System.Windows.Forms.NotifyIcon{Icon=System.Drawing.SystemIcons.Application,Text="여양메신저 관리자",Visible=true};var menu=new System.Windows.Forms.ContextMenuStrip();
+        tray=new System.Windows.Forms.NotifyIcon{Icon=Branding.TrayIcon,Text="교무톡 관리자",Visible=true};var menu=new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("관리자 프로그램 열기",null,(_,_)=>Dispatcher.Invoke(()=>{Show();WindowState=WindowState.Normal;Activate();}));menu.Items.Add("서버 중지 후 프로그램 종료",null,async(_,_)=>await Dispatcher.InvokeAsync(Exit).Task.Unwrap());tray.ContextMenuStrip=menu;tray.DoubleClick+=(_,_)=>Dispatcher.Invoke(()=>{Show();Activate();});
         Closing+=(_,e)=>{if(!quitting){e.Cancel=true;SaveSettings();Hide();_ = SignOutAdministrators();}};Closed+=(_,_)=>{timer.Stop();sessionTimer.Stop();foreach(var source in adminSessions.Values)source.Dispose();tray.Dispose();};
         sessionTimer.Tick+=async(_,_)=>await CheckAdministratorSessions();

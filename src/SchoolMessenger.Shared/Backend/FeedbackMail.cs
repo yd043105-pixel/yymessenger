@@ -33,7 +33,7 @@ public sealed class FeedbackMail(Func<SqliteConnection> open,string service,IDat
         var clean=new string(name.Where(c=>!char.IsControl(c)&&CharUnicodeInfo.GetUnicodeCategory(c)!=UnicodeCategory.Format).Take(50).ToArray()).Trim();
         if(clean.Length==0)clean="사용자";
         var local=TimeZoneInfo.ConvertTime(DateTimeOffset.FromUnixTimeMilliseconds(at),TimeZoneInfo.FindSystemTimeZoneById("Asia/Seoul"));
-        return "[여양메신저 오류로그]"+local.ToString("MM월dd일HH시mm분",CultureInfo.InvariantCulture)+" "+clean+" 오류";
+        return "[교무톡 오류로그]"+local.ToString("MM월dd일HH시mm분",CultureInfo.InvariantCulture)+" "+clean+" 오류";
     }
     public object Status()
     {
@@ -59,7 +59,7 @@ public sealed class FeedbackMail(Func<SqliteConnection> open,string service,IDat
         {
             var report=System.Text.Json.JsonSerializer.Deserialize<SchoolMessenger.Contracts.FeedbackRequest>(protector.Unprotect(payload),new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
             var version=Regex.IsMatch(report.Version,@"^\d{1,4}\.\d{1,4}\.\d{1,4}(?:[.-][A-Za-z0-9.-]{1,20})?$")?report.Version:"확인 필요";
-            var body="여양메신저 오류가 접수되었습니다.\r\n접수 번호: "+service+"-"+id+"\r\n프로그램: "+report.Product+"\r\n버전: "+version+"\r\n기능: "+report.Area+
+            var body="교무톡 오류가 접수되었습니다.\r\n접수 번호: "+service+"-"+id+"\r\n프로그램: "+report.Product+"\r\n버전: "+version+"\r\n기능: "+report.Area+
                 "\r\n\r\n신고 원문·메시지·첨부·비밀번호는 이메일에 포함하지 않습니다.\r\n관리자 프로그램의 오류 신고 현황에서 재현 설명을 확인하세요.";
             // ErrorCode is rejected by the public report API. Only server-created diagnostics use this field.
             if(report.ErrorCode is not null&&Regex.IsMatch(report.ErrorCode,"^[A-Za-z0-9_]{1,80}$"))body+="\r\n자동 기술 진단:\r\n"+report.Details;

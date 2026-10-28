@@ -42,7 +42,7 @@ public partial class App : System.Windows.Application
         else if(AdministratorMode)
         {
             serverExclusive=new System.Threading.Mutex(true,@"Local\YeoyangMessengerServerManager.Exclusive",out ownsServer);
-            if(!ownsServer){MessageBox.Show("관리자 프로그램이 이미 실행 중입니다. 알림 영역에서 ‘여양메신저 관리자’를 여세요.");Shutdown();return;}
+            if(!ownsServer){MessageBox.Show("관리자 프로그램이 이미 실행 중입니다. 알림 영역에서 ‘교무톡 관리자’를 여세요.");Shutdown();return;}
             MainWindow=new LocalServerWindow();MainWindow.Show();
         }
         else{MainWindow=new MainWindow();MainWindow.Show();}

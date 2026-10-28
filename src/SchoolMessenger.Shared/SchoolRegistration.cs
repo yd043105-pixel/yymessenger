@@ -21,5 +21,5 @@ public sealed record SchoolRegistration(string RequestId,string SchoolId,string 
         return new(Guid.NewGuid().ToString("N"),id,name,region,phone,DateTimeOffset.UtcNow,office,announcements);
     }
     public string ToJson()=>JsonSerializer.Serialize(new{schema=1,status="pending",requestId=RequestId,schoolId=SchoolId,schoolName=SchoolName,region=Region,contactPhone=ContactPhone,createdAt=CreatedAt,officeAddress=OfficeAddress,announcementsAddress=AnnouncementsAddress},new JsonSerializerOptions{WriteIndented=true});
-    public string Mailto(string file)=>"mailto:"+Recipient+"?subject="+Uri.EscapeDataString("[여양메신저 학교 등록 신청] "+SchoolName)+"&body="+Uri.EscapeDataString("학교 검색 등록을 신청합니다.\r\n학교: "+SchoolName+"\r\n학교 식별자: "+SchoolId+"\r\n신청 파일: "+Path.GetFileName(file)+"\r\n\r\n저장한 신청 JSON 파일을 직접 첨부한 뒤 메일을 보내주세요. 이 메일 작성창을 여는 것만으로 접수되지는 않습니다.");
+    public string Mailto(string file)=>"mailto:"+Recipient+"?subject="+Uri.EscapeDataString("[교무톡 학교 등록 신청] "+SchoolName)+"&body="+Uri.EscapeDataString("학교 검색 등록을 신청합니다.\r\n학교: "+SchoolName+"\r\n학교 식별자: "+SchoolId+"\r\n신청 파일: "+Path.GetFileName(file)+"\r\n\r\n저장한 신청 JSON 파일을 직접 첨부한 뒤 메일을 보내주세요. 이 메일 작성창을 여는 것만으로 접수되지는 않습니다.");
 }

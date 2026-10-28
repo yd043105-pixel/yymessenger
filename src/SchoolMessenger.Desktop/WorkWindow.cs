@@ -30,7 +30,7 @@ public sealed class WorkWindow : Window
     public WorkWindow(MainWindow main, string? requestId = null)
     {
         this.main = main; api = main.Api!; Owner = main; Resources = main.Resources;
-        Title = "여양 교무실 · 할 일과 파일 제출"; Width = 860; Height = 650; MinWidth = 650; MinHeight = 500;
+        Title = "교무톡 · 할 일과 파일 제출"; Width = 860; Height = 650; MinWidth = 650; MinHeight = 500;
         Style = (Style)FindResource("SchoolWindow"); WindowStartupLocation = WindowStartupLocation.CenterOwner;
         requestedId = requestId; if (requestId is not null) view = "submission-requests";
         var layout = new DockPanel();layout.SetResourceReference(Panel.BackgroundProperty,"Surface"); Content = layout;

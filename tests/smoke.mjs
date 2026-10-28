@@ -38,7 +38,12 @@ function start(overrides = {}) {
   server.stdout.on('data', text => { output += text; }); server.stderr.on('data', text => { output += text; });
 }
 async function ready() {
-  for (let i = 0; i < 100; i++) { try { if ((await fetch(address + '/health')).ok) return; } catch {} await delay(100); }
+  const deadline=Date.now()+60000;
+  while(Date.now()<deadline){
+    if(server.exitCode!==null)throw new Error('Server stopped before readiness: '+output);
+    try{if((await fetch(address+'/health',{signal:AbortSignal.timeout(1000)})).ok)return;}catch{}
+    await delay(100);
+  }
   throw new Error('Server failed to start: ' + output);
 }
 async function stop() { if (server && server.exitCode === null) { const closed = new Promise(resolve => server.once('exit', resolve)); server.kill(); await closed; } }

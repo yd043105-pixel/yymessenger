@@ -1,4 +1,4 @@
-<Window x:Class="SchoolMessenger.Desktop.RemoteWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="여양 교무실 · 원격 지원" Width="900" Height="660" MinWidth="400" MinHeight="230" Style="{StaticResource SchoolWindow}" Closing="WindowClosing">
+<Window x:Class="SchoolMessenger.Desktop.RemoteWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="교무톡 · 원격 지원" Width="900" Height="660" MinWidth="400" MinHeight="230" Style="{StaticResource SchoolWindow}" Closing="WindowClosing">
  <DockPanel Background="{DynamicResource Surface}">
   <StackPanel DockPanel.Dock="Top" Margin="18,14"><TextBlock x:Name="Heading" Text="원격 지원" FontSize="20" FontWeight="Bold"/><TextBlock x:Name="Status" TextWrapping="Wrap" Margin="0,8,0,0"/><TextBlock Text="주 모니터 공유 · 화면은 녹화·저장하지 않습니다." Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,8,0,0"/></StackPanel>
   <StackPanel DockPanel.Dock="Bottom" Margin="18,12">

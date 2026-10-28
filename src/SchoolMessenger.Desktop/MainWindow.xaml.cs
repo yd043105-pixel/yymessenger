@@ -52,7 +52,7 @@ public partial class MainWindow : Window
         }
         catch (Exception error) when (error is IOException or JsonException) { LoginError.Text = "설정을 읽지 못했습니다. 서버 주소를 확인하세요."; }
         loginOptionsReady = true;
-        tray = new System.Windows.Forms.NotifyIcon { Icon = System.Drawing.SystemIcons.Information, Text = "여양메신저 · 온라인 교무실", Visible = true };
+        tray = new System.Windows.Forms.NotifyIcon { Icon = Branding.TrayIcon, Text = "교무톡 · 온라인 교무실", Visible = true };
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("교무실 열기", null, (_, _) => Dispatcher.Invoke(ShowWindow));
         menu.Items.Add("종료", null, (_, _) => Dispatcher.Invoke(CloseApp)); tray.ContextMenuStrip = menu;
@@ -381,7 +381,7 @@ public partial class MainWindow : Window
     { try { if (Api is not null) await Api.Send<JsonElement>(HttpMethod.Post, "api/logout"); } catch (Exception error) { LoginError.Text = error.Message; } finally { RememberLogin.IsChecked = false; await Disconnect(); } }
     async Task Disconnect()
     {
-        schoolName="학교";Title="여양메신저 · 온라인 교무실";
+        schoolName="학교";Title="교무톡 · 온라인 교무실";
         savedLogin.Clear();
         ElectivesButton.Visibility=Visibility.Collapsed;
         if (remote is not null) { await remote.DisposeAsync(); remote = null; }

@@ -30,7 +30,7 @@ public sealed class CounselingWindow : Window
     internal bool Ready {get;private set;}
     public CounselingWindow(MainWindow main)
     {
-        this.main=main;api=main.Api!;Owner=main;Resources=main.Resources;Title="여양 교무실 · 상담 예약";
+        this.main=main;api=main.Api!;Owner=main;Resources=main.Resources;Title="교무톡 · 상담 예약";
         Width=680;Height=760;MinWidth=550;MinHeight=520;Style=(Style)FindResource("SchoolWindow");WindowStartupLocation=WindowStartupLocation.CenterOwner;
         Content=new ScrollViewer{Content=body};body.Children.Add(Text("상담 예약",23));body.Children.Add(Text("담당 학급의 상담 시간을 열고 신청 현황을 확인하세요. 모든 시각은 한국 시간입니다."));body.Children.Add(feedback);
         body.Children.Add(Text("상담 날짜",12));body.Children.Add(day);AddAction(body,"선택한 날짜 조회 · 새로고침",async()=>{await Load();pending=null;form.IsEnabled=true;});

@@ -13,6 +13,7 @@ public partial class MailboxWindow : Window
     string box;
     Detail? detail;
     bool refreshing, rendering;
+    int detailsOpening;
     public MailboxWindow(MainWindow main, string box = "received", Person? person = null)
     {
         this.main = main; this.box = person is null ? box : "conversation"; personId = person?.Id;
@@ -27,16 +28,19 @@ public partial class MailboxWindow : Window
     public Task ShowMessage(string id) => Run(() => OpenDetail(id));
     async Task Refresh(bool more = false)
     {
-        if (Api is null || refreshing) return;
+        if (Api is null || refreshing || detailsOpening>0) return;
         refreshing = true;
         try
         {
             var selected = detail?.Message.Id;
+            var selectionVersion=taskPromptVersion;
             var path = $"api/messages?box={box}&q={Uri.EscapeDataString(SearchBox.Text)}&offset={(more ? messages.Count : 0)}";
             if (FromDate.SelectedDate is { } from) path += $"&from={new DateTimeOffset(from).ToUnixTimeMilliseconds()}";
             if (ToDate.SelectedDate is { } to) path += $"&to={new DateTimeOffset(to.AddDays(1)).ToUnixTimeMilliseconds() - 1}";
             if (personId is not null) path += "&person=" + Uri.EscapeDataString(personId);
             var rows = await Api.Get<MessageItem[]>(path);
+            // A list refresh started earlier must not clear or replace a message the user just opened.
+            if(detailsOpening>0||selectionVersion!=taskPromptVersion||detail?.Message.Id!=selected)return;
             rendering = true;
             if (!more) messages.Clear();
             foreach (var row in rows) if (!messages.Any(m => m.Id == row.Id)) messages.Add(row with { IsSent = row.SenderId == Api.Session!.User!.Id });
@@ -53,6 +57,9 @@ public partial class MailboxWindow : Window
     async Task OpenDetail(string id, bool markRead = true)
     {
         if (Api is null) return;
+        detailsOpening++;
+        try
+        {
         ResetTaskPrompt();
         var version = taskPromptVersion;
         var opened = await Api.Get<Detail>($"api/messages/{id}");
@@ -86,6 +93,8 @@ public partial class MailboxWindow : Window
         FileList.ItemsSource = detail.Attachments; ReceiptList.ItemsSource = detail.Recipients;
         EmptyHint.Visibility = Visibility.Collapsed; DetailPanel.Visibility = Visibility.Visible;
         await LoadTaskPrompt(id);
+        }
+        finally{detailsOpening--;}
     }
     async Task Run(Func<Task> action)
     {

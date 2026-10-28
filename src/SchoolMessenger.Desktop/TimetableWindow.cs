@@ -26,7 +26,7 @@ public sealed class TimetableWindow:Window
     DatePicker? start,end;
     public TimetableWindow(MainWindow main,string? selectedDate=null)
     {
-        api=main.Api!;Owner=main;Resources=main.Resources;Title="여양 교무실 · 시간표";Width=800;Height=780;MinWidth=650;MinHeight=520;
+        api=main.Api!;Owner=main;Resources=main.Resources;Title="교무톡 · 시간표";Width=800;Height=780;MinWidth=650;MinHeight=520;
         Style=(Style)FindResource("SchoolWindow");WindowStartupLocation=WindowStartupLocation.CenterOwner;Content=new ScrollViewer{Content=body};
         if(DateTime.TryParse(selectedDate,out var selected))date.SelectedDate=selected;
         Loaded+=async(_,_)=>await Run(Load);

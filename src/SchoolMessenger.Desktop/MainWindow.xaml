@@ -1,5 +1,5 @@
 <Window x:Class="SchoolMessenger.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="여양메신저 · 온라인 교무실" Width="450" Height="820" MinWidth="380" MinHeight="580" Style="{StaticResource SchoolWindow}" Closing="WindowClosing">
+ Title="교무톡 · 온라인 교무실" Width="450" Height="820" MinWidth="380" MinHeight="580" Style="{StaticResource SchoolWindow}" Closing="WindowClosing">
  <Grid Background="Transparent">
   <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource GlassLine}" BorderThickness="1" CornerRadius="18" Margin="8"><DockPanel x:Name="Workspace" Visibility="Collapsed">
    <Border DockPanel.Dock="Top" Background="{DynamicResource Glass}" BorderBrush="{DynamicResource Line}" BorderThickness="0,0,0,1" CornerRadius="17,17,0,0" Padding="14,12">
@@ -50,7 +50,7 @@
    </DockPanel>
   </DockPanel></Border>
   <ScrollViewer x:Name="LoginPanel" Padding="24" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel VerticalAlignment="Center">
-   <Border Width="45" Height="45" Background="{DynamicResource Blue}" CornerRadius="12" HorizontalAlignment="Left" Margin="0,0,0,16"><TextBlock Text="여" Foreground="{DynamicResource OnAccent}" FontSize="23" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+   <Image Width="48" Height="48" Source="{StaticResource ProductMark}" HorizontalAlignment="Left" Margin="0,0,0,16" AutomationProperties.Name="교무톡"/>
    <TextBlock Text="온라인 교무실" FontSize="26" FontWeight="Bold"/><TextBlock Text="교직원 로그인" Foreground="{DynamicResource Muted}" Margin="0,9,0,22"/>
    <TextBlock Text="우리 학교" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,0,0,7"/><DockPanel><Button x:Name="FindServerButton" DockPanel.Dock="Right" Content="학교 검색" Click="FindServerClick" Margin="7,0,0,0" Padding="9,7"/><TextBox x:Name="SchoolSelectionLabel" IsReadOnly="True" Text="학교를 검색해 선택하세요" ToolTip="학교 이름과 지역을 확인하세요"/></DockPanel>
    <TextBlock Text="아이디 · 본인 이름 (동명이인은 학교에서 안내한 이름)" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,15,0,7"/><TextBox x:Name="UsernameBox"/>

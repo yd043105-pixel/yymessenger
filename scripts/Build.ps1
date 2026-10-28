@@ -135,6 +135,7 @@ try {
     Copy-Item -LiteralPath 'docs\server-installer.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\operation-order.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\school-directory.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\self-hosting.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\security-checklist-2026-10-24.md','docs\committee-security-evidence-2026-10-24.md','docs\security-incident-response.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\security-regulatory-controls-2026-10-28.md','docs\security-review-submission.draft.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\edzip-registration-guide.md','docs\edzip-checklist.draft.md','docs\privacy-policy.draft.md','docs\privacy-rights-operations.md' -Destination $packageDocs

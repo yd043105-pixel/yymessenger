@@ -132,7 +132,9 @@ internal static class IosRuntimeChecks
                 Preferences.Default.Set("update-confirmed-sequence", notice.Sequence);
                 var entries = Controls.OfType<Entry>().ToArray();
                 entries[0].Text = portal; entries[1].Text = fixture.GetProperty("parent").GetString(); entries[2].Text = password;
-                await Tap("로그인"); await Wait(() => Has("10월 현장체험학습 안내"));
+                // Cold simulator login may finish just after the ordinary 20-second view wait.
+                // Require the completed home state as well as the notice; keep the same functional assertion.
+                await Tap("로그인"); await Wait(() => Page.VerificationReady&&Has("10월 현장체험학습 안내"),60000);
                 Check(entries[2].Text == "", "native parent login renders allowed notices and clears password input");
                 Check(!Has("수강신청"),"native parent home does not offer student elective applications");
                 Check(Controls.OfType<Button>().Count(b=>b.ClassId=="school-shortcut")==2,"parent home groups timetable and counseling into two compact shortcuts");
@@ -280,7 +282,7 @@ internal static class IosRuntimeChecks
         }
         catch (Exception error)
         {
-            await SaveReport(phase,false,error.Message);
+            await SaveReport(phase,false,error.ToString());
         }
     }
 }

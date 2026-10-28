@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Configuration;
@@ -16,7 +16,7 @@ var protection=new EphemeralDataProtectionProvider();var protector=protection.Cr
 var queue=new FeedbackMail(Open,"office",protection,new ConfigurationBuilder().AddInMemoryCollection().Build());
 var at=new DateTimeOffset(2026,10,15,5,5,0,TimeSpan.Zero).ToUnixTimeMilliseconds();
 string Add(string? code=null){var id=Guid.NewGuid().ToString("N");var report=new FeedbackRequest(Guid.NewGuid().ToString("N"),"bug","windows","messages","PRIVATE TITLE",code is null?"PRIVATE MESSAGE password=secret":"POST /api/todos · TaskFeatures.Map · 줄 75","1.0.0",code);using var db=Open();using var c=db.CreateCommand();c.CommandText="INSERT INTO FeedbackReports VALUES($id,'synthetic-owner',$payload,$at);INSERT INTO FeedbackMail(ReportId) VALUES($id)";c.Parameters.AddWithValue("$id",id);c.Parameters.AddWithValue("$payload",protector.Protect(JsonSerializer.Serialize(report,new JsonSerializerOptions(JsonSerializerDefaults.Web))));c.Parameters.AddWithValue("$at",at);c.ExecuteNonQuery();return id;}
-Check(FeedbackMail.Subject(at,"김동욱")=="[여양메신저 오류로그]10월15일14시05분 김동욱 오류","Korean time and requested subject format");
+Check(FeedbackMail.Subject(at,"김동욱")=="[교무톡 오류로그]10월15일14시05분 김동욱 오류","Korean time and requested subject format");
 Check(!FeedbackMail.Subject(at,"김\r\nBcc:\u202e동욱").Any(c=>char.IsControl(c)||c=='\u202e'),"Control and direction characters cannot enter subject headers");
 var delivered=new List<FeedbackEnvelope>();
 Task Send(FeedbackEnvelope envelope,CancellationToken token){delivered.Add(envelope);return Task.CompletedTask;}

@@ -132,7 +132,7 @@ app.Use(async(c,next)=>
 app.MapGet("/health",()=>Results.Ok(new{status="ok",service="announcements"}));
 app.MapGet("/server-info",()=>new{product="Yeoyang.Office.Discovery.1",schoolName=deploymentReview.SchoolName??app.Configuration["Portal:Name"]??"학교",directoryProduct="SchoolMessenger.School.1",schoolId=deploymentReview.SchoolId??app.Configuration["Operations:SchoolId"]??"",service="announcements"});
 OperationalHealth.Map(app,store.Open,store.Root,"Portal");
-app.MapGet("/api/session",(HttpContext c,IAntiforgery csrf)=>new PortalSession(app.Configuration["Portal:Name"]??"여양고 학교 소식",csrf.GetAndStoreTokens(c).RequestToken!,c.User.Identity?.IsAuthenticated==true?store.Public(store.Person(Id(c))!):null));
+app.MapGet("/api/session",(HttpContext c,IAntiforgery csrf)=>new PortalSession(app.Configuration["Portal:Name"]??"우리 학교",csrf.GetAndStoreTokens(c).RequestToken!,c.User.Identity?.IsAuthenticated==true?store.Public(store.Person(Id(c))!):null));
 app.MapPost("/api/login",async Task<IResult>(Login request,HttpContext c)=>
 {
     if(!Username(request.Username)||request.Password?.Length is not (>=1 and <=128))return Error("계정과 비밀번호를 확인하세요.",401);

@@ -56,6 +56,7 @@ $links=@{
     '02_설명서\04_운영과_보안\11_학교별_보안도입검토.lnk'='docs\security-regulatory-controls-2026-10-28.md'
     '02_설명서\04_운영과_보안\12_보안성검토_제출초안.lnk'='docs\security-review-submission.draft.md'
     '02_설명서\01_설치와_접속\03_학교검색과_여러학교_도입.lnk'='docs\school-directory.md'
+    '02_설명서\01_설치와_접속\04_교무톡_학교별_직접운영.lnk'='docs\self-hosting.md'
     '02_설명서\03_등록과_개인정보\11_학운위_에듀집_보안근거.lnk'='docs\committee-security-evidence-2026-10-24.md'
     '02_설명서\03_등록과_개인정보\12_에듀집등록과_학교별설정.lnk'='docs\edzip-registration-guide.md'
     '02_설명서\03_등록과_개인정보\13_개인정보_권리요청.lnk'='docs\privacy-rights-operations.md'

@@ -15,17 +15,17 @@
   #define StartupEntryName "YeoyangMessengerServerManager"
 #endif
 #ifndef DesktopLinkName
-  #define DesktopLinkName "여양메신저 관리자"
+  #define DesktopLinkName "교무톡 관리자"
 #endif
 
 [Setup]
 AppId={{#InstallerAppId}
-AppName=여양메신저 관리자 및 서버
+AppName=교무톡 관리자 및 서버
 AppVersion={#AppVersion}
 VersionInfoVersion={#NumericVersion}
-AppPublisher=여양고등학교
+AppPublisher=교무톡 프로젝트
 DefaultDirName={autopf}\YeoyangMessengerServer
-DefaultGroupName=여양고 메신저 서버
+DefaultGroupName=교무톡 관리자 및 서버
 #ifdef InstallerTest
 PrivilegesRequired=lowest
 #else
@@ -39,6 +39,7 @@ OutputBaseFilename=yymessenger-{#AppVersion}-server-setup-win-x64
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern windows11
+SetupIconFile=..\src\SchoolMessenger.Shared\Branding\brand_mark.ico
 DisableWelcomePage=no
 DisableDirPage=no
 DisableProgramGroupPage=no

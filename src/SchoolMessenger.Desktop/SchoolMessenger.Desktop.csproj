@@ -4,9 +4,12 @@
     <UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>SchoolMessenger</AssemblyName>
     <PublishSingleFile>true</PublishSingleFile>
+    <ApplicationIcon>../SchoolMessenger.Shared/Branding/brand_mark.ico</ApplicationIcon>
+    <Product>교무톡</Product><Description>학교에서 직접 운영하는 학교 메신저</Description><Company>교무톡 프로젝트</Company>
   </PropertyGroup>
   <ItemGroup><PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.13" /></ItemGroup>
   <ItemGroup>
+    <Resource Include="../SchoolMessenger.Shared/Branding/brand_mark.ico" Link="Assets/brand_mark.ico" />
     <Compile Include="../SchoolMessenger.Contracts/Timetables.cs" Link="Contracts/Timetables.cs" />
     <Compile Include="../SchoolMessenger.Contracts/Announcements.cs" Link="Contracts/Announcements.cs" />
     <Compile Include="../SchoolMessenger.Contracts/Counseling.cs" Link="Contracts/Counseling.cs" />

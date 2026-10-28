@@ -10,7 +10,7 @@ public static class Appearance
     public sealed record Palette(string Id, string Name, string Accent, string Dark, string Tint);
     public static readonly Palette[] Palettes =
     [
-        new("blue", "여양 블루", "#245BC6", "#182D50", "#EAF0FC"),
+        new("blue", "클래식 블루", "#245BC6", "#182D50", "#EAF0FC"),
         new("green", "숲 그린", "#17745D", "#193D35", "#E3F1EB"),
         new("lavender", "라벤더", "#7050B0", "#34294C", "#EEE8F7"),
         new("rose", "로즈", "#AD4865", "#4D2935", "#F7E7ED"),
