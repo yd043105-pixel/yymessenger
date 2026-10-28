@@ -4,6 +4,8 @@
 
 ## 설치·서버 운영
 
+2026-10-28 보안 보완: [학교별 보안 도입 검토·운영 통제](security-regulatory-controls-2026-10-28.md), [보안성 검토 제출 자료 초안](security-review-submission.draft.md). 운영 서버는 학교가 확정한 검토 기록과 증빙을 확인하며 시험 모드를 운영 승인으로 표시하지 않습니다.
+
 최신 보안 검토: [체크리스트 점검](security-checklist-2026-10-24.md), [학운위·에듀집 근거 자료](committee-security-evidence-2026-10-24.md), [사고 대응 준비안](security-incident-response.md).
 
 에듀집 제출 준비: [교사 개인 등록·학교별 설정](edzip-registration-guide.md), [필수기준 9개 항목 대응표](edzip-checklist.draft.md), [개인정보처리방침 검토안](privacy-policy.draft.md), [개인정보 권리 요청](privacy-rights-operations.md). 검토용 문서를 충족 확인이 끝난 제출본으로 사용하지 않습니다.

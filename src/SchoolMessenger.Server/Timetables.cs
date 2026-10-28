@@ -18,6 +18,7 @@ public sealed class Timetables:BackgroundService
     readonly ILogger<Timetables> logger;
     readonly IHubContext<MessageHub> hub;
     readonly SemaphoreSlim gate=new(1);
+    readonly DeploymentReview review;
     public TimetableData Data{get;}
     string? bridgeError;
     static long Now=>DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -25,8 +26,9 @@ public sealed class Timetables:BackgroundService
     record Candidate(string Owner,long Revision,TimetableBatch Batch);
     record ManagerChange(string UserId,bool Enabled);
     record HomeroomChange(string ClassId,string TeacherId);
-    public Timetables(Store school,ExternalAnnouncements announcements,IConfiguration config,IHostEnvironment environment,ILogger<Timetables> logger,IHubContext<MessageHub> hub)
+    public Timetables(Store school,ExternalAnnouncements announcements,IConfiguration config,IHostEnvironment environment,ILogger<Timetables> logger,IHubContext<MessageHub> hub,DeploymentReview review)
     {
+        this.review=review;
         this.school=school;this.announcements=announcements;this.config=config;this.environment=environment;this.logger=logger;this.hub=hub;
         Data=new(school.Open);Data.Initialize();
         Data.Execute("""
@@ -190,7 +192,7 @@ public sealed class Timetables:BackgroundService
     {
         HttpClient? http=null;
         if(Uri.TryCreate(config["Announcements:Address"],UriKind.Absolute,out var address))
-        {http=new(new BridgeSigningHandler(config)){BaseAddress=new Uri(address.AbsoluteUri.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(60)};}
+        {http=new(new BridgeSigningHandler(config,review)){BaseAddress=new Uri(address.AbsoluteUri.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(60)};}
         try{while(!stoppingToken.IsCancellationRequested)
         {
             try

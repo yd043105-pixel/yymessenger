@@ -5,6 +5,7 @@ import {existsSync,mkdirSync,writeFileSync} from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
+import {writeDeploymentReviewFixture} from './deployment-review-fixture.mjs';
 
 const root=process.cwd(),observe=process.argv.includes('--observe');
 const packageRoot=process.argv.includes('--package')?path.join(root,'artifacts','여양고-교무메신저'):null;
@@ -23,7 +24,7 @@ for(const project of ['Server','AnnouncementServer']){
   const args=packageRoot?['--urls',base]:[path.join(root,`src/SchoolMessenger.${project}/bin/Debug/net10.0/SchoolMessenger.${project}.dll`),'--urls',base];
   const child=spawn(executable,args,{
     cwd:directory,windowsHide:true,
-    env:{...process.env,ASPNETCORE_ENVIRONMENT:'Production',[prefix+'__DataDirectory']:data,[prefix+'__AdminPassword']:password,Portal__BridgeKey:'SyntheticBridge-'+randomUUID(),Portal__TunnelOnly:'false',DOTNET_PROCESSOR_COUNT:'2'}
+    env:{...process.env,ASPNETCORE_ENVIRONMENT:'Production',Operations__SchoolId:'YY-SYNTHETIC-ONLY',Operations__SecurityReviewFile:writeDeploymentReviewFixture(path.join(work,'review-'+project),project==='Server'?'office':'announcements',base),[prefix+'__DataDirectory']:data,[prefix+'__AdminPassword']:password,Portal__BridgeKey:'SyntheticBridge-'+randomUUID(),Portal__TunnelOnly:'false',DOTNET_PROCESSOR_COUNT:'2'}
   });
   let log='';child.stdout.on('data',bytes=>log+=bytes);child.stderr.on('data',bytes=>log+=bytes);
   try{

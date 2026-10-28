@@ -13,7 +13,7 @@ namespace SchoolMessenger.Shared;
 
 public sealed record FeedbackEnvelope(string Id,string Subject,string Body);
 
-public sealed class FeedbackMail(Func<SqliteConnection> open,string service,IDataProtectionProvider protection,IConfiguration config):BackgroundService
+public sealed class FeedbackMail(Func<SqliteConnection> open,string service,IDataProtectionProvider protection,IConfiguration config,Action<string,string>? validateDestination=null):BackgroundService
 {
     readonly IDataProtector protector=protection.CreateProtector("SchoolMessenger.Feedback.v1."+service);
     static long Now=>DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -79,8 +79,10 @@ public sealed class FeedbackMail(Func<SqliteConnection> open,string service,IDat
     }
     async Task Send(FeedbackEnvelope envelope,CancellationToken token)
     {
-        using var message=CreateMessage(envelope,config["FeedbackMail:Sender"]!,config["FeedbackMail:Recipient"]!);
-        using var smtp=new SmtpClient(config["FeedbackMail:Host"]!,587){EnableSsl=true,UseDefaultCredentials=false,Credentials=new NetworkCredential(config["FeedbackMail:Username"],config["FeedbackMail:Password"])};
+        var host=config["FeedbackMail:Host"]!;var recipient=config["FeedbackMail:Recipient"]!;
+        validateDestination?.Invoke(host,recipient);
+        using var message=CreateMessage(envelope,config["FeedbackMail:Sender"]!,recipient);
+        using var smtp=new SmtpClient(host,587){EnableSsl=true,UseDefaultCredentials=false,Credentials=new NetworkCredential(config["FeedbackMail:Username"],config["FeedbackMail:Password"])};
         using var timeout=CancellationTokenSource.CreateLinkedTokenSource(token);timeout.CancelAfter(TimeSpan.FromSeconds(10));
         await smtp.SendMailAsync(message,timeout.Token);
     }

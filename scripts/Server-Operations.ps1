@@ -68,6 +68,8 @@ function Unprotect-OperationsValue([Security.SecureString]$Value){
 function Test-OperationsReadiness($Config){
     $issues=[Collections.Generic.List[string]]::new()
     if(-not(Test-Path -LiteralPath $Config.executable -PathType Leaf)){$issues.Add('server-package-missing')}
+    if(-not $Config.securityReviewFile){$issues.Add('security-review-missing')}
+    elseif(-not(Test-OperationsDeploymentReview $Config)){$issues.Add('security-review-invalid')}
     if(-not $Config.networkIsolationVerified){$issues.Add('network-isolation-unverified')}
     if(-not $Config.upsInstalledAndTested){$issues.Add('ups-not-ready')}
     if(-not $Config.backupDeviceAndEncryptionVerified){$issues.Add('encrypted-backup-device-unverified')}
@@ -84,11 +86,40 @@ function Test-OperationsReadiness($Config){
     # device beforehand; this flag records that attestation, not automatic cryptographic proof.
     [pscustomobject]@{ready=($issues.Count -eq 0);issues=@($issues.ToArray());backupEncryptionEvidence='school-confirmation-required';networkIsolationEvidence='school-confirmation-required'}
 }
+function Test-OperationsDeploymentReview($Config){
+    $expectedExecutable=if($Config.service -eq 'office'){'SchoolMessenger.Server.exe'}else{'SchoolMessenger.AnnouncementServer.exe'}
+    if([IO.Path]::GetFileName([string]$Config.executable) -ne $expectedExecutable){return $false}
+    if(-not $Config.securityReviewFile -or -not [IO.Path]::IsPathRooted([string]$Config.securityReviewFile) -or -not(Test-Path -LiteralPath $Config.securityReviewFile -PathType Leaf) -or -not(Test-Path -LiteralPath $Config.executable -PathType Leaf)){return $false}
+    # Do not invoke a legacy binary that might interpret an unknown check flag as normal startup.
+    $capabilityFile=Join-Path (Split-Path $Config.executable -Parent) 'server-capabilities.json'
+    $assembly=[IO.Path]::ChangeExtension([string]$Config.executable,'.dll')
+    try{
+        if(-not(Test-Path -LiteralPath $capabilityFile -PathType Leaf) -or (Get-Item -LiteralPath $capabilityFile).Length -gt 8192 -or -not(Test-Path -LiteralPath $assembly -PathType Leaf)){return $false}
+        $capability=Get-Content -LiteralPath $capabilityFile -Raw -Encoding UTF8|ConvertFrom-Json
+        if($capability.schema -ne 1 -or $capability.deploymentReviewCheck -ne 1 -or $capability.executableSha256 -ne (Get-FileHash -LiteralPath $Config.executable -Algorithm SHA256).Hash -or $capability.assemblySha256 -ne (Get-FileHash -LiteralPath $assembly -Algorithm SHA256).Hash){return $false}
+    }catch{return $false}
+    $binding=if($Config.service -eq 'announcements' -and $Config.tunnelOnly){'127.0.0.1'}else{'0.0.0.0'}
+    $arguments=@('--deployment-review-check','--environment','Production','--urls',('https://'+$binding+':'+$Config.port),'--Operations:SecurityReviewFile',[string]$Config.securityReviewFile,('--Operations:SchoolId='+[string]$Config.schoolId),
+        '--Portal:TunnelOnly',[string][bool]$Config.tunnelOnly,('--Portal:PublicHost='+[string]$Config.publicHost),('--Portal:AllowedHosts='+[string]$Config.publicHost+',localhost,127.0.0.1'),
+        '--FeedbackMail:Enabled',[string]($Config.feedbackEmailEnabled -eq $true),('--FeedbackMail:Host='+[string]$Config.alerts.smtpHost),('--FeedbackMail:Recipient='+[string]$Config.alerts.recipient),
+        '--Operations:AlertMailEnabled',[string][bool]$Config.alerts.enabled,('--Operations:AlertMailHost='+[string]$Config.alerts.smtpHost),('--Operations:AlertMailRecipient='+[string]$Config.alerts.recipient))
+    $bridge=if($Config.service -eq 'office' -and $Config.publicHost){'https://'+$Config.publicHost}else{''}
+    $arguments+=('--Announcements:Address='+$bridge)
+    try{$result=& $Config.executable @arguments 2>&1;if($LASTEXITCODE -ne 0){return $false};$summary=($result -join [Environment]::NewLine)|ConvertFrom-Json;return ($summary.state -eq 'school-record-checked' -and $summary.certificationVerified -eq $false)}catch{return $false}
+}
 function Set-OperationsEnvironment($Config,$Secrets){
     $prefix=if($Config.service -eq 'office'){'School'}else{'Portal'}
     $values=@{ASPNETCORE_ENVIRONMENT='Production';Operations__MonitorKey=(Unprotect-OperationsValue $Secrets.monitorKey);ASPNETCORE_FORWARDEDHEADERS_ENABLED='false';DOTNET_FORWARDEDHEADERS_ENABLED='false'}
     # Explicitly override the operator's ambient setting, including when no school policy is selected.
     $values['Registration__PolicyFile']=if($Config.PSObject.Properties['registrationPolicyFile']){[string]$Config.registrationPolicyFile}else{''}
+    $values['Operations__SecurityReviewFile']=[string]$Config.securityReviewFile
+    $values['Operations__SchoolId']=[string]$Config.schoolId
+    $values['Operations__AlertMailEnabled']=[string][bool]$Config.alerts.enabled
+    $values['Operations__AlertMailHost']=[string]$Config.alerts.smtpHost
+    $values['Operations__AlertMailRecipient']=[string]$Config.alerts.recipient
+    $values['Portal__PublicHost']=[string]$Config.publicHost
+    $values['Announcements__Address']=''
+    $values['Announcements__BridgeKey']=''
     if($Config.PSObject.Properties['resourceProfile']){
         $values['Operations__ResourceProfile']=$Config.resourceProfile
         if($Config.resourceProfile -eq 'low-memory'){$values['DOTNET_GCHeapHardLimit']='20000000'}
@@ -184,6 +215,7 @@ function Get-OperationsAlertText([string]$Signature){
 }
 function Send-OperationsAlert($Config,$Secrets,[string]$Signature,[switch]$Test){
     if(-not $Config.alerts.enabled -or $Secrets.smtpCredential -isnot [Management.Automation.PSCredential]){throw '메일 알림 설정이 필요합니다.'}
+    if(-not(Test-OperationsDeploymentReview $Config)){throw '장애 메일의 수신처와 외부 서비스에 대한 학교 보안 검토를 먼저 확인하세요.'}
     $service=if($Config.service -eq 'office'){'교내 업무 서버'}else{'학교 소식 서버'}
     $message=[Net.Mail.MailMessage]::new($Config.alerts.sender,$Config.alerts.recipient)
     $message.Subject=if($Signature -eq 'ok'){'여양고 서버 정상 복구'}else{'여양고 서버 점검 필요'}

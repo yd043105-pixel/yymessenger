@@ -15,6 +15,25 @@ namespace SchoolMessenger.Desktop;
 public sealed partial class ServerManagementWindow
 {
     Window Dialog(string title,StackPanel panel)=>new(){Owner=InteractionOwner,Title=title,Width=580,Height=550,Resources=Resources,Style=(Style)FindResource("SchoolWindow"),WindowStartupLocation=WindowStartupLocation.CenterOwner,Content=new ScrollViewer{Content=panel}};
+    async Task OpenDeploymentReview()
+    {
+        try
+        {
+            var record=await api.Get<JsonElement>("api/admin/deployment-review");var panel=new StackPanel{Margin=new Thickness(22)};
+            var state=record.GetProperty("state").GetString();
+            panel.Children.Add(Label(state=="trial"?"시험 모드 · 운영 검토 기록 미적용":state=="expired"?"학교 검토 기록 유효기간 만료":"학교 검토 기록 형식·증빙 해시 확인",20));
+            if(state!="trial")
+            {
+                panel.Children.Add(Label("학교: "+record.GetProperty("school").GetString()));
+                panel.Children.Add(Label("검토 근거: "+(record.GetProperty("basis").GetString() switch{"on-premises"=>"학교 자체 서버","school-education-41-7"=>"교육현장 적용 판단 기록","private-cloud-41-2"=>"민간 클라우드 기준 검토",_=>"확인 필요"})));
+                foreach(var item in new[]{("reviewedAt","검토일"),("expiresAt","유효기간")})panel.Children.Add(Label(item.Item2+": "+record.GetProperty(item.Item1).GetDateTimeOffset().ToOffset(TimeSpan.FromHours(9)).ToString("yyyy-MM-dd HH:mm")));
+                panel.Children.Add(Label("기록된 외부 연동: "+record.GetProperty("externalServiceCount").GetInt32()+"개"));
+            }
+            panel.Children.Add(Label("이 화면은 학교가 등록한 기록을 확인한 결과입니다. CSAP 인증·교육청 보안성 검토 승인·법령 전체 준수 여부를 프로그램이 판정한 결과가 아닙니다.",12));
+            panel.Children.Add(Label("학교 운영 전에 제출 자료와 실제 저장 위치·외부 사업자·망 구성을 검토하고, 확정한 문서의 해시와 운영 설정의 securityReviewFile을 등록하세요.",12));
+            Dialog("보안 도입 검토 기록",panel).ShowDialog();
+        }catch(Exception e){feedback.Text=e.Message;}
+    }
     async Task OpenDiscovery()
     {
         try

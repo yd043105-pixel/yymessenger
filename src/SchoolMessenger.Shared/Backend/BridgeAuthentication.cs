@@ -54,8 +54,10 @@ public static class BridgeAuthentication
 public sealed class BridgeSigningHandler : DelegatingHandler
 {
     readonly string key, keyId, service;
-    public BridgeSigningHandler(IConfiguration config) : base(new HttpClientHandler { UseCookies = false, AllowAutoRedirect = false })
+    readonly DeploymentReview review;
+    public BridgeSigningHandler(IConfiguration config,DeploymentReview review) : base(new HttpClientHandler { UseCookies = false, AllowAutoRedirect = false })
     {
+        this.review=review;
         key = config["Announcements:BridgeKey"] ?? "";
         keyId = config["Announcements:BridgeKeyId"] ?? "primary";
         service = config["Announcements:BridgeServiceId"] ?? "office";
@@ -63,6 +65,9 @@ public sealed class BridgeSigningHandler : DelegatingHandler
     }
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        if(request.RequestUri is not {} destination)throw new InvalidOperationException("학교 소식 서버의 목적지를 확인하세요.");
+        if(!review.Trial&&destination.Scheme!="https")throw new InvalidOperationException("운영 서버 연결은 HTTPS여야 합니다.");
+        review.Demand("school-bridge",destination.Host,destination.Port);
         // Disk spool avoids holding up to 100 MB of multipart content per connection in RAM.
         FileStream? spool = null; HttpContent? replacement = null;
         try

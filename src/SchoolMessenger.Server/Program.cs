@@ -15,9 +15,13 @@ using SchoolMessenger.Server;
 using SchoolMessenger.Shared;
 using SchoolMessenger.Contracts;
 
-var builder = WebApplication.CreateBuilder(args);
+var checkDeploymentReview=args.Contains("--deployment-review-check");
+var builder = WebApplication.CreateBuilder(args.Where(a=>a!="--deployment-review-check").ToArray());
+if(checkDeploymentReview){Console.WriteLine(JsonSerializer.Serialize(DeploymentReview.Load(builder.Configuration,builder.Environment.IsDevelopment(),"office").Summary()));return;}
 if(OperationsCommand.TryRun(builder.Configuration,"School","school.db"))return;
 if(BackendRecovery.TryRun(builder.Configuration,"School","school.db"))return;
+var deploymentReview=DeploymentReview.Load(builder.Configuration,builder.Environment.IsDevelopment(),"office");
+builder.Services.AddSingleton(deploymentReview);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 210L * 1024 * 1024);
 if (builder.Configuration["School:CertificateThumbprint"] is { Length: > 0 } thumbprint)
 {
@@ -32,7 +36,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o => 
 builder.Services.AddSingleton<Store>();
 builder.Services.AddSingleton<ServerDiscovery>();
 builder.Services.AddHostedService(s=>s.GetRequiredService<ServerDiscovery>());
-builder.Services.AddSingleton(s=>new FeedbackMail(s.GetRequiredService<Store>().Open,"office",s.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),builder.Configuration));
+builder.Services.AddSingleton(s=>new FeedbackMail(s.GetRequiredService<Store>().Open,"office",s.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),builder.Configuration,(host,recipient)=>deploymentReview.Demand("error-mail",host,587,recipient)));
 builder.Services.AddHostedService(s=>s.GetRequiredService<FeedbackMail>());
 builder.Services.AddSingleton<ExternalAnnouncements>();
 builder.Services.AddHostedService(s => s.GetRequiredService<ExternalAnnouncements>());
@@ -599,6 +603,7 @@ app.Services.GetRequiredService<Maintenance>().Cleanup();
 ExternalAnnouncements.Map(app, app.Services.GetRequiredService<ExternalAnnouncements>());
 Timetables.Map(app, app.Services.GetRequiredService<Timetables>());
 BackendOperations.Map(app,store.Open);
+DeploymentReview.Map(app,deploymentReview);
 DeviceSessions.Map(app,store.Open);
 FeedbackReports.Map(app,store.Open,app.Services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(),"office");
 ManagedServerLifetime.Attach(app);

@@ -1,6 +1,7 @@
 import {bridgeFetch,bridgeHeaders} from './bridge-client.mjs';
 import {acceptRequiredPoliciesForFixture} from './registration-fixture.mjs';
 import {sectionChecks} from './sections.mjs';
+import {writeDeploymentReviewFixture} from './deployment-review-fixture.mjs';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
@@ -151,7 +152,7 @@ try{
  await stop();start();await ready();await admin.login('admin');assert.equal((await admin.request('/api/admin/classes')).length,2);assert.ok(readdirSync(path.join(data,'backups')).some(f=>f.endsWith('.db')));
  check('independent announcement database, accounts, relations and metadata backups survive restart');
  await sectionChecks({admin,Client,person,register,service,data,check});
- await stop();start({ASPNETCORE_ENVIRONMENT:'Production',Portal__ScannerPath:path.join(data,'missing-scanner.exe')});await ready();await service('/heartbeat','POST',{teachers:[{id:teacherId,active:true,canBroadcast:false}]});await teacher.login('teacher');
+ await stop();start({ASPNETCORE_ENVIRONMENT:'Production',Operations__SchoolId:'YY-SYNTHETIC-ONLY',Operations__SecurityReviewFile:writeDeploymentReviewFixture(path.join(testRoot,'review'),'announcements',address),Portal__ScannerPath:path.join(data,'missing-scanner.exe')});await ready();await service('/heartbeat','POST',{teachers:[{id:teacherId,active:true,canBroadcast:false}]});await teacher.login('teacher');
  const unavailable=new FormData();unavailable.append('clientId',randomUUID().replaceAll('-',''));unavailable.append('file',new Blob([png]),'test.png');await teacher.request('/api/attachments','POST',unavailable,503);
  assert.equal(readdirSync(path.join(data,'files')).length,0);check('production public uploads fail closed when antivirus is unavailable');
  writeFileSync('artifacts/announcement-test-results.json',JSON.stringify({verifiedAt:new Date().toISOString(),passed},null,2));console.log(passed.length+' announcement checks passed.');

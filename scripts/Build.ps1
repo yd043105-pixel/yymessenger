@@ -72,6 +72,9 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Privacy-safe request logging verification failed' }
         node tests\data-boundaries.mjs
         if ($LASTEXITCODE -ne 0) { throw 'Server data isolation verification failed' }
+        node tests\deployment-review.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'School deployment review and destination controls verification failed' }
+        & (Join-Path $projectRoot 'tests\deployment-review-package.ps1') -FixtureRoot (Join-Path $projectRoot '.test-data')
         & $dotnetExecutable build tests\TimetableChecks -p:RestoreLockedMode=true --nologo -v quiet
         if ($LASTEXITCODE -ne 0) { throw 'Timetable checks build failed' }
         & $dotnetExecutable run --project tests\DiscoveryChecks -p:RestoreLockedMode=true --nologo
@@ -99,6 +102,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw '교사용 배포 파일 생성 실패' }
     & $dotnetExecutable publish src\SchoolMessenger.AnnouncementServer -c Release -r win-x64 --self-contained true "-p:Version=$Version" -p:RestoreLockedMode=true -o (Join-Path $packageDirectory 'announcement-server') --nologo -v quiet
     if ($LASTEXITCODE -ne 0) { throw 'External announcement package failed' }
+    foreach($role in @(@('server','SchoolMessenger.Server'),@('announcement-server','SchoolMessenger.AnnouncementServer'))){
+        $folder=Join-Path $packageDirectory $role[0]
+        @{schema=1;deploymentReviewCheck=1;executableSha256=(Get-FileHash -LiteralPath (Join-Path $folder ($role[1]+'.exe')) -Algorithm SHA256).Hash;assemblySha256=(Get-FileHash -LiteralPath (Join-Path $folder ($role[1]+'.dll')) -Algorithm SHA256).Hash}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $folder 'server-capabilities.json') -Encoding UTF8
+    }
     if(-not $SkipTests){
         node tests\security-logging.mjs --package
         if($LASTEXITCODE -ne 0){throw 'Packaged privacy-safe logging verification failed'}
@@ -122,6 +129,7 @@ try {
     Copy-Item -LiteralPath 'docs\server-installer.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\operation-order.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\security-checklist-2026-10-24.md','docs\committee-security-evidence-2026-10-24.md','docs\security-incident-response.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\security-regulatory-controls-2026-10-28.md','docs\security-review-submission.draft.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\edzip-registration-guide.md','docs\edzip-checklist.draft.md','docs\privacy-policy.draft.md','docs\privacy-rights-operations.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\server-installer-verification-2026-10-24.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\elective-registration.md','docs\elective-registration-design.md','docs\elective-registration-verification-2026-10-20.md' -Destination $packageDocs
@@ -138,7 +146,10 @@ try {
     $packageConfig=Join-Path $packageDirectory 'config'
     New-Item -ItemType Directory -Path $packageConfig -Force | Out-Null
     Copy-Item -LiteralPath 'config\registration-policy.draft.json' -Destination $packageConfig
+    Copy-Item -LiteralPath 'config\deployment-review.draft.json' -Destination $packageConfig
     Copy-Item -LiteralPath 'config\server-operations.example.json','config\cloudflared.example.yml' -Destination $packageConfig
+    & (Join-Path $PSScriptRoot 'Test-DeploymentReviewPackage.ps1') -PackageDirectory $packageDirectory
+    & (Join-Path $projectRoot 'tests\deployment-review-operations.ps1') -PackageDirectory $packageDirectory
     Copy-Item -LiteralPath 'docs\ios-operations.md','docs\ios-verification.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\releases.md' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\timetable-import-design.md','docs\timetable-operations.md' -Destination $packageDocs

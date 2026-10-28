@@ -1,7 +1,9 @@
 {
   "schema": 1,
+  "schoolId": "",
   "resourceProfile": "low-memory",
   "registrationPolicyFile": "",
+  "securityReviewFile": "",
   "service": "announcements",
   "executable": "C:\\SchoolMessenger\\announcement-server\\SchoolMessenger.AnnouncementServer.exe",
   "dataDirectory": "C:\\SchoolMessengerData\\announcements",

@@ -48,10 +48,14 @@ public sealed partial class LocalServerWindow
             var password="Synthetic-"+Guid.NewGuid().ToString("N");
             foreach(var c in cards)
             {
-                c.Password.Password=password;c.Confirm.Password=password;await Start(c);await Ready(c.Service=="office"?5080:5081);
+                var inherited=new Dictionary<string,string?>();var syntheticSettings=new Dictionary<string,string>{{"FeedbackMail__Enabled","true"},{"FeedbackMail__Host","smtp.synthetic.invalid"},{"FeedbackMail__Sender","sender@example.invalid"},{"FeedbackMail__Recipient","receiver@example.invalid"},{"FeedbackMail__Username","synthetic"},{"FeedbackMail__Password","SYNTHETIC-NOT-A-CREDENTIAL"},{"Registration__PolicyFile",Path.Combine(directory,"missing-other-school-policy.json")}};
+                foreach(var pair in syntheticSettings){inherited[pair.Key]=Environment.GetEnvironmentVariable(pair.Key);Environment.SetEnvironmentVariable(pair.Key,pair.Value);}
+                try{c.Password.Password=password;c.Confirm.Password=password;await Start(c);}finally{foreach(var pair in inherited)Environment.SetEnvironmentVariable(pair.Key,pair.Value);}
+                await Ready(c.Service=="office"?5080:5081);
                 Check(c.Host.Running&&c.Password.Password.Length==0&&c.Confirm.Password.Length==0,c.Service+" starts without a console and clears password controls");
                 Check(!c.Data.IsEnabled&&!c.Mode.IsEnabled&&!c.ProductionFields.IsEnabled,c.Service+" locks data paths and execution configuration while its server is running");
                 using var api=new Api(c.Service=="office"?"http://127.0.0.1:5080":"http://127.0.0.1:5081");await api.Login("admin",password);
+                var mailState=await api.Get<JsonElement>("api/admin/feedback/mail-status");Check(!mailState.GetProperty("enabled").GetBoolean()&&!mailState.GetProperty("configured").GetBoolean(),c.Service+" trial does not inherit production mail credentials or another school's registration policy");
                 Check((await api.Get<JsonElement>("api/session")).GetProperty("user").ValueKind==JsonValueKind.Object,c.Service+" initializes an administrator and accepts the GUI-supplied password");
                 if(c.Service=="office")
                 {

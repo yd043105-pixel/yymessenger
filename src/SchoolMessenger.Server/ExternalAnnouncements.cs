@@ -24,7 +24,7 @@ public sealed partial class ExternalAnnouncements : BackgroundService
     static long Now => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     record Job(string Id,string Owner,string Teacher,string Payload,string Targets,string State,string? Remote,int Attempts,long Next,bool Withdraw,string? Error);
     record LocalFile(string Id,string Name,long Size,string? Remote,long Uploaded,long? Expires);
-    public ExternalAnnouncements(Store store,IConfiguration config,IHostEnvironment environment,ILogger<ExternalAnnouncements> log)
+    public ExternalAnnouncements(Store store,IConfiguration config,IHostEnvironment environment,ILogger<ExternalAnnouncements> log,DeploymentReview review)
     {
         this.store=store;this.config=config;this.environment=environment;this.log=log;
         Directory.CreateDirectory(Files);
@@ -40,7 +40,7 @@ public sealed partial class ExternalAnnouncements : BackgroundService
             address.Scheme!="https"&&!(environment.IsDevelopment()&&address.Scheme=="http"&&address.IsLoopback))throw new InvalidOperationException("외부 공지 주소는 HTTPS 서버의 기본 주소여야 합니다.");
         var key=config["Announcements:BridgeKey"];
         if(key is not{Length:>=32})throw new InvalidOperationException("외부 공지 연결 키가 필요합니다.");
-        http=new HttpClient(new BridgeSigningHandler(config)){BaseAddress=address,Timeout=TimeSpan.FromSeconds(120)};
+        http=new HttpClient(new BridgeSigningHandler(config,review)){BaseAddress=address,Timeout=TimeSpan.FromSeconds(120)};
 
     }
     public override void Dispose(){http?.Dispose();base.Dispose();}

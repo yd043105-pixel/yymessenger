@@ -15,6 +15,7 @@ foreach($exe in @('server\SchoolMessenger.Server.exe','announcement-server\Schoo
 $entries=@(Get-ChildItem -LiteralPath $PackageDirectory -Recurse -Force)
 if(((Get-Item -LiteralPath $PackageDirectory).Attributes -band [IO.FileAttributes]::ReparsePoint) -or @($entries | Where-Object {$_.Attributes -band [IO.FileAttributes]::ReparsePoint}).Count){throw 'Linked installer input is not allowed.'}
 if(@($entries | Where-Object {$_.Name -match '(?i)(\.db($|-)|\.sqlite3?($|-)|\.dpapi$|\.pfx$|\.pem$|\.key$|\.p12$|\.jks$|\.keystore$|^\.env|\.local\.json$|\.secrets\.xml$|^login\.dat$|^preferences\.json$|^draft|^secrets\.json$|^appsettings\.Production\.json$)'}).Count){throw 'Operational data or secrets found in server installer input.'}
+& (Join-Path $PSScriptRoot 'Test-DeploymentReviewPackage.ps1') -PackageDirectory $PackageDirectory
 if(-not $Compiler){$Compiler=& (Join-Path $PSScriptRoot 'Install-InnoCompiler.ps1')}
 $arguments=@('/Q',"/DAppVersion=$version","/DPackageDirectory=$PackageDirectory","/DArtifactDirectory=$OutputDirectory")
 if($InstallerAppId){$arguments+=@("/DInstallerAppId=$InstallerAppId",'/DInstallerTest=1',('/DStartupEntryName=YyMessengerInstallerTest-'+$InstallerAppId.Trim('{}')),('/DDesktopLinkName=YyMessengerInstallerTest-'+$InstallerAppId.Trim('{}')))}

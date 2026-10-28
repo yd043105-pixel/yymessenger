@@ -4,8 +4,10 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { RemoteChannel } from './features.mjs';
 import { passwordSecurityChecks } from './password-security.mjs';
+import {writeDeploymentReviewFixture} from './deployment-review-fixture.mjs';
 
 export async function securityChecks({ Client, admin, password, address, data, check, start, stop, ready, dotnet }) {
+  const reviewFile=writeDeploymentReviewFixture(path.join(data,'..','review-office'),'office',address);
   assert.ok(admin.loginCookieHeaders.some(c => c.includes('httponly') && c.includes('samesite=strict')));
   const headers = (await fetch(address + '/')).headers;
   assert.equal(headers.get('x-frame-options'), 'DENY');
@@ -45,10 +47,10 @@ export async function securityChecks({ Client, admin, password, address, data, c
     assert.ok(channel.failure, 'revoked teacher must stop receiving realtime notifications');
     check('account deactivation closes an already authenticated message connection');
   } finally { await channel.close(); }
-  await stop(); start({ ASPNETCORE_ENVIRONMENT: 'Production', School__ScannerPath: path.join(data, 'nonexistent-scanner.exe') }); await ready();
+  await stop(); start({ ASPNETCORE_ENVIRONMENT: 'Production', Operations__SchoolId:'YY-SYNTHETIC-ONLY',Operations__SecurityReviewFile:reviewFile, School__ScannerPath: path.join(data, 'nonexistent-scanner.exe') }); await ready();
   await admin.upload('scanner-unavailable.txt', '위험하지 않은 검사 자료', 503);
   assert.equal(readdirSync(path.join(data, 'files')).length, 0);
-  await stop(); start({ ASPNETCORE_ENVIRONMENT: 'Production', School__ScannerPath: dotnet }); await ready();
+  await stop(); start({ ASPNETCORE_ENVIRONMENT: 'Production', Operations__SchoolId:'YY-SYNTHETIC-ONLY',Operations__SecurityReviewFile:reviewFile, School__ScannerPath: dotnet }); await ready();
   await admin.upload('scanner-failure.txt', '위험하지 않은 검사 자료', 422);
   assert.equal(readdirSync(path.join(data, 'files')).length, 0);
   check('production rejects uploads when antivirus scanner is missing or exits with failure and removes staged files');

@@ -6,6 +6,7 @@ import {DatabaseSync} from 'node:sqlite';
 import net from 'node:net';
 import path from 'node:path';
 import {bridgeHeaders,bridgeFetch} from './bridge-client.mjs';
+import {writeDeploymentReviewFixture} from './deployment-review-fixture.mjs';
 
 const root=process.cwd(),sdk=path.join(root,'.tools/dotnet/dotnet.exe');
 const dotnet=existsSync(sdk)?sdk:'dotnet';
@@ -98,7 +99,7 @@ for(const project of ['Server','AnnouncementServer']){
    const student=await a.request('admin/people','POST',{name:'가상 정책 학생',role:'student',classId:room.id,internalUserId:null,classIds:[],canBroadcast:false});
    const policy=await(new Client(base)).request('registration/policy');const agreement={revision:policy.revision,acceptedIds:policy.documents.filter(d=>d.required).map(d=>d.id)};
    const parent=new Client(base);parent.csrf=(await parent.request('session')).csrfToken;await parent.request('register','POST',{name:'가상 보호자',username:'review.parent',password,role:'parent',agreement});
-   await stop(server);env.ASPNETCORE_ENVIRONMENT='Production';await start();await a.login();await parent.login('review.parent');
+   await stop(server);env.ASPNETCORE_ENVIRONMENT='Production';env.Operations__SchoolId='YY-SYNTHETIC-ONLY';env.Operations__SecurityReviewFile=writeDeploymentReviewFixture(path.join(testRoot,'review-'+project),portal?'announcements':'office',base);await start();await a.login();await parent.login('review.parent');
    let code=(await a.request('admin/people/'+student.id+'/student-code')).code;
    db=openDb();db.prepare('INSERT OR REPLACE INTO FamilyCodeAttempts(ParentId,Failures,LockedUntil) VALUES(?,4,0)').run(parent.user.id);db.close();
    const pending=await parent.request('settings/children','POST',{code});assert.equal(pending.membership,'pending');db=openDb();assert.equal(db.prepare('SELECT Failures FROM FamilyCodeAttempts WHERE ParentId=?').get(parent.user.id).Failures,0);db.close();assert.equal((await parent.request('children')).length,0);await parent.request('announcements','GET',undefined,403);

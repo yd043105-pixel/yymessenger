@@ -29,7 +29,7 @@ internal sealed class LocalServerProcess(string root,string service)
         if(!Installed)throw new InvalidOperationException("선택한 서버 역할이 설치되지 않았습니다.");
         child?.Dispose();child=null;signal?.Dispose();signal=null;lock(output)output.Clear();
         var start=new ProcessStartInfo(trial?Executable:PowerShell){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=Path.GetDirectoryName(Executable)!,RedirectStandardOutput=true,RedirectStandardError=true};
-        foreach(var key in start.Environment.Keys.Where(k=>k.StartsWith("School__",StringComparison.OrdinalIgnoreCase)||k.StartsWith("Portal__",StringComparison.OrdinalIgnoreCase)||k.StartsWith("Announcements__",StringComparison.OrdinalIgnoreCase)).ToArray())start.Environment.Remove(key);
+        foreach(var key in start.Environment.Keys.Where(k=>new[]{"School__","Portal__","Announcements__","FeedbackMail__","Feedback__","Operations__","Registration__"}.Any(prefix=>k.StartsWith(prefix,StringComparison.OrdinalIgnoreCase))).ToArray())start.Environment.Remove(key);
         if(trial)
         {
             data=Path.GetFullPath(data);
@@ -37,6 +37,10 @@ internal sealed class LocalServerProcess(string root,string service)
             if(!File.Exists(Path.Combine(data,".initialized"))&&(password.Length is <12 or >128||string.IsNullOrWhiteSpace(password)))throw new InvalidOperationException("최초 관리자 비밀번호는 12~128자로 입력하세요.");
             var prefix=service=="office"?"School":"Portal";
             start.Environment["ASPNETCORE_ENVIRONMENT"]="Development";
+            start.Environment["FeedbackMail__Enabled"]="false";start.Environment["Feedback__AutomaticReportsEnabled"]="false";
+            start.Environment["Operations__AlertMailEnabled"]="false";start.Environment["Portal__TunnelOnly"]="false";
+            start.Environment["Registration__PolicyFile"]="";start.Environment["Operations__SecurityReviewFile"]="";start.Environment["Operations__SchoolId"]="";
+            start.Environment["ASPNETCORE_FORWARDEDHEADERS_ENABLED"]="false";start.Environment["DOTNET_FORWARDEDHEADERS_ENABLED"]="false";start.Environment["backend-restore"]="";
             start.Environment[prefix+"__DataDirectory"]=data;
             if(!File.Exists(Path.Combine(data,".initialized")))start.Environment[prefix+"__AdminPassword"]=password;
             if(service=="office"&&File.Exists(Path.Combine(root,"announcement-server","SchoolMessenger.AnnouncementServer.exe"))){start.Environment["Announcements__Address"]="http://127.0.0.1:5081";start.Environment["Announcements__BridgeKey"]=bridgeKey;}

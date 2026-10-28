@@ -5,6 +5,7 @@ import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 import path from 'node:path';
 import net from 'node:net';
+import {writeDeploymentReviewFixture} from './deployment-review-fixture.mjs';
 
 const root=process.cwd(),sdk=existsSync('.tools/dotnet/dotnet.exe')?path.join(root,'.tools/dotnet/dotnet.exe'):path.join(process.env.DOTNET_ROOT,process.platform==='win32'?'dotnet.exe':'dotnet');
 const password='Test-'+randomUUID(),key='Bridge-'+randomUUID(),passed=[];
@@ -18,8 +19,9 @@ for(const project of ['AnnouncementServer','Server']){
  document.documents.push({id:'optional',title:'가상 선택 항목',version:'test.1',body:'선택 여부 시험용 문구',required:false,action:'consent'});
  const save=()=>writeFileSync(file,JSON.stringify(document));save();
  const listener=net.createServer();await new Promise(r=>listener.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+listener.address().port;await new Promise(r=>listener.close(r));
+ const securityReviewFile=writeDeploymentReviewFixture(path.join(dir,'review'),portal?'announcements':'office',base);
  let server,logs='';
- async function start(mode='Development',policyFile=file){logs='';server=spawn(sdk,[path.join(root,`src/SchoolMessenger.${project}/bin/Debug/net10.0/SchoolMessenger.${project}.dll`),'--urls',base],{cwd:path.join(root,'src','SchoolMessenger.'+project),windowsHide:true,env:{...process.env,ASPNETCORE_ENVIRONMENT:mode,[setting+'__DataDirectory']:data,[setting+'__AdminPassword']:password,Portal__BridgeKey:key,Registration__PolicyFile:policyFile}});server.stdout.on('data',b=>logs+=b);server.stderr.on('data',b=>logs+=b);for(let i=0;i<100;i++){try{if((await fetch(base+'/health')).ok)return;}catch{}if(server.exitCode!==null)throw Error(logs);await delay(100);}throw Error(logs);}
+ async function start(mode='Development',policyFile=file){logs='';server=spawn(sdk,[path.join(root,`src/SchoolMessenger.${project}/bin/Debug/net10.0/SchoolMessenger.${project}.dll`),'--urls',base],{cwd:path.join(root,'src','SchoolMessenger.'+project),windowsHide:true,env:{...process.env,ASPNETCORE_ENVIRONMENT:mode,Operations__SchoolId:'YY-SYNTHETIC-ONLY',Operations__SecurityReviewFile:securityReviewFile,[setting+'__DataDirectory']:data,[setting+'__AdminPassword']:password,Portal__BridgeKey:key,Registration__PolicyFile:policyFile}});server.stdout.on('data',b=>logs+=b);server.stderr.on('data',b=>logs+=b);for(let i=0;i<100;i++){try{if((await fetch(base+'/health')).ok)return;}catch{}if(server.exitCode!==null)throw Error(logs);await delay(100);}throw Error(logs);}
  async function stop(){if(server?.exitCode===null){server.kill();await new Promise(r=>server.once('exit',r));}}
  class Client{
   cookies=new Map();csrf='';

@@ -10,10 +10,14 @@ using SchoolMessenger.Contracts;
 using SchoolMessenger.Shared;
 using static SchoolMessenger.AnnouncementServer.PortalSecurity;
 
-var builder = WebApplication.CreateBuilder(args);
+var checkDeploymentReview=args.Contains("--deployment-review-check");
+var builder = WebApplication.CreateBuilder(args.Where(a=>a!="--deployment-review-check").ToArray());
+if(checkDeploymentReview){TunnelOrigin.Validate(builder.Configuration,builder.Environment.IsDevelopment());Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(DeploymentReview.Load(builder.Configuration,builder.Environment.IsDevelopment(),"announcements").Summary()));return;}
 if(OperationsCommand.TryRun(builder.Configuration,"Portal","announcements.db"))return;
 TunnelOrigin.Validate(builder.Configuration,builder.Environment.IsDevelopment());
 if(BackendRecovery.TryRun(builder.Configuration,"Portal","announcements.db"))return;
+var deploymentReview=DeploymentReview.Load(builder.Configuration,builder.Environment.IsDevelopment(),"announcements");
+builder.Services.AddSingleton(deploymentReview);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 105L*1024*1024);
 if (builder.Configuration["Portal:CertificateThumbprint"] is {Length:>0} thumbprint)
 {
@@ -32,7 +36,7 @@ using(var policyDatabase=store.Open())RegistrationPolicy.EnsureSchema(policyData
 var dataPath = builder.Services.AddDataProtection().SetApplicationName("YyAnnouncements").PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(store.Root,"keys")));
 if (OperatingSystem.IsWindows()) dataPath.ProtectKeysWithDpapi();
 builder.Services.AddSingleton(store);
-builder.Services.AddSingleton(s=>new FeedbackMail(store.Open,"announcements",s.GetRequiredService<IDataProtectionProvider>(),builder.Configuration));
+builder.Services.AddSingleton(s=>new FeedbackMail(store.Open,"announcements",s.GetRequiredService<IDataProtectionProvider>(),builder.Configuration,(host,recipient)=>deploymentReview.Demand("error-mail",host,587,recipient)));
 builder.Services.AddHostedService(s=>s.GetRequiredService<FeedbackMail>());
 builder.Services.AddSingleton<PasswordHasher<Account>>(); builder.Services.Configure<PasswordHasherOptions>(o=>o.IterationCount=220_000);
 builder.Services.AddHostedService<PortalMaintenance>();
@@ -162,6 +166,7 @@ PortalGraduation.Map(admin,app.MapGroup("/bridge"),store);
 try{PortalGraduation.Run(store);}catch(Exception error){app.Logger.LogError("Graduation erasure retry required ({ErrorCode})",error.GetType().Name);}
 app.Services.GetServices<IHostedService>().OfType<PortalMaintenance>().Single().Cleanup();
 BackendOperations.Map(app,store.Open);
+DeploymentReview.Map(app,deploymentReview);
 DeviceSessions.Map(app,store.Open);
 FeedbackReports.Map(app,store.Open,protection,"announcements");
 ManagedServerLifetime.Attach(app);
