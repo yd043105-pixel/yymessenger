@@ -27,10 +27,13 @@ internal static class MacRuntimeChecks
     }
     static void Check(bool value,string description){if(!value)throw new InvalidOperationException(description);passed.Add(description);Console.WriteLine("MAC_PROGRESS:"+description);}
     static async Task Wait(Func<bool> condition){for(var i=0;i<600;i++){if(condition())return;await Task.Delay(100);}throw new InvalidOperationException("Mac native UI timeout");}
-    static void Capture(string name)
+    static async Task Capture(string name)
     {
+        await Task.Delay(350);
         var window=UIApplication.SharedApplication.ConnectedScenes.OfType<UIWindowScene>().SelectMany(s=>s.Windows).First(w=>w.IsKeyWindow);
         using var renderer=new UIGraphicsImageRenderer(window.Bounds.Size);using var image=renderer.CreateImage(context=>window.Layer.RenderInContext(context.CGContext));using var data=image.AsPNG();File.WriteAllBytes(Path.Combine(Folder,name),data!.ToArray());
+        var request=Path.Combine(Folder,"mac-capture-request.json");await File.WriteAllTextAsync(request+".tmp",JsonSerializer.Serialize(new{name}));File.Move(request+".tmp",request,true);
+        for(var i=0;i<200;i++){var complete=Path.Combine(Folder,"mac-capture-complete.txt");if(File.Exists(complete)&&File.ReadAllText(complete)==name)return;await Task.Delay(100);}
     }
     public static async Task Run()
     {
@@ -41,23 +44,24 @@ internal static class MacRuntimeChecks
             var fixture=JsonDocument.Parse(Convert.FromBase64String(Environment.GetEnvironmentVariable("YY_MAC_FIXTURE_B64")!)).RootElement;
             Check(DeviceInfo.Platform==DevicePlatform.MacCatalyst,"Actual native Mac Catalyst process");
             Check(AppInfo.Current.Name=="교무톡"&&AppInfo.Current.VersionString=="1.0.0","Mac brand and pre-release version 1.0.0");
-            Check(Page.Content is Grid grid&&grid.ColumnDefinitions.Count==2,"Native desktop sidebar and separate content column");Capture("mac-login.png");
+            Check(Page.Content is Grid grid&&grid.ColumnDefinitions.Count==2,"Native desktop sidebar and separate content column");await Capture("mac-login.png");
+            Check(Views(Page.Content).OfType<Button>().Where(b=>!string.IsNullOrEmpty(b.Text)).All(b=>b.Handler?.PlatformView is UIButton native&&!string.IsNullOrEmpty(native.CurrentTitle??native.Configuration?.Title)),"Native Mac buttons retain their visible title bindings");
             await Page.MacVerifyLogin(fixture.GetProperty("office").GetString()!.Replace("127.0.0.1","localhost"),fixture.GetProperty("password").GetString()!);
             Check(Page.MacVerifyApi.ProductCode=="teacher-macos"&&!Page.MacVerifyApi.Remember,"Mac product identity and session kept in memory for ad-hoc verification");
             await Wait(()=>Page.MacVerifyConnected);
             var people=await Page.MacVerifyApi.Get("api/users");var self=people.EnumerateArray().Single(p=>p.GetProperty("id").GetString()==Page.MacVerifyApi.Session.GetProperty("user").GetProperty("id").GetString());
-            Check(self.GetProperty("online").GetBoolean()&&!self.GetProperty("mobile").GetBoolean(),"Server reports Mac as desktop online, without a phone lease");Capture("mac-messages.png");
+            Check(self.GetProperty("online").GetBoolean()&&!self.GetProperty("mobile").GetBoolean(),"Server reports Mac as desktop online, without a phone lease");await Capture("mac-messages.png");
             var before=await Page.MacVerifyApi.Get("api/messages?box=received&offset=0");
             await Page.MacVerifyCompose();var compose=(ContentPage)Page.Navigation.NavigationStack.Last();var controls=Views(compose.Content).ToArray();
             ((IButtonController)controls.OfType<Button>().Single(b=>b.Text=="나에게 전송")).SendClicked();
-            controls.OfType<Entry>().Single().Text="Mac 네이티브 전송 검증";controls.OfType<Editor>().Single().Text="가상 학교 데이터로 Mac 메시지 작성과 수신 연결을 검사합니다.";Capture("mac-compose.png");
+            controls.OfType<Entry>().Single().Text="Mac 네이티브 전송 검증";controls.OfType<Editor>().Single().Text="가상 학교 데이터로 Mac 메시지 작성과 수신 연결을 검사합니다.";await Capture("mac-compose.png");
             var send=controls.OfType<Button>().Single(b=>b.Text=="메시지 보내기");((IButtonController)send).SendClicked();
             await Wait(()=>Page.Navigation.NavigationStack.Count==1);
             var rows=await Page.MacVerifyApi.Get("api/messages?box=sent&offset=0");var sent=rows.EnumerateArray().Single(r=>r.GetProperty("title").GetString()=="Mac 네이티브 전송 검증");
             Check(sent.GetProperty("recipientCount").GetInt32()==1,"Native composer sends through authenticated server with one selected recipient");
             await Page.MacVerifyDetail(sent.GetProperty("id").GetString()!);var detail=(ContentPage)Page.Navigation.NavigationStack.Last();
             Check(detail.Content is Grid details&&details.RowDefinitions.Count==2&&details.Children.OfType<Button>().Any(b=>b.Text=="답장"),"Reply remains in fixed footer outside the message scroll area");
-            Capture("mac-message-detail.png");await Page.Navigation.PopAsync();await Page.MacVerifyLogout();
+            await Capture("mac-message-detail.png");await Page.Navigation.PopAsync();await Page.MacVerifyLogout();
             Check(!Page.MacVerifyConnected,"Logout closes the desktop connection");
             try{_ =new MessengerApi("http://example.com",true);throw new InvalidOperationException("Unsafe HTTP accepted");}catch(InvalidOperationException e)when(e.Message.Contains("https://")){Check(true,"Non-local cleartext server address is rejected");}
             await File.WriteAllTextAsync(report+".tmp",JsonSerializer.Serialize(new{ok=true,passed}));File.Move(report+".tmp",report,true);

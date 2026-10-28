@@ -21,10 +21,27 @@ try{
   app.on('error',error=>{appLogs+='Native launch error: '+error.message;});
   app.stdout.on('data',b=>{appLogs+=b;const match=appLogs.match(/MAC_REPORT_PATH:([^\r\n]+)/);if(match)report=match[1];});app.stderr.on('data',b=>{appLogs+=b;const match=appLogs.match(/MAC_REPORT_PATH:([^\r\n]+)/);if(match)report=match[1];});
   const candidates=[path.join(homedir(),'Library/Containers/kr.school.kyomutalk.mac/Data/Documents/mac-results.json'),path.join(homedir(),'Documents/mac-results.json')];
-  for(let i=0;i<600&&!(report&&existsSync(report));i++){report=candidates.find(file=>existsSync(file))??report;assert.equal(app.exitCode,null,'Native app exited: '+appLogs);await delay(500);}
+  let captured='';
+  for(let i=0;i<600&&!(report&&existsSync(report));i++){
+    report=candidates.find(file=>existsSync(file))??report;
+    if(app.exitCode!==null||app.signalCode!==null||appLogs.includes('Terminating app due to uncaught exception')){writeFileSync(path.join(output,'mac-runtime.log'),appLogs);assert.fail('Native startup failed: '+appLogs);}
+    if(report){
+      const folder=path.dirname(report),request=path.join(folder,'mac-capture-request.json');
+      if(existsSync(request)){
+        const {name}=JSON.parse(readFileSync(request,'utf8'));
+        assert.ok(['mac-login.png','mac-messages.png','mac-compose.png','mac-message-detail.png'].includes(name));
+        if(captured!==name){
+          const screenshot=spawnSync('/usr/sbin/screencapture',['-x',path.join(output,name)],{encoding:'utf8',timeout:15000});
+          if(screenshot.status!==0)writeFileSync(path.join(output,'mac-screen-capture-status.txt'),'System screen capture unavailable; UIKit-layer fallback used. '+(screenshot.stderr??''));
+          captured=name;writeFileSync(path.join(folder,'mac-capture-complete.txt'),name);
+        }
+      }
+    }
+    await delay(500);
+  }
   writeFileSync(path.join(output,'mac-runtime.log'),appLogs);
   assert.ok(report&&existsSync(report),'Native report missing: '+appLogs);
   const result=JSON.parse(readFileSync(report,'utf8'));copyFileSync(report,path.join(output,'mac-results.json'));
-  for(const name of ['mac-login.png','mac-messages.png','mac-compose.png','mac-message-detail.png'])if(existsSync(path.join(path.dirname(report),name)))copyFileSync(path.join(path.dirname(report),name),path.join(output,name));
+  for(const name of ['mac-login.png','mac-messages.png','mac-compose.png','mac-message-detail.png'])if(!existsSync(path.join(output,name))&&existsSync(path.join(path.dirname(report),name)))copyFileSync(path.join(path.dirname(report),name),path.join(output,name));
   for(const check of result.passed)console.log('PASS '+check);assert.ok(result.ok,result.error);
 }finally{app?.kill();fixture.kill();}
