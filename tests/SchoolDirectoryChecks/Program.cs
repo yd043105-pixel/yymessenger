@@ -27,8 +27,12 @@ Rejected(new byte[1024*1024+1]);
 Pass("Malformed, duplicate-field, unsupported-schema and oversized directories fail closed");
 Require(SchoolDirectory.Search(Enumerable.Range(0,110).Select(i=>A with{Id="SCHOOL-"+i,Name="학교"+i}),"","office").Length==100,"search not bounded");
 try{SchoolDirectory.Search(schools,new string('x',81),"office");throw new Exception("query unbounded");}catch(InvalidOperationException){}
-Require(SchoolDirectory.Bundled().SourceUrl.StartsWith("https://raw.githubusercontent.com/"),"publisher source missing");
+var included=SchoolDirectory.Bundled();
+Require(included.SourceUrl.Length==0||Uri.TryCreate(included.SourceUrl,UriKind.Absolute,out var publisher)&&publisher.Scheme=="https","school-owned HTTPS or offline directory rejected");
 Pass("Bundled directory is embedded, queries are bounded, and at most 100 matches are displayed");
+var offline=await SchoolDirectory.Refresh(new("",[A]),handler:new Fake(_=>throw new Exception("Offline school list must not contact a central publisher")));
+Require(offline.Schools.Single().Id==A.Id,"school-owned offline list changed");
+Pass("A school's bundled offline directory works without contacting or requiring approval from a central publisher");
 byte[] Identity(string id,string service)=>JsonSerializer.SerializeToUtf8Bytes(new{product="Yeoyang.Office.Discovery.1",schoolName=A.Name,directoryProduct=SchoolDirectory.Product,schoolId=id,service});
 var calls=new List<string>();
 Fake Handler(byte[] body,HttpStatusCode status=HttpStatusCode.OK)=>new(request=>{Require(request.Method==HttpMethod.Get,"credentials could be sent during selection");Require(request.Headers.Authorization is null&&!request.Headers.Contains("Cookie"),"selection leaked credentials");calls.Add(request.RequestUri!.AbsoluteUri);return new(status){Content=new ByteArrayContent(body)};});
