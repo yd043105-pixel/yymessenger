@@ -52,7 +52,8 @@ public sealed partial class MessengerPage
                     var status=online?(away?"자리비움":"온라인"):phone?"휴대폰":"오프라인";var color=online?(away?Color.FromArgb("#A87812"):Color.FromArgb("#218568")):phone?Blue:Muted;
                     var line=new Grid{ColumnDefinitions={new(GridLength.Auto),new(GridLength.Star),new(GridLength.Auto)},ColumnSpacing=8,Padding=new Thickness(12,0)};
                     var dot=Text(online||!phone?"●":"▣",11);dot.TextColor=color;dot.VerticalOptions=LayoutOptions.Center;line.Add(dot);
-                    var button=DesktopButton(name,()=>MacCompose(id));button.BorderWidth=0;button.BackgroundColor=Colors.Transparent;button.HorizontalOptions=LayoutOptions.Fill;line.Add(button,1);
+                    var position=person.TryGetProperty("position",out var role)?role.GetString():null;
+                    var button=DesktopButton(name+(string.IsNullOrWhiteSpace(position)?"":" · "+position),()=>MacCompose(id));button.ClassId="school-story";button.BorderWidth=0;button.BackgroundColor=Colors.Transparent;button.HorizontalOptions=LayoutOptions.Fill;line.Add(button,1);
                     var state=Text(status,11);state.TextColor=color;state.VerticalOptions=LayoutOptions.Center;line.Add(state,2);rows.Add(line);
                 }
             }
