@@ -202,30 +202,7 @@ for kind in ('server', 'windows', 'mac'):
         target = folder/relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
-    write(folder, '.gitignore', '''**/bin/
-**/obj/
-artifacts/
-.tools/
-.test-data/
-.test-services/
-output/
-*.log
-*.db
-*.db-*
-*.sqlite*
-*.pfx
-*.p12
-*.pem
-*.key
-*.dpapi
-*.secrets.xml
-*.local.json
-.env
-**/login.dat
-**/preferences.json
-**/school-request-*.json
-**/school-registration-decision-*.json
-''')
+    write(folder, '.gitignore', (ROOT/'.gitignore').read_text(encoding='utf-8-sig')+'\n# School records must not enter public source control.\nprivate/\noperations/\nschool-evidence/\n.test-services/\n')
     label = {'server':'서버 관리자', 'windows':'Windows 교직원 메신저', 'mac':'Mac 교직원 메신저'}[kind]
     command = {'server':'./scripts/Build.ps1 -SkipTests\n./scripts/Build-ServerInstaller.ps1', 'windows':'./scripts/Build-Installer.ps1', 'mac':'dotnet workload install maui-maccatalyst --version 10.0.401\ndotnet restore src/SchoolMessenger.Mac --locked-mode\nbash scripts/Build-Mac.sh maccatalyst-arm64\nbash scripts/Build-Mac.sh maccatalyst-x64'}[kind]
     write(folder, 'README.md', f'''# 교무톡 - {label}
