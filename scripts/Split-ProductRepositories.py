@@ -87,6 +87,7 @@ jobs:
           ./scripts/Build-ServerInstaller.ps1
           ./tests/server-installer.ps1 -ShortcutOnly
           Copy-Item artifacts/yymessenger-1.0.0-server-setup-win-x64.exe artifacts/gyomutalk-server-1.0.0-trial.exe
+          ((Get-FileHash 'artifacts/gyomutalk-server-1.0.0-trial.exe' -Algorithm SHA256).Hash.ToLowerInvariant() + '  gyomutalk-server-1.0.0-trial.exe') | Set-Content artifacts/SHA256SUMS.txt -Encoding ascii
 '''
         artifact = 'artifacts/gyomutalk-server-1.0.0-trial.exe\n            artifacts/SHA256SUMS.txt\n            artifacts/server-launcher-checks.json'
     else:
@@ -103,8 +104,9 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/Build-Installer.ps1
-          ./tests/installer.ps1
+          ./tests/installer.ps1 -ClientDirectory (Join-Path $PWD 'artifacts/installer-client')
           Copy-Item artifacts/yymessenger-1.0.0-setup-win-x64.exe artifacts/gyomutalk-windows-1.0.0-trial.exe
+          ((Get-FileHash 'artifacts/gyomutalk-windows-1.0.0-trial.exe' -Algorithm SHA256).Hash.ToLowerInvariant() + '  gyomutalk-windows-1.0.0-trial.exe') | Set-Content artifacts/SHA256SUMS.txt -Encoding ascii
 '''
         artifact = 'artifacts/gyomutalk-windows-1.0.0-trial.exe\n            artifacts/SHA256SUMS.txt'
     return header + body + f'''      - uses: {upload}

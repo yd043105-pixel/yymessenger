@@ -1,4 +1,6 @@
-# 교무톡
+# 교무톡·학교톡
+
+제품별 개발·배포 저장소를 분리했습니다: [서버 관리자](https://github.com/yd043105-pixel/gyomutalk-server), [Windows 메신저](https://github.com/yd043105-pixel/gyomutalk-windows), [Mac 메신저](https://github.com/yd043105-pixel/gyomutalk-mac). 이 저장소에는 모바일 앱과 분리 이전 이력을 유지합니다. 교사용 앱은 **교무톡**, 학생·학부모용 앱은 **학교톡**입니다. 자세한 관리 원칙은 [저장소 분리 안내](docs/repository-split.md)를 참고하세요.
 
 [MIT 라이선스](LICENSE) · Copyright (c) 2026 김동욱. 사용·수정·재배포·상업적 이용을 허용하며 저작권과 라이선스 고지를 유지해야 합니다. 외부 구성요소는 [각자의 라이선스](THIRD-PARTY-NOTICES.md)를 따릅니다.
 

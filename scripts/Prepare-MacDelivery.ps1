@@ -1,7 +1,7 @@
 ﻿param(
     [string]$BuildDirectory,
     [ValidatePattern('^[0-9a-f]{40}$')][string]$SourceHead,
-    [ValidatePattern('^https://github\.com/yd043105-pixel/yymessenger/actions/runs/[0-9]+$')][string]$VerificationRun
+    [ValidatePattern('^https://github\.com/yd043105-pixel/(yymessenger|gyomutalk-mac)/actions/runs/[0-9]+$')][string]$VerificationRun
 )
 $ErrorActionPreference='Stop'
 $projectRoot=[IO.Path]::GetFullPath((Split-Path $PSScriptRoot -Parent))

@@ -1,4 +1,4 @@
-name: Verify
+name: Mobile verification
 on:
   push:
     branches: [main]
@@ -7,48 +7,6 @@ on:
 permissions:
   contents: read
 jobs:
-  check:
-    runs-on: windows-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: 10.0.402
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-      - name: Build and run server checks
-        shell: powershell
-        run: ./scripts/Build.ps1 -HeadlessTests
-      - name: Verify packaged executables
-        run: node tests/smoke.mjs --features --package
-      - name: Verify native server manager startup and graceful shutdown
-        run: node tests/server-manager.mjs --no-build
-  installers:
-    runs-on: windows-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          dotnet-version: 10.0.402
-      - name: Build isolated installer payloads
-        shell: powershell
-        run: ./scripts/Build.ps1 -SkipTests
-      - name: Verify Windows installer
-        shell: pwsh
-        run: |
-          ./scripts/Build-Installer.ps1 -ClientDirectory (Join-Path $PWD 'artifacts/여양고-교무메신저/client')
-          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
-          ./tests/installer.ps1
-          if ($LASTEXITCODE -ne 0) { throw 'Installer verification failed' }
-          ./scripts/Build-ServerInstaller.ps1
-          if ($LASTEXITCODE -ne 0) { throw 'Server installer build failed' }
-          ./tests/server-installer.ps1
-          if ($LASTEXITCODE -ne 0) { throw 'Server installer verification failed' }
-          ./tests/server-installer.ps1 -ShortcutOnly
-          if ($LASTEXITCODE -ne 0) { throw 'Administrator-only installer verification failed' }
   android:
     runs-on: windows-latest
     timeout-minutes: 35
@@ -98,9 +56,9 @@ jobs:
         run: |
           dotnet build src/SchoolMessenger.Server -p:RestoreLockedMode=true --nologo
           dotnet build src/SchoolMessenger.AnnouncementServer -p:RestoreLockedMode=true --nologo
-      - name: Verify native iPhone simulator
+      - name: Mobile verification native iPhone simulator
         run: node tests/ios-simulator.mjs
-      - name: Verify Release build and transport settings
+      - name: Mobile verification Release build and transport settings
         run: |
           runtime=iossimulator-x64
           [[ "$(uname -m)" != arm64 ]] || runtime=iossimulator-arm64
@@ -129,6 +87,7 @@ jobs:
           bundle = Path('src/SchoolMessenger.Mobile/bin/Release/net10.0-ios') / sys.argv[1] / 'SchoolMessenger.Mobile.app'
           info = plistlib.loads((bundle / 'Info.plist').read_bytes())
           assert info['CFBundleIdentifier'] == 'kr.school.yeoyang.' + sys.argv[2].lower()
+          assert info['CFBundleDisplayName'] == ('학교톡' if sys.argv[2] == 'Family' else '교무톡')
           assert info['CFBundleShortVersionString'] == '1.0.0'
           assert info['CFBundleVersion'] == '2'
           assert not info.get('NSAppTransportSecurity', {}).get('NSAllowsArbitraryLoads', False)
