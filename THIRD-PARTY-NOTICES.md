@@ -7,3 +7,9 @@
 - 프로젝트 외부 도구·서비스·참고 자료의 이용 조건은 해당 제공자의 조건을 따릅니다. MIT 라이선스가 그 자료의 권리나 서비스 이용 권한을 대신하지 않습니다.
 
 각 학교의 학생·교직원 자료, DB, 비밀키, 개별 운영 설정과 보안 검토 문서는 공개 소스 배포 대상이 아닙니다.
+
+## PC 자동 업데이트
+
+Windows는 WinSparkle 0.9.4(MIT)를 사용합니다. 배포본의 `licenses/WinSparkle`에 원문 고지를 포함합니다. https://github.com/vslavik/winsparkle
+
+Mac은 Sparkle 2.10.1을 사용합니다. 원문 및 포함된 구성요소의 고지는 `licenses/Sparkle-LICENSE.txt`와 앱의 `Contents/Resources/licenses/Sparkle-LICENSE.txt`에 포함합니다. https://github.com/sparkle-project/Sparkle

@@ -1,4 +1,6 @@
 .tools/
+**/__pycache__/
+sites/gyomutalk-downloads/
 **/bin/
 **/obj/
 data/

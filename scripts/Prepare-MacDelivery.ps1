@@ -12,17 +12,18 @@ if($report.ok -ne $true -or @($report.passed).Count -lt 1){throw 'Mac native ver
 $files=@()
 foreach($architecture in @('arm64','x64')){
     $name="yymessenger-$version-macos-$architecture-trial.zip"
-    $source=Join-Path $BuildDirectory $name
+    $source=Join-Path $BuildDirectory "gyomutalk-mac-$version-macos-$architecture.zip"
+    if(-not (Test-Path -LiteralPath $source)){$source=Join-Path $BuildDirectory $name}
     $expected=((Get-Content -LiteralPath ($source+'.sha256') -Raw).Trim() -split '\s+')[0]
     $hash=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
     if($expected -notmatch '^[0-9a-fA-F]{64}$' -or $hash -ne $expected.ToLowerInvariant()){throw "Mac build checksum mismatch: $name"}
-    $files+=[pscustomobject]@{file=$name;architecture=$architecture;bytes=(Get-Item -LiteralPath $source).Length;sha256=$hash}
+    $files+=[pscustomobject]@{file=$name;sourceFile=(Split-Path $source -Leaf);architecture=$architecture;bytes=(Get-Item -LiteralPath $source).Length;sha256=$hash}
 }
 $destination=Join-Path $projectRoot '01_설치파일\05_Mac'
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
 foreach($file in $files){
     $target=Join-Path $destination $file.file
-    Copy-Item -LiteralPath (Join-Path $BuildDirectory $file.file) -Destination $target -Force
+    Copy-Item -LiteralPath (Join-Path $BuildDirectory $file.sourceFile) -Destination $target -Force
     if((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.sha256){throw 'Mac delivery copy mismatch'}
 }
 $manifest=[pscustomobject]@{version=$version;preparedAt=[DateTimeOffset]::UtcNow.ToString('o');configuration='Release';signing='AdHoc';notarized=$false;releasePublished=$false;sourceHead=$SourceHead;verificationRun=$VerificationRun;nativeChecks=@($report.passed).Count;files=$files}
