@@ -64,7 +64,11 @@ public sealed class DeploymentReview
             if(value.Basis is not ("on-premises" or "school-education-41-7" or "private-cloud-41-2"))throw Invalid("review-basis-invalid");
             if(!Countries(value.StorageCountries)||!Countries(value.ManagementCountries))throw Invalid("review-location-unconfirmed");
             if(value.Documents is null||value.Documents.Count>32||value.ExternalServices is null||value.ExternalServices.Length>24)throw Invalid("review-evidence-invalid");
-            var required=new List<string>{"decision","overview","plan","requirements","network","security"};
+            // School education exceptions keep the local decision, applicability and safeguards.
+            // General agency submission documents are required only on the general review paths.
+            var required=value.Basis=="school-education-41-7"
+                ?new List<string>{"decision","security"}
+                :new List<string>{"decision","overview","plan","requirements","network","security"};
             if(value.Basis=="school-education-41-7")
             {
                 if(value.InstitutionType!="education-site")throw Invalid("education-applicability-required");

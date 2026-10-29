@@ -5,6 +5,11 @@ namespace SchoolMessenger.Mobile;
 
 public sealed partial class MessengerPage : ContentPage
 {
+#if FAMILY_APP
+    const string ProductName="학교톡";
+#else
+    const string ProductName="교무톡";
+#endif
     public static MessengerPage? Active{get;private set;}
     static readonly Color Navy=Color.FromArgb("#182C47"),Blue=Color.FromArgb("#245BC6"),Muted=Color.FromArgb("#5A6B82"),Line=Color.FromArgb("#DFE7F1"),Pale=Color.FromArgb("#EAF0FC");
 #if MACCATALYST
@@ -19,7 +24,7 @@ public sealed partial class MessengerPage : ContentPage
     string homeTab="home";
     MessengerApi? api;
     MessengerApi? schoolIdentitySource;
-    string schoolName="교무톡";
+    string schoolName=ProductName;
     bool busy,covered,restored,resuming,preserveComposerOnResume;
     ContentPage? composer;
     bool updateNoticeOpen,updateNoticeOffered;
@@ -28,7 +33,7 @@ public sealed partial class MessengerPage : ContentPage
     bool unread;
     public MessengerPage()
     {
-        MessengerApi.CleanupShares();Active=this;Title="교무톡 · 학교 소식";BackgroundColor=Color.FromArgb("#F3F6FB");
+        MessengerApi.CleanupShares();Active=this;Title=ProductName+" · 학교 소식";BackgroundColor=Color.FromArgb("#F3F6FB");
         NavigationPage.SetHasNavigationBar(this,false);
         var layout=new Grid{RowDefinitions={new(GridLength.Auto),new(GridLength.Star),new(GridLength.Auto)}};
         layout.Add(identityHeader);

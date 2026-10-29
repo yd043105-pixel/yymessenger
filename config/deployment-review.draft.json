@@ -4,7 +4,7 @@
   "school": "",
   "schoolId": "",
   "service": "announcements",
-  "basis": "on-premises",
+  "basis": "school-education-41-7",
   "institutionType": "education-site",
   "reviewAuthority": "",
   "reviewedAt": "2000-01-01T00:00:00+09:00",
@@ -14,10 +14,7 @@
   "managementCountries": [],
   "documents": {
     "decision": {"path": "", "sha256": ""},
-    "overview": {"path": "", "sha256": ""},
-    "plan": {"path": "", "sha256": ""},
-    "requirements": {"path": "", "sha256": ""},
-    "network": {"path": "", "sha256": ""},
+    "education-applicability": {"path": "", "sha256": ""},
     "security": {"path": "", "sha256": ""}
   },
   "externalServices": []

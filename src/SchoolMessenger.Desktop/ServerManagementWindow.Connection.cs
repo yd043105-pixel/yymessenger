@@ -44,7 +44,7 @@ public sealed partial class ServerManagementWindow
                 panel.Children.Add(Label("기록된 외부 연동: "+record.GetProperty("externalServiceCount").GetInt32()+"개"));
             }
             panel.Children.Add(Label("이 화면은 학교가 등록한 기록을 확인한 결과입니다. CSAP 인증·교육청 보안성 검토 승인·법령 전체 준수 여부를 프로그램이 판정한 결과가 아닙니다.",12));
-            panel.Children.Add(Label("학교 운영 전에 제출 자료와 실제 저장 위치·외부 사업자·망 구성을 검토하고, 확정한 문서의 해시와 운영 설정의 securityReviewFile을 등록하세요.",12));
+            panel.Children.Add(Label("교육현장 경로는 학교장 승인·적용 범위 판단·자체 보안대책을 학교에 보관합니다. 해당 사업의 검토 생략 규정을 적용하면 일반기관 제출서류를 일괄 요구하지 않습니다. 확정 문서의 해시와 운영 설정의 securityReviewFile을 등록하고 실제 저장 위치·외부 연동·접속 범위를 확인하세요.",12));
             Dialog("보안 도입 검토 기록",panel).ShowDialog();
         }catch(Exception e){feedback.Text=e.Message;}
     }

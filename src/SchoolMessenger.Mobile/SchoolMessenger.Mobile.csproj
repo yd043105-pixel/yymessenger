@@ -39,12 +39,12 @@
     </PropertyGroup>
     <PropertyGroup Condition="'$(SchoolApp)' == 'Teacher'">
         <ApplicationId>kr.school.yeoyang.teacher</ApplicationId>
-        <ApplicationTitle>교무톡 교사용</ApplicationTitle>
+        <ApplicationTitle>교무톡</ApplicationTitle>
         <DefineConstants>$(DefineConstants);TEACHER_APP</DefineConstants>
     </PropertyGroup>
     <PropertyGroup Condition="'$(SchoolApp)' == 'Family'">
         <ApplicationId>kr.school.yeoyang.family</ApplicationId>
-        <ApplicationTitle>교무톡 학교소식</ApplicationTitle>
+        <ApplicationTitle>학교톡</ApplicationTitle>
         <DefineConstants>$(DefineConstants);FAMILY_APP</DefineConstants>
     </PropertyGroup>
     <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'iossimulator-arm64' Or '$(RuntimeIdentifier)' == 'iossimulator-x64'">

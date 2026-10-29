@@ -7,7 +7,7 @@
   "service": "announcements",
   "executable": "C:\\SchoolMessenger\\announcement-server\\SchoolMessenger.AnnouncementServer.exe",
   "dataDirectory": "C:\\SchoolMessengerData\\announcements",
-  "backupDirectory": "E:\\YeoyangBackup\\announcements",
+  "backupDirectory": "E:\\SchoolMessengerBackup\\announcements",
   "certificateThumbprint": "REPLACE_WITH_VALID_CERTIFICATE_THUMBPRINT",
   "publicHost": "apps.example.invalid",
   "allowedNetworks": "",

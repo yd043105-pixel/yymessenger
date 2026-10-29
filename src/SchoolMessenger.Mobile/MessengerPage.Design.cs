@@ -17,7 +17,7 @@ public sealed partial class MessengerPage
         var name=new VerticalStackLayout{Spacing=2,VerticalOptions=LayoutOptions.Center};
         var school=Text(schoolName,17,true);school.MaxLines=1;school.LineBreakMode=LineBreakMode.TailTruncation;name.Add(school);var caption=Text(subtitle,11);caption.TextColor=Muted;name.Add(caption);
         var grid=new Grid{ColumnDefinitions={new(GridLength.Auto),new(GridLength.Star),new(GridLength.Auto)},ColumnSpacing=9,MinimumHeightRequest=48};
-        var logo=new Image{Source="brand_mark.png",WidthRequest=32,HeightRequest=32};SemanticProperties.SetDescription(logo,"교무톡");grid.Add(logo);
+        var logo=new Image{Source="brand_mark.png",WidthRequest=32,HeightRequest=32};SemanticProperties.SetDescription(logo,ProductName);grid.Add(logo);
         grid.Add(name,1);
         if(signedIn)
         {
@@ -54,7 +54,7 @@ public sealed partial class MessengerPage
     void Login()
     {
         ResetDesktopView();
-        StopPhonePresence();schoolName="교무톡";schoolIdentitySource=null;Title="교무톡 · 학교 앱";homeTab="home";tabs.IsVisible=false;updateNoticeOffered=false;
+        StopPhonePresence();schoolName=ProductName;schoolIdentitySource=null;Title=ProductName+" · 학교 앱";homeTab="home";tabs.IsVisible=false;updateNoticeOffered=false;
 #if TEACHER_APP
         Header("교직원을 위한 우리 학교 공간","온라인 교무실");
 #else

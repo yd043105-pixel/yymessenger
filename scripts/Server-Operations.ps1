@@ -218,10 +218,10 @@ function Send-OperationsAlert($Config,$Secrets,[string]$Signature,[switch]$Test)
     if(-not(Test-OperationsDeploymentReview $Config)){throw '장애 메일의 수신처와 외부 서비스에 대한 학교 보안 검토를 먼저 확인하세요.'}
     $service=if($Config.service -eq 'office'){'교내 업무 서버'}else{'학교 소식 서버'}
     $message=[Net.Mail.MailMessage]::new($Config.alerts.sender,$Config.alerts.recipient)
-    $message.Subject=if($Signature -eq 'ok'){'여양고 서버 정상 복구'}else{'여양고 서버 점검 필요'}
+    $message.Subject=if($Signature -eq 'ok'){'교무톡 서버 정상 복구'}else{'교무톡 서버 점검 필요'}
     $message.Body=$service+"`r`n"+(Get-OperationsAlertText $Signature)+"`r`n확인 시각(한국): "+[TimeZoneInfo]::ConvertTimeBySystemTimeZoneId([DateTimeOffset]::UtcNow,'Korea Standard Time').ToString('yyyy-MM-dd HH:mm:ss')
     $message.BodyEncoding=[Text.Encoding]::UTF8;$message.SubjectEncoding=[Text.Encoding]::UTF8
-    if($Test){$message.Subject='여양고 서버 알림 수신 시험';$message.Body='이 메일은 알림 수신 확인용입니다. 실제 서버의 정상 작동을 확인한 결과는 아닙니다.'}
+    if($Test){$message.Subject='교무톡 서버 알림 수신 시험';$message.Body='이 메일은 알림 수신 확인용입니다. 실제 서버의 정상 작동을 확인한 결과는 아닙니다.'}
     $client=[Net.Mail.SmtpClient]::new($Config.alerts.smtpHost,$Config.alerts.smtpPort)
     $client.EnableSsl=$true;$client.Timeout=10000;$client.UseDefaultCredentials=$false;$client.Credentials=$Secrets.smtpCredential.GetNetworkCredential()
     [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12

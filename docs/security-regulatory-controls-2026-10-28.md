@@ -58,13 +58,13 @@
 | reviewedAt / expiresAt | 실제 검토일과 학교가 정한 재확인 기한. 법령이 일률적으로 정한 유효기간이라고 설명하지 않음 |
 | listenUrls | 실제 수신 주소 전체. https://0.0.0.0:8443 같은 명시적 주소를 사용하고 설정과 일치시킴 |
 | storageCountries / managementCountries | 확인한 국가의 두 자리 대문자 코드. 미확인 값을 KR로 쓰지 않음 |
-| documents | decision·overview·plan·requirements·network·security 각각의 path·sha256 |
+| documents | 일반 경로: decision·overview·plan·requirements·network·security. 교육현장 경로: decision·education-applicability·security의 path·sha256 |
 | externalServices | 실제 연동의 purpose·host·port·recipient·provider·kind·processingCountries·evidenceId |
 
 | basis | 추가 조건 |
 | --- | --- |
 | on-premises | 자체 서버 검토. 제3자 클라우드를 이 경로로 숨길 수 없음 |
-| school-education-41-7 | 교육현장 적용 범위의 판단 기록 education-applicability 필요. 업무 전체에 대한 면제를 자동 인정하지 않음 |
+| school-education-41-7 | 학교장 승인 decision, 교육현장 적용 범위 판단 education-applicability, 자체 보안대책 security를 기록한다. 해당 사업의 검토 생략을 적용하면 일반기관 제출 문서·CSAP 증빙을 일괄 요구하지 않는다. 업무 전체에 대한 면제를 자동 인정하지 않음 |
 | private-cloud-41-2 | 국내 저장·관리·연동 처리 선언, domestic-location·public-separation·provider-eligibility·cloud-contract·csap-consideration·national-guidelines 증빙 필요 |
 
 외부 연동 purpose는 tunnel(외부 중계), school-bridge(학교 소식 서버), error-mail(오류 메일), operations-mail(장애 메일), neis(해당 기능을 실제 도입할 때)다. host에는 프로토콜·경로를 제외한 정확한 호스트를, 메일 recipient에는 실제 검토된 주소를 입력한다. kind는 school-owned·third-party-cloud·public-data 중 실제 운영에 맞는 값을 사용한다. 증빙 목록과 연결하는 evidenceId도 필요하다. 단말 간 원격지원·개발 도구·앱 스토어 등 JSON 검사의 직접 대상이 아닌 흐름도 제출 자료에서 누락하지 않는다.

@@ -20,16 +20,17 @@ public sealed partial class ServerManagementWindow
             var panel=new StackPanel{Margin=new Thickness(22)};var dialog=Dialog("학교 등록 신청 · 개발자 승인",panel);
             panel.Children.Add(Label(name+" · "+id,18));
             TextBox Field(string title,string value,int length){panel.Children.Add(Label(title,12));var field=new TextBox{Text=value,MaxLength=length,Margin=new Thickness(0,4,0,10)};panel.Children.Add(field);return field;}
-            var region=Field("지역 · 예: 전남 여수","",80);var phone=Field("학교 홈페이지에 공개된 대표전화 · 개인 휴대전화 제외","",24);
+            var region=Field("지역 · 시도·시군구","",80);var phone=Field("학교 홈페이지에 공개된 대표전화 · 개인 휴대전화 제외","",24);
             var office=Field("교직원용 HTTPS 주소 · 미도입 시 비워 둠",service=="office"&&!api.Address.IsLoopback?api.Address.AbsoluteUri:"",240);
             var portal=Field("학생·학부모용 HTTPS 주소 · 미도입 시 비워 둠",service=="announcements"&&!api.Address.IsLoopback?api.Address.AbsoluteUri:"",240);
             panel.Children.Add(Label("학교명·지역·학교 식별자·역할별 주소는 승인 후 공개 검색 목록에 표시됩니다. 대표전화는 학교 확인에만 사용하며 공개 목록에 포함하지 않습니다. 비밀번호·명부·보안 검토 증빙을 첨부하지 마세요.",12));
-            var agree=new CheckBox{Content="학교의 도입 의사와 위 공개 범위를 확인했습니다.",Margin=new Thickness(0,12,0,12)};panel.Children.Add(agree);
+            panel.Children.Add(Label("학교 자체 서버로 운영하며 학교 검색은 승인된 접속 주소를 안내합니다. 도입·운영 내부결재 승인 문서(문서번호·결재일·승인 범위)를 학교에 보관하세요. 학교장 결재가 필요한 학운위 심의·보안 검토를 대신하지 않습니다. 원본 승인 문서는 신청 메일이나 공개 저장소에 첨부하지 마세요.",12));
+            var agree=new CheckBox{Content="학교의 내부결재 승인 문서 보관 및 필요한 심의·검토와 위 공개 범위를 확인했습니다.",Margin=new Thickness(0,12,0,12)};panel.Children.Add(agree);
             var save=new Button{Content="신청서 저장 후 메일 작성",HorizontalAlignment=HorizontalAlignment.Left};panel.Children.Add(save);
             var state=Label("신청서 작성 → 학교에서 메일 발송 → 개발자 확인·승인 → 학교 검색에 공개",12);panel.Children.Add(state);
             save.Click+=async(_,_)=>
             {
-                if(agree.IsChecked!=true){state.Text="학교의 도입 의사와 공개 범위를 확인해 주세요.";return;}
+                if(agree.IsChecked!=true){state.Text="내부결재 승인 문서 보관·필요한 심의와 검토·공개 범위를 먼저 확인해 주세요.";return;}
                 save.IsEnabled=false;
                 try
                 {

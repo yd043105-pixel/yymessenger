@@ -40,6 +40,11 @@ for(const [project,service]of [['Server','office'],['AnnouncementServer','announ
  probe('private-cloud domestic-location condition is enforced',r=>{r.basis='private-cloud-41-2';r.storageCountries=['US'];},{},'domestic-location-required');
  probe('education exception needs an applicability record',r=>r.basis='school-education-41-7',{},'review-document-missing');
  probe('exception is limited to the recorded education context',r=>{r.basis='school-education-41-7';r.institutionType='school-administration';},{},'education-applicability-required');
+ const schoolException=r=>{r.basis='school-education-41-7';r.documents={'decision':r.documents.decision,'security':r.documents.security,'education-applicability':r.documents.decision};};
+ probe('school education accepts local approval, applicability and safeguards without general agency submissions',schoolException);
+ probe('school education still requires the school decision',r=>{schoolException(r);delete r.documents.decision;},{},'review-document-missing');
+ probe('school education still requires local security measures',r=>{schoolException(r);delete r.documents.security;},{},'review-document-missing');
+ probe('school education cannot bypass evidence integrity',r=>{schoolException(r);r.documents['education-applicability'].sha256='0'.repeat(64);},{},'review-evidence-changed');
  const mail=(r,purpose='error-mail')=>{r.basis='school-education-41-7';r.documents['education-applicability']=r.documents.decision;r.externalServices=[{purpose,host:'smtp.gmail.com',port:587,recipient:'synthetic@example.invalid',provider:'Synthetic cloud test',kind:'third-party-cloud',processingCountries:['US'],evidenceId:'security'}];};
  probe('cloud processing cannot be hidden under an on-premises basis',r=>{mail(r);r.basis='on-premises';},{},'cloud-review-basis-required');
  probe('reviewed cloud connection is only a record check',r=>mail(r));

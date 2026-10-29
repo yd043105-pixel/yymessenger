@@ -119,38 +119,16 @@ try {
     New-Item -ItemType Directory -Force -Path (Join-Path $packageDirectory 'scripts') | Out-Null
     Copy-Item -LiteralPath 'scripts\Start-Server.ps1','scripts\Start-AnnouncementServer.ps1','scripts\Configure-RemoteFirewall.ps1' -Destination (Join-Path $packageDirectory 'scripts')
     Copy-Item -LiteralPath 'scripts\Server-Operations.ps1','scripts\Configure-ServerOperations.ps1','scripts\Inspect-ServerComputer.ps1','scripts\Stage-ServerUpdate.ps1' -Destination (Join-Path $packageDirectory 'scripts')
-    Copy-Item -LiteralPath 'README.md','LICENSE','THIRD-PARTY-NOTICES.md','installer\launchers\시작-로컬체험.cmd','installer\launchers\시작-교사용.cmd' -Destination $packageDirectory
+    Copy-Item -LiteralPath 'LICENSE','THIRD-PARTY-NOTICES.md','installer\launchers\시작-로컬체험.cmd','installer\launchers\시작-교사용.cmd' -Destination $packageDirectory
     $packageDocs = Join-Path $packageDirectory 'docs'
     New-Item -ItemType Directory -Force -Path $packageDocs | Out-Null
-    Copy-Item -Path 'docs\security-audit-*.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\web-tasks-design.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\server-setup-school-tunnel.md','docs\server-administration.md','docs\server-administration-verification-2026-10-14.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\server-connection-and-autostart.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\mobile-announcements-design.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\mobile-operations.md','docs\ui-design-presence.md','docs\frontend-figma-2026-10-27.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\platform-deployment-guide.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\beginner-setup-guide.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\installation-and-test-order.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\final-test-runbook.md','docs\final-review-2026-10-24.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\server-installer.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\operation-order.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\school-directory.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\self-hosting.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\security-checklist-2026-10-24.md','docs\committee-security-evidence-2026-10-24.md','docs\security-incident-response.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\security-regulatory-controls-2026-10-28.md','docs\security-review-submission.draft.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\edzip-registration-guide.md','docs\edzip-checklist.draft.md','docs\privacy-policy.draft.md','docs\privacy-rights-operations.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\server-installer-verification-2026-10-24.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\elective-registration.md','docs\elective-registration-design.md','docs\elective-registration-verification-2026-10-20.md' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\public\00_먼저읽기.md' -Destination (Join-Path $packageDirectory 'README.md')
+    # Public packages contain curated user manuals, not historical school-specific reports.
+    Get-ChildItem -LiteralPath 'docs\public' -File -Filter '*.md' | Copy-Item -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\public\installer-note.txt' -Destination (Join-Path $packageDocs 'server-installer.md')
+    Copy-Item -LiteralPath 'docs\public\학교도입_내부기안_작성양식.txt' -Destination $packageDocs
+    Copy-Item -LiteralPath 'docs\public\교육현장_운영고지.txt' -Destination $packageDocs
     Copy-Item -LiteralPath 'docs\policies' -Destination $packageDocs -Recurse -Force
-    Copy-Item -LiteralPath 'docs\daily-maintenance.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\feedback-email.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\home-letter-images.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\counseling-integration.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\school-day-and-administration.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\family-registration.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\teacher-office-operations.md','docs\teacher-office-review-2026-10-13.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\registration-policy-operations.md','docs\app-operation-guide.md','docs\committee-readiness.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\backend' -Destination $packageDocs -Recurse -Force
     $packageConfig=Join-Path $packageDirectory 'config'
     New-Item -ItemType Directory -Path $packageConfig -Force | Out-Null
     Copy-Item -LiteralPath 'config\registration-policy.draft.json' -Destination $packageConfig
@@ -158,9 +136,6 @@ try {
     Copy-Item -LiteralPath 'config\server-operations.example.json','config\cloudflared.example.yml' -Destination $packageConfig
     & (Join-Path $PSScriptRoot 'Test-DeploymentReviewPackage.ps1') -PackageDirectory $packageDirectory
     & (Join-Path $projectRoot 'tests\deployment-review-operations.ps1') -PackageDirectory $packageDirectory
-    Copy-Item -LiteralPath 'docs\ios-operations.md','docs\ios-verification.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\releases.md' -Destination $packageDocs
-    Copy-Item -LiteralPath 'docs\timetable-import-design.md','docs\timetable-operations.md' -Destination $packageDocs
     Set-Content -LiteralPath (Join-Path $packageDirectory 'VERSION.txt') -Value $Version -Encoding ASCII
     $privateFiles = Get-ChildItem -LiteralPath $packageDirectory -Recurse -File | Where-Object { $_.Name -match '(?i)(\.db($|-)|\.sqlite3?($|-)|\.dpapi$|\.pfx$|\.pem$|\.key$|^login\.dat$|^\.env|^appsettings\.Production\.json$|^server-operations\.secrets\.xml$|^server-operations.*\.local\.json$|^preferences\.json$|^school-request-|^school-registration-decision-|^draft.*\.json$)' }
     if ($privateFiles) { throw '배포 폴더에 데이터 또는 비밀 파일이 있습니다. 압축을 중단합니다.' }
