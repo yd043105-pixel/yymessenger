@@ -60,14 +60,18 @@
 	<ItemGroup>
 		<AndroidResource Include="Platforms/Android/Resources/xml/network_security_config.xml" Condition="'$(Configuration)' == 'Debug'" />
 		<!-- App Icon -->
-		<MauiIcon Include="../SchoolMessenger.Shared/Branding/appicon.svg" ForegroundFile="../SchoolMessenger.Shared/Branding/appiconfg.svg" Color="#245BC6" />
+		<!-- 교무톡 is blue; 학교톡 (Family) uses the green set with the same file names so platform references stay appicon. -->
+		<MauiIcon Condition="'$(SchoolApp)' != 'Family'" Include="../SchoolMessenger.Shared/Branding/appicon.svg" ForegroundFile="../SchoolMessenger.Shared/Branding/appiconfg.svg" Color="#245BC6" />
+		<MauiIcon Condition="'$(SchoolApp)' == 'Family'" Include="../SchoolMessenger.Shared/Branding/school/appicon.svg" ForegroundFile="../SchoolMessenger.Shared/Branding/school/appiconfg.svg" Color="#17745D" />
 
 		<!-- Splash Screen -->
-		<MauiSplashScreen Include="../SchoolMessenger.Shared/Branding/appiconfg.svg" Color="#245BC6" BaseSize="128,128" />
+		<MauiSplashScreen Condition="'$(SchoolApp)' != 'Family'" Include="../SchoolMessenger.Shared/Branding/appiconfg.svg" Color="#245BC6" BaseSize="128,128" />
+		<MauiSplashScreen Condition="'$(SchoolApp)' == 'Family'" Include="../SchoolMessenger.Shared/Branding/school/appiconfg.svg" Color="#17745D" BaseSize="128,128" />
 
 		<!-- Images -->
 		<MauiImage Include="Resources\Images\*" />
-        <MauiImage Include="../SchoolMessenger.Shared/Branding/brand_mark.svg" Link="Resources/Images/brand_mark.svg" BaseSize="128,128" />
+        <MauiImage Condition="'$(SchoolApp)' != 'Family'" Include="../SchoolMessenger.Shared/Branding/brand_mark.svg" Link="Resources/Images/brand_mark.svg" BaseSize="128,128" />
+        <MauiImage Condition="'$(SchoolApp)' == 'Family'" Include="../SchoolMessenger.Shared/Branding/school/brand_mark.svg" Link="Resources/Images/brand_mark.svg" BaseSize="128,128" />
 
 		<!-- Custom Fonts -->
 		<MauiFont Include="Resources\Fonts\*.ttf" />

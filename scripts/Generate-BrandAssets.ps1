@@ -10,7 +10,12 @@ function Render([int]$size){
         $context.PushTransform([Windows.Media.ScaleTransform]::new($size/128.0,$size/128.0))
         foreach($element in $svg.DocumentElement.ChildNodes){
             if($element.LocalName -eq 'rect'){$context.DrawRoundedRectangle((Brush $element.fill),$null,[Windows.Rect]::new(0,0,[double]$element.width,[double]$element.height),[double]$element.rx,[double]$element.rx)}
-            elseif($element.LocalName -eq 'path'){$context.DrawGeometry((Brush $element.fill),$null,[Windows.Media.Geometry]::Parse($element.d))}
+            elseif($element.LocalName -eq 'path'){
+                $fill=if($element.fill -and $element.fill -ne 'none'){Brush $element.fill}else{$null}
+                $pen=$null
+                if($element.stroke){$pen=[Windows.Media.Pen]::new((Brush $element.stroke),[double]$element.'stroke-width');if($element.'stroke-linecap' -eq 'round'){$pen.StartLineCap=$pen.EndLineCap='Round'}}
+                $context.DrawGeometry($fill,$pen,[Windows.Media.Geometry]::Parse($element.d))
+            }
         }
         $context.Pop()
     }finally{$context.Close()}
