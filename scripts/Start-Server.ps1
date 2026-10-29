@@ -35,7 +35,7 @@ if ($LocalTest) {
     $serverUrl = "https://0.0.0.0:$Port"
 }
 Write-Host "서버 시작: $serverUrl"
-Write-Host '종료: Ctrl+C. 관리자 화면: 서버 주소를 브라우저에서 열기.'
+Write-Host '종료: Ctrl+C. 관리자 화면: PC 메신저에서 이 서버 주소로 관리자 계정에 로그인하세요.'
 Push-Location (Split-Path $serverExe)
 try { & $serverExe --urls $serverUrl; if ($LASTEXITCODE -ne 0) { throw "서버 종료 코드: $LASTEXITCODE" } }
 finally { Pop-Location; Remove-Item Env:School__AdminPassword -ErrorAction SilentlyContinue }

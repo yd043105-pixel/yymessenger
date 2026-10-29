@@ -1,5 +1,6 @@
 let session, editing = null;
 const $ = id => document.getElementById(id);
+$('updates').onclick=()=>UpdateNotice.show('office',true);
 const notice = text => { $('notice').textContent = text; };
 async function request(path, method = 'GET', body) {
   const options = { method, credentials: 'same-origin', headers: {} };
@@ -8,7 +9,7 @@ async function request(path, method = 'GET', body) {
   const text = await response.text(); let data;
   try { data = text ? JSON.parse(text) : null; } catch { data = null; }
   if (!response.ok) {
-    if (response.status === 401) { $('dashboard').hidden = true; $('login-panel').hidden = false; $('logout').hidden = true; }
+    if (response.status === 401) { UpdateNotice.reset();$('updates').hidden=true;$('dashboard').hidden = true; $('login-panel').hidden = false; $('logout').hidden = true; }
     throw new Error(data?.error ?? (response.status === 403 ? '관리자 권한이 필요합니다.' : '서버 연결 또는 로그인 상태를 확인하세요.'));
   }
   return data;
@@ -16,11 +17,12 @@ async function request(path, method = 'GET', body) {
 async function run(action) { try { notice(''); await action(); } catch (error) { notice(error.message); } }
 async function initialize() {
   session = await request('session');
-  $('dashboard').hidden = true; $('login-panel').hidden = false; $('logout').hidden = true;
+  UpdateNotice.reset();$('updates').hidden=true;$('dashboard').hidden = true; $('login-panel').hidden = false; $('logout').hidden = true;
   if (!session.user) return;
   if (!session.user.isAdmin) { notice('관리자 계정으로 로그인하세요.'); return; }
   $('login-panel').hidden = true; $('dashboard').hidden = false; $('logout').hidden = false;
   await load();
+  $('updates').hidden=false;void UpdateNotice.show('office');
 }
 async function load() {
   const [users, status, registrations] = await Promise.all([request('admin/users'), request('admin/status'), request('admin/registrations')]);

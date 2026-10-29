@@ -47,9 +47,12 @@ export class RemoteChannel {
     if (this.failure) throw this.failure;
     const id = String(++this.next);
     const result = new Promise((resolve, reject) => this.pending.set(id, { resolve, reject, timer: setTimeout(() => { this.pending.delete(id); reject(new Error('Remote invocation timeout: ' + target)); }, 7000) }));
-    try { await this.client.request(this.path, 'POST', JSON.stringify({ type: 1, invocationId: id, target, arguments: args }) + '\u001e'); }
-    catch (error) { const pending = this.pending.get(id); if (pending) { clearTimeout(pending.timer); pending.reject(error); this.pending.delete(id); } }
-    return result;
+    try {
+      // Observe the completion immediately: polling can reject it before POST finishes.
+      const [, value] = await Promise.all([this.client.request(this.path, 'POST', JSON.stringify({ type: 1, invocationId: id, target, arguments: args }) + '\u001e'), result]);
+      return value;
+    }
+    catch (error) { const pending = this.pending.get(id); if (pending) { clearTimeout(pending.timer); pending.reject(error); this.pending.delete(id); } throw error; }
   }
   async close() { this.closed = true; try { await this.client.request(this.path, 'DELETE', undefined, 202); } catch (error) { if (!this.failure && this.client.user) this.cleanupError = error; } await this.polling; }
 }

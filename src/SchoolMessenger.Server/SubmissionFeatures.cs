@@ -1,3 +1,4 @@
+using SchoolMessenger.Shared;
 using System.IO.Compression;
 using System.Security.Claims;
 using System.Text;
@@ -8,6 +9,7 @@ namespace SchoolMessenger.Server;
 
 public record SubmitFiles(string? ClientId, string[]? AttachmentIds);
 public record Exemption(bool Exempt);
+public record WithdrawSubmission(string? SubmissionId);
 public sealed record SubmissionRequestInfo(string Id, string OwnerId, string Title, string Body, long Deadline, bool Closed);
 public sealed record SubmissionFileInfo(string Id, string Name, long Size, long ExpiresAt, bool Expired);
 public sealed record SubmissionTargetInfo(string Id, string Name, string Department, bool Exempt, string? SubmissionId, long? SubmittedAt, bool Late, List<SubmissionFileInfo> Files);
@@ -18,13 +20,13 @@ public static class SubmissionFeatures
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     public static SubmissionRequestInfo? Find(Store store, string id, string user) => store.Query("""
         SELECT r.MessageId,m.SenderId,m.Title,m.Body,r.Deadline,r.Closed FROM SubmissionRequests r JOIN Messages m ON m.Id=r.MessageId
-        WHERE r.MessageId=$id AND (m.SenderId=$user OR EXISTS(SELECT 1 FROM SubmissionTargets t WHERE t.RequestId=r.MessageId AND t.UserId=$user))
+        WHERE r.MessageId=$id AND NOT EXISTS(SELECT 1 FROM MessageRecalls WHERE MessageId=m.Id) AND (m.SenderId=$user OR EXISTS(SELECT 1 FROM SubmissionTargets t WHERE t.RequestId=r.MessageId AND t.UserId=$user))
         """, r => new SubmissionRequestInfo(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetInt64(4), r.GetBoolean(5)), ("$id", id), ("$user", user)).FirstOrDefault();
     public static List<SubmissionTargetInfo> Targets(Store store, SubmissionRequestInfo request, string user)
     {
         return store.Query("""
             SELECT u.Id,u.Name,u.Department,t.Exempt,
-            (SELECT s.Id FROM Submissions s WHERE s.RequestId=t.RequestId AND s.UserId=t.UserId ORDER BY s.CreatedAt DESC,s.rowid DESC LIMIT 1)
+            (SELECT s.Id FROM Submissions s WHERE s.RequestId=t.RequestId AND s.UserId=t.UserId AND NOT EXISTS(SELECT 1 FROM SubmissionWithdrawals w WHERE w.SubmissionId=s.Id) ORDER BY s.CreatedAt DESC,s.rowid DESC LIMIT 1)
             FROM SubmissionTargets t JOIN Users u ON u.Id=t.UserId WHERE t.RequestId=$id AND ($owner=$user OR t.UserId=$user) ORDER BY u.Name,u.Id
             """, r =>
             {
@@ -39,18 +41,20 @@ public static class SubmissionFeatures
         api.MapGet("/submission-requests", (HttpContext c, int? offset) => store.Query("""
             SELECT r.MessageId,m.Title,u.Name,m.SenderId,r.Deadline,r.Closed,
               (SELECT COUNT(*) FROM SubmissionTargets t WHERE t.RequestId=r.MessageId),
-              (SELECT COUNT(*) FROM SubmissionTargets t WHERE t.RequestId=r.MessageId AND EXISTS(SELECT 1 FROM Submissions s WHERE s.RequestId=t.RequestId AND s.UserId=t.UserId)),
+              (SELECT COUNT(*) FROM SubmissionTargets t WHERE t.RequestId=r.MessageId AND EXISTS(SELECT 1 FROM Submissions s WHERE s.RequestId=t.RequestId AND s.UserId=t.UserId AND NOT EXISTS(SELECT 1 FROM SubmissionWithdrawals w WHERE w.SubmissionId=s.Id))),
               (SELECT COUNT(*) FROM SubmissionTargets t WHERE t.RequestId=r.MessageId AND t.Exempt=1),
-              EXISTS(SELECT 1 FROM Submissions s WHERE s.RequestId=r.MessageId AND s.UserId=$user),
+              EXISTS(SELECT 1 FROM Submissions s WHERE s.RequestId=r.MessageId AND s.UserId=$user AND NOT EXISTS(SELECT 1 FROM SubmissionWithdrawals w WHERE w.SubmissionId=s.Id)),
               EXISTS(SELECT 1 FROM SubmissionTargets t WHERE t.RequestId=r.MessageId AND t.UserId=$user AND t.Exempt=1)
             FROM SubmissionRequests r JOIN Messages m ON m.Id=r.MessageId JOIN Users u ON u.Id=m.SenderId
-            WHERE m.SenderId=$user OR EXISTS(SELECT 1 FROM SubmissionTargets t WHERE t.RequestId=r.MessageId AND t.UserId=$user)
+            WHERE NOT EXISTS(SELECT 1 FROM MessageRecalls WHERE MessageId=m.Id) AND (m.SenderId=$user OR EXISTS(SELECT 1 FROM SubmissionTargets t WHERE t.RequestId=r.MessageId AND t.UserId=$user))
             ORDER BY m.CreatedAt DESC,m.Id LIMIT 100 OFFSET $offset
             """, r => new { id = r.GetString(0), title = r.GetString(1), ownerName = r.GetString(2), ownerId = r.GetString(3), deadline = r.GetInt64(4), closed = r.GetBoolean(5), targetCount = r.GetString(3) == UserId(c) ? r.GetInt32(6) : 1, submittedCount = r.GetString(3) == UserId(c) ? r.GetInt32(7) : r.GetBoolean(9) ? 1 : 0, exemptCount = r.GetString(3) == UserId(c) ? r.GetInt32(8) : r.GetBoolean(10) ? 1 : 0, submitted = r.GetBoolean(9), exempt = r.GetBoolean(10) }, ("$user", UserId(c)), ("$offset", Math.Clamp(offset ?? 0, 0, 1_000_000))));
         api.MapGet("/submission-requests/{id}", IResult (string id, HttpContext c) =>
         {
             var request = Find(store, id, UserId(c));
-            return request is null ? Results.NotFound() : Results.Ok(new { request, targets = Targets(store, request, UserId(c)) });
+            if(request is null)return Results.NotFound();
+            using(var connection=store.Open())using(var tx=connection.BeginTransaction()){if(!MessageRecall.Read(connection,tx,id,UserId(c)))return Results.NotFound();tx.Commit();}
+            return Results.Ok(new { request, targets = Targets(store, request, UserId(c)) });
         });
         api.MapPost("/submission-requests/{id}/submit", async Task<IResult> (string id, SubmitFiles files, HttpContext c, IHubContext<MessageHub> hub) =>
         {
@@ -64,7 +68,14 @@ public static class SubmissionFeatures
             {
                 using (var previous = Store.Command(connection, "SELECT Id,Fingerprint FROM Submissions WHERE RequestId=$id AND UserId=$user AND ClientId=$client", transaction, ("$id", id), ("$user", user), ("$client", files.ClientId)))
                 using (var reader = previous.ExecuteReader())
-                    if (reader.Read()) return reader.GetString(1) == fingerprint ? Results.Ok(new { id = reader.GetString(0), duplicate = true }) : Error("같은 요청 번호의 파일이 다릅니다.", 409);
+                    if (reader.Read())
+                    {
+                        var prior=reader.GetString(0); var same=reader.GetString(1)==fingerprint;
+                        reader.Close();
+                        using var withdrawn=Store.Command(connection,"SELECT 1 FROM SubmissionWithdrawals WHERE SubmissionId=$id",transaction,("$id",prior));
+                        if(withdrawn.ExecuteScalar() is not null)return Error("회수한 제출입니다. 파일을 새로 선택하여 제출하세요.",409);
+                        return same?Results.Ok(new {id=prior,duplicate=true}):Error("같은 요청 번호의 파일이 다릅니다.",409);
+                    }
                 using var state = Store.Command(connection, "SELECT r.Closed+t.Exempt FROM SubmissionRequests r JOIN SubmissionTargets t ON t.RequestId=r.MessageId WHERE r.MessageId=$id AND t.UserId=$user", transaction, ("$id", id), ("$user", user));
                 var blocked = state.ExecuteScalar();
                 if (blocked is null) return Results.NotFound();
@@ -73,7 +84,7 @@ public static class SubmissionFeatures
                 foreach (var attachment in files.AttachmentIds)
                 {
                     if (!Guid.TryParseExact(attachment, "N", out _) || !File.Exists(Path.Combine(store.Files, attachment))) return Error("제출 파일이 없습니다.");
-                    using var check = Store.Command(connection, "SELECT Size FROM Attachments a WHERE Id=$file AND OwnerId=$user AND MessageId IS NULL AND DeletedAt IS NULL AND UploadedAt>$cutoff AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=a.Id)", transaction, ("$file", attachment), ("$user", user), ("$cutoff", Maintenance.Now - 86_400_000));
+                    using var check = Store.Command(connection, "SELECT Size FROM Attachments a WHERE Id=$file AND OwnerId=$user AND MessageId IS NULL AND DeletedAt IS NULL AND UploadedAt>$cutoff AND NOT EXISTS(SELECT 1 FROM SubmissionFiles sf WHERE sf.AttachmentId=a.Id) AND NOT EXISTS(SELECT 1 FROM ScheduledAttachments WHERE AttachmentId=a.Id)", transaction, ("$file", attachment), ("$user", user), ("$cutoff", Maintenance.Now - 86_400_000));
                     var size = check.ExecuteScalar(); if (size is null) return Error("자신이 새로 업로드한 파일만 제출할 수 있습니다."); total += Convert.ToInt64(size);
                 }
                 if (total > 209_715_200) return Error("제출 파일 합계는 200MB 이내입니다.", 413);
@@ -83,12 +94,32 @@ public static class SubmissionFeatures
                 foreach (var attachment in files.AttachmentIds)
                 {
                     using var link = Store.Command(connection, "INSERT INTO SubmissionFiles VALUES($submission,$file)", transaction, ("$submission", submissionId), ("$file", attachment)); link.ExecuteNonQuery();
-                    using var expiry = Store.Command(connection, "UPDATE Attachments SET ExpiresAt=$expires WHERE Id=$file", transaction, ("$expires", now + seconds * 1000L), ("$file", attachment)); expiry.ExecuteNonQuery();
+                    using var expiry = Store.Command(connection, "UPDATE Attachments SET ExpiresAt=MIN(COALESCE(ExpiresAt,UploadedAt+2592000000),$expires) WHERE Id=$file", transaction, ("$expires", now + seconds * 1000L), ("$file", attachment)); expiry.ExecuteNonQuery();
                 }
                 transaction.Commit();
             }
             try { await hub.Clients.Groups(new[] { request.OwnerId, user }).SendAsync("SubmissionChanged", id); } catch { /* Polling reads committed submissions. */ }
             return Results.Ok(new { id = submissionId, duplicate = false });
+        });
+        api.MapPost("/submission-requests/{id}/withdraw", async Task<IResult> (string id, WithdrawSubmission edit, HttpContext c,IHubContext<MessageHub> hub) =>
+        {
+            var user=UserId(c);var request=Find(store,id,user);
+            if(request is null||request.OwnerId==user)return Results.NotFound();
+            using(var connection=store.Open())
+            using(var transaction=connection.BeginTransaction())
+            {
+                using var state=Store.Command(connection,"SELECT r.Closed+t.Exempt FROM SubmissionRequests r JOIN SubmissionTargets t ON t.RequestId=r.MessageId WHERE r.MessageId=$id AND t.UserId=$user",transaction,("$id",id),("$user",user));
+                if(state.ExecuteScalar() is not { } blocked)return Results.NotFound();
+                if(Convert.ToInt32(blocked)!=0)return Error("종료되거나 면제된 요청은 회수할 수 없습니다.",409);
+                using var latest=Store.Command(connection,"SELECT s.Id FROM Submissions s WHERE s.RequestId=$id AND s.UserId=$user ORDER BY s.CreatedAt DESC,s.rowid DESC LIMIT 1",transaction,("$id",id),("$user",user));
+                if(latest.ExecuteScalar() is not string current||current!=edit.SubmissionId)return Error("제출 내용이 변경되었습니다. 새로고침 후 회수하세요.",409);
+                // Mark every previous version, so withdrawing the latest never revives an older file.
+                using var mark=Store.Command(connection,"INSERT OR IGNORE INTO SubmissionWithdrawals SELECT Id,$now FROM Submissions WHERE RequestId=$id AND UserId=$user",transaction,("$now",Maintenance.Now),("$id",id),("$user",user));mark.ExecuteNonQuery();
+                using var erase=Store.Command(connection,"UPDATE Attachments SET ExpiresAt=MIN(ExpiresAt,$now) WHERE Id IN(SELECT sf.AttachmentId FROM SubmissionFiles sf JOIN Submissions s ON s.Id=sf.SubmissionId WHERE s.RequestId=$id AND s.UserId=$user)",transaction,("$now",Maintenance.Now),("$id",id),("$user",user));erase.ExecuteNonQuery();
+                transaction.Commit();
+            }
+            try{await hub.Clients.Groups(new[]{request.OwnerId,user}).SendAsync("SubmissionChanged",id);}catch{/* Polling reads the committed state. */}
+            return Results.Ok();
         });
         api.MapPost("/submission-requests/{id}/close", IResult (string id, HttpContext c) => store.Execute("UPDATE SubmissionRequests SET Closed=1 WHERE MessageId=$id AND EXISTS(SELECT 1 FROM Messages m WHERE m.Id=MessageId AND m.SenderId=$user)", ("$id", id), ("$user", UserId(c))) > 0 ? Results.Ok() : Results.NotFound());
         api.MapPatch("/submission-requests/{id}/targets/{target}", IResult (string id, string target, Exemption edit, HttpContext c) => store.Execute("UPDATE SubmissionTargets SET Exempt=$exempt WHERE RequestId=$id AND UserId=$target AND EXISTS(SELECT 1 FROM Messages m WHERE m.Id=RequestId AND m.SenderId=$user)", ("$exempt", edit.Exempt ? 1 : 0), ("$id", id), ("$target", target), ("$user", UserId(c))) > 0 ? Results.Ok() : Results.NotFound());
@@ -108,6 +139,7 @@ public static class SubmissionFeatures
                 foreach (var file in target.Files)
                 {
                     if (file.Expired || file.ExpiresAt <= Maintenance.Now || !Guid.TryParseExact(file.Id, "N", out _)) { notes.AppendLine($"{target.Name}: {file.Name} — 만료 또는 삭제"); continue; }
+                    using(var verification=store.Open())if(!StoredFiles.Ready(verification,"office",file.Id,Path.Combine(store.Files,file.Id))){notes.AppendLine($"{target.Name}: {file.Name} — 파일 누락 또는 무결성 실패");continue;}
                     FileStream stream;
                     try { stream = new FileStream(Path.Combine(store.Files, file.Id), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 65536, FileOptions.Asynchronous | FileOptions.SequentialScan); }
                     catch (FileNotFoundException) { notes.AppendLine($"{target.Name}: {file.Name} — 파일 없음"); continue; }
@@ -124,7 +156,7 @@ public static class SubmissionFeatures
     static string SafeName(string name) => string.Concat(name.Take(100).Select(c => char.IsControl(c) || "\\/:*?\"<>|".Contains(c) ? '_' : c)).Trim(' ', '.');
 }
 
-public sealed class SubmissionReminders(Store store, IHubContext<MessageHub> hub, IWebHostEnvironment environment, IConfiguration config, ILogger<SubmissionReminders> logger) : BackgroundService
+public sealed class SubmissionReminders(Store store, IWebHostEnvironment environment, IConfiguration config, ILogger<SubmissionReminders> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -134,10 +166,9 @@ public sealed class SubmissionReminders(Store store, IHubContext<MessageHub> hub
             {
                 // A fixed clock is available only in Development for isolated date-boundary/restart tests.
                 var now = environment.IsDevelopment() ? config.GetValue<long?>("School:ReminderNow") ?? Maintenance.Now : Maintenance.Now;
-                foreach (var notification in Process(now))
-                    try { await hub.Clients.Group(notification.User).SendAsync("NewMessage", notification.Message); } catch { /* Offline delivery is durable. */ }
+                Process(now);
             }
-            catch (Exception error) { logger.LogError(error, "Submission reminder processing failed"); }
+            catch (Exception error) { logger.LogError("Submission reminder processing failed ({ErrorCode})",error.GetType().Name); }
             try { await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken); } catch (OperationCanceledException) { break; }
         }
     }
@@ -154,7 +185,7 @@ public sealed class SubmissionReminders(Store store, IHubContext<MessageHub> hub
             SELECT r.MessageId,t.UserId,m.SenderId,m.Title,r.Deadline FROM SubmissionRequests r JOIN Messages m ON m.Id=r.MessageId
             JOIN SubmissionTargets t ON t.RequestId=r.MessageId JOIN Users u ON u.Id=t.UserId JOIN Users owner ON owner.Id=m.SenderId
             WHERE r.Closed=0 AND t.Exempt=0 AND u.Active=1 AND owner.Active=1
-            AND NOT EXISTS(SELECT 1 FROM Submissions s WHERE s.RequestId=r.MessageId AND s.UserId=t.UserId)
+            AND NOT EXISTS(SELECT 1 FROM Submissions s WHERE s.RequestId=r.MessageId AND s.UserId=t.UserId AND NOT EXISTS(SELECT 1 FROM SubmissionWithdrawals w WHERE w.SubmissionId=s.Id))
             AND NOT EXISTS(SELECT 1 FROM SubmissionReminders n WHERE n.RequestId=r.MessageId AND n.UserId=t.UserId AND n.Day=$day)
             """, transaction, ("$day", day.ToString("yyyy-MM-dd"))))
         using (var reader = find.ExecuteReader())
@@ -167,6 +198,7 @@ public sealed class SubmissionReminders(Store store, IHubContext<MessageHub> hub
             using var insert = Store.Command(connection, "INSERT INTO Messages VALUES($id,$owner,$client,'system-reminder',$title,$body,$now)", transaction, ("$id", id), ("$owner", target.Owner), ("$client", "reminder:" + id), ("$title", "[자동 알림] " + target.Title), ("$body", body), ("$now", now)); insert.ExecuteNonQuery();
             using var recipient = Store.Command(connection, "INSERT INTO Recipients(MessageId,UserId) VALUES($id,$user)", transaction, ("$id", id), ("$user", target.User)); recipient.ExecuteNonQuery();
             using var reminder = Store.Command(connection, "INSERT INTO SubmissionReminders VALUES($request,$user,$day,$message)", transaction, ("$request", target.Request), ("$user", target.User), ("$day", day.ToString("yyyy-MM-dd")), ("$message", id)); reminder.ExecuteNonQuery();
+            MessageDelivery.Enqueue(connection,transaction,"message:"+id+":"+target.User,target.User,"NewMessage",id,now);
             delivered.Add((target.User, id));
         }
         transaction.Commit(); return delivered;

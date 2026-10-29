@@ -3,12 +3,11 @@ using Microsoft.Win32;
 
 namespace SchoolMessenger.Desktop;
 
-public sealed class WindowsStartup(string registryPath = @"Software\Microsoft\Windows\CurrentVersion\Run")
+public sealed class WindowsStartup(string registryPath = @"Software\Microsoft\Windows\CurrentVersion\Run",string entryName="YeoyangSchoolMessenger",string? command=null)
 {
-    const string EntryName = "YeoyangSchoolMessenger";
     public bool Enabled
     {
-        get { using var key = Registry.CurrentUser.OpenSubKey(registryPath); return key?.GetValue(EntryName) is string; }
+        get { using var key = Registry.CurrentUser.OpenSubKey(registryPath); return key?.GetValue(entryName) is string value&&value==(command??Command); }
     }
     public static string Command
     {
@@ -23,7 +22,7 @@ public sealed class WindowsStartup(string registryPath = @"Software\Microsoft\Wi
     public void SetEnabled(bool enabled)
     {
         using var key = Registry.CurrentUser.CreateSubKey(registryPath);
-        if (enabled) key.SetValue(EntryName, Command, RegistryValueKind.String);
-        else key.DeleteValue(EntryName, throwOnMissingValue: false);
+        if (enabled) key.SetValue(entryName, command??Command, RegistryValueKind.String);
+        else if(key.GetValue(entryName) is string value&&value== (command??Command))key.DeleteValue(entryName, throwOnMissingValue: false);
     }
 }

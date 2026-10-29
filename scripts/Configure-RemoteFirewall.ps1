@@ -31,7 +31,7 @@ if ($PSCmdlet.ShouldProcess("$clientExecutable / $($RemoteAddresses -join ',')",
     if ($existingRule) {
         $existingRule | Set-NetFirewallRule -Program $clientExecutable -Direction Inbound -Action Allow -Enabled True -Profile Domain,Private -Protocol TCP -LocalPort '49152-65535' -RemoteAddress $RemoteAddresses
     } else {
-        New-NetFirewallRule -Name $ruleName -DisplayName '여양고 교무메신저 PC 직접 원격 지원' -Program $clientExecutable -Direction Inbound -Action Allow -Enabled True -Profile Domain,Private -Protocol TCP -LocalPort '49152-65535' -RemoteAddress $RemoteAddresses | Out-Null
+        New-NetFirewallRule -Name $ruleName -DisplayName '교무톡 PC 직접 원격 지원' -Program $clientExecutable -Direction Inbound -Action Allow -Enabled True -Profile Domain,Private -Protocol TCP -LocalPort '49152-65535' -RemoteAddress $RemoteAddresses | Out-Null
     }
     Write-Host '원격 지원 규칙 적용 완료. 두 교직원 PC 사이의 학교 네트워크 경로도 확인하세요.'
 }

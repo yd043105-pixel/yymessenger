@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import {scheduledChecks} from './scheduled-messages.mjs';
+import {recallChecks} from './message-recall.mjs';
 
 export async function workChecks({Client,admin,password,address,data,check,start,stop,ready}){
  const users=[];
@@ -25,6 +27,20 @@ export async function workChecks({Client,admin,password,address,data,check,start
  await recipient.request('/api/todos','POST',{title:'<img src=x onerror=alert(1)>',dueDate:null,status:'open',revision:0});
  await recipient.request('/api/todos','POST',{title:'잘못된 날짜',dueDate:'2026-02-30',status:'open',revision:0},400);
  check('task cancellation, invalid and ambiguous dates and safe literal user content');
+ const earlier=new Date(now-2*86400000+9*3600000).toISOString().slice(0,10),later=new Date(now+30*86400000+9*3600000).toISOString().slice(0,10);
+ const ordered=[];
+ for(const [title,dueDate] of [['기한 지남',earlier],['오늘',today],['내일',tomorrow],['기한 없음',null],['완료 항목',earlier]])ordered.push((await observer.request('/api/todos','POST',{title,dueDate,status:'open',revision:0})).id);
+ const done=(await observer.request('/api/todos')).find(t=>t.id===ordered[4]);await observer.request('/api/todos/'+done.id,'PATCH',{title:done.title,dueDate:done.dueDate,status:'done',revision:done.revision});
+ const suggested=(await send('내일까지 신청서를 작성해주세요.',{recipientIds:[observer.user.id]})).id;
+ const ranked=await observer.request('/api/todos');assert.deepEqual(ranked.slice(0,4).map(t=>t.id),ordered.slice(0,4));assert.equal(ranked[4].sourceId,suggested);assert.equal(ranked[5].id,done.id);
+ const orderDb=new DatabaseSync(path.join(data,'school.db')),addOrder=orderDb.prepare("INSERT INTO Todos(Id,OwnerId,Evidence,Title,DueDate,Status,CreatedAt,UpdatedAt) VALUES(?,?,'','페이지 정렬 검증',?,'open',?,?)");
+ orderDb.exec('PRAGMA busy_timeout=10000; BEGIN IMMEDIATE');
+ for(let i=0;i<105;i++)addOrder.run(randomUUID().replaceAll('-',''),observer.user.id,later,now+i,now+i);
+ orderDb.exec('COMMIT');orderDb.close();
+ const pages=[...(await observer.request('/api/todos?offset=0')),...(await observer.request('/api/todos?offset=100'))];
+ assert.equal(pages.length,111);assert.equal(new Set(pages.map(t=>t.id)).size,111);assert.deepEqual(pages.slice(0,3).map(t=>t.id),ordered.slice(0,3));assert.equal(pages[108].id,ordered[3]);assert.equal(pages[109].status,'suggested');assert.equal(pages[110].status,'done');
+ check('confirmed work is globally ordered by deadline across pages; undated work, suggestions and completed items follow without duplicates');
+ await scheduledChecks({Client,admin,owner,recipient,observer,data,check,start,stop,ready});
  const deadline=Date.parse(tomorrow+'T23:59:59+09:00');
  const packet={clientId:randomUUID(),title:'점검 자료 제출',body:'점검 자료를 제출해 주세요.',recipientIds:[recipient.user.id,observer.user.id],attachmentIds:[],all:false,submissionDeadline:deadline};
  const request=await owner.request('/api/messages','POST',packet);
@@ -92,4 +108,46 @@ export async function workChecks({Client,admin,password,address,data,check,start
  const page=await fetch(address+'/office/');assert.equal(page.status,200);assert.ok((await page.text()).includes('파일 제출'));
  assert.ok(page.headers.get('content-security-policy').includes("script-src 'self'"));
  check('tasks, submission history and web entry survive restart with existing browser security policy');
+ await recallChecks({owner,recipient,observer,admin,data,address,check,start,stop,ready});
+ const untitledBody='  내일까지 점검표를 제출해 주세요.\n'+'원문 미리보기와 제목 생략을 확인합니다. '.repeat(12);
+ const untitledPacket={clientId:randomUUID(),body:untitledBody,recipientIds:[observer.user.id],attachmentIds:[],all:false};
+ const untitled=await owner.request('/api/messages','POST',untitledPacket);
+ assert.equal((await owner.request('/api/messages','POST',untitledPacket)).id,untitled.id);
+ const untitledDetail=await observer.request('/api/messages/'+untitled.id);
+ assert.equal(untitledDetail.message.body,untitledBody);assert.ok(untitledDetail.message.title.startsWith('내일까지 점검표를 제출해 주세요. '));assert.ok(untitledDetail.message.title.endsWith('…'));assert.ok(untitledDetail.message.title.length<=200);
+ const preview=(await observer.request('/api/messages')).find(m=>m.id===untitled.id).preview;
+ assert.ok(preview.endsWith('…'));assert.ok(!preview.includes('\n'));assert.ok(preview.length<=121);
+ await owner.request('/api/messages','POST',{...untitledPacket,clientId:randomUUID(),body:' \n\t '},400);
+ await owner.request('/api/messages','POST',{...untitledPacket,clientId:randomUUID(),title:' '.repeat(201)},400);
+ const unicode=await owner.request('/api/messages','POST',{...untitledPacket,clientId:randomUUID(),title:'',body:'😀'.repeat(100)+' 한글 본문'});
+ const unicodeTitle=(await observer.request('/api/messages/'+unicode.id)).message.title;assert.equal(unicodeTitle,'😀'.repeat(40)+'…');
+ const explicit=await owner.request('/api/messages','POST',{...untitledPacket,clientId:randomUUID(),title:'직접 작성한 제목'});assert.equal((await observer.request('/api/messages/'+explicit.id)).message.title,'직접 작성한 제목');
+ check('optional and blank message titles fall back to original body excerpts, preserve Unicode and full body, and retry without duplicates');
+ const matching=await observer.request('/api/todos?sourceId='+untitled.id);
+ assert.ok(matching.length>0);assert.ok(matching.every(t=>t.sourceId===untitled.id&&t.status==='suggested'));
+ assert.deepEqual(await recipient.request('/api/todos?sourceId='+untitled.id),[]);assert.deepEqual(await admin.request('/api/todos?sourceId='+untitled.id),[]);
+ assert.deepEqual(await observer.request('/api/todos?sourceId='+encodeURIComponent("' OR 1=1 --")),[]);
+ const declined=matching[0];await observer.request('/api/todos/'+declined.id,'PATCH',{title:declined.title,dueDate:declined.dueDate,status:'dismissed',revision:declined.revision});
+ assert.equal((await observer.request('/api/todos?sourceId='+untitled.id)).find(t=>t.id===declined.id).status,'dismissed');
+ check('message-specific task candidates bypass unrelated task pages, remain owner-only and persist an explicit decline');
+ const reservedPacket={...untitledPacket,clientId:randomUUID(),title:'',scheduledAt:Date.now()+3600000};
+ const reserved=await owner.request('/api/messages','POST',reservedPacket);assert.equal((await owner.request('/api/messages','POST',reservedPacket)).id,reserved.id);
+ assert.ok((await owner.request('/api/messages/scheduled')).find(s=>s.id===reserved.id).title.startsWith('내일까지 점검표'));await owner.request('/api/messages/scheduled/'+reserved.id,'DELETE');
+ check('scheduled messages also accept omitted titles and retain duplicate-request protection');
+ const richBody='내일까지 점검표를 제출해 주세요.\n중요 안내입니다.';
+ const format={runs:[{text:richBody,font:'Malgun Gothic',size:14,bold:true,italic:true,underline:true,strike:false,color:'#245BC6',highlight:'#FFF09A'}]};
+ const richPacket={clientId:randomUUID(),title:'서식 있는 안내',body:richBody,recipientIds:[observer.user.id],attachmentIds:[],all:false,format};
+ const rich=await owner.request('/api/messages','POST',richPacket);assert.equal((await owner.request('/api/messages','POST',richPacket)).id,rich.id);
+ const rendered=(await observer.request('/api/messages/'+rich.id)).message;assert.equal(rendered.body,richBody);assert.deepEqual(rendered.format,format);
+ await recipient.request('/api/messages/'+rich.id,'GET',undefined,404);
+ await owner.request('/api/messages','POST',{...richPacket,format:{runs:[{...format.runs[0],color:'#BA3434'}]}},409);
+ for(const bad of [{runs:[{...format.runs[0],text:'원문 불일치'}]},{runs:[{...format.runs[0],font:'https://example.test/font#evil'}]},{runs:[{...format.runs[0],size:1000}]},{runs:[{...format.runs[0],highlight:'url(javascript:bad)'}]},{runs:Array.from({length:1001},(_,i)=>({text:i===0?richBody:''}))}])
+  await owner.request('/api/messages','POST',{...richPacket,clientId:randomUUID(),format:bad},400);
+ await owner.request('/api/messages','POST',{...richPacket,clientId:randomUUID(),format:{runs:Array.from({length:1001},()=>({...format.runs[0],text:''}))}},413);
+ assert.ok((await observer.request('/api/todos?sourceId='+rich.id)).some(t=>t.title==='점검표 제출'));
+ const richQueuePacket={...richPacket,clientId:randomUUID(),scheduledAt:Date.now()+3600000};const richQueue=await owner.request('/api/messages','POST',richQueuePacket);
+ const forceRich=new DatabaseSync(path.join(data,'school.db'));forceRich.prepare('UPDATE ScheduledMessages SET DeliverAt=? WHERE Id=?').run(Date.now()-1,richQueue.id);forceRich.close();
+ let richDelivery;for(let i=0;i<100;i++){richDelivery=(await owner.request('/api/messages/scheduled')).find(s=>s.id===richQueue.id);if(richDelivery.state==='delivered')break;await new Promise(r=>setTimeout(r,100));}
+ assert.equal(richDelivery.state,'delivered');assert.deepEqual((await observer.request('/api/messages/'+richDelivery.messageId)).message.format,format);
+ check('styled message runs survive delivery and scheduled sending; changed-format retries, foreign access, remote fonts, invalid colors, excessive size/runs and body mismatches are rejected');
 }
