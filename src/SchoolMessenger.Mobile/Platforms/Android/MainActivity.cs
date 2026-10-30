@@ -11,6 +11,8 @@ public class MainActivity : MauiAppCompatActivity
     {
         base.OnCreate(savedInstanceState);
         Window?.SetFlags(Android.Views.WindowManagerFlags.Secure,Android.Views.WindowManagerFlags.Secure);
+        // A white status bar with dark icons matches the white navigation bar, so screens do not switch between navy and white tops.
+        if(Window is{} window){window.SetStatusBarColor(Android.Graphics.Color.White);AndroidX.Core.View.WindowCompat.GetInsetsController(window,window.DecorView).AppearanceLightStatusBars=true;}
         OnBackPressedDispatcher.AddCallback(this,new NativeBackNavigation(this));
     }
     sealed class NativeBackNavigation(MainActivity activity):AndroidX.Activity.OnBackPressedCallback(true)
