@@ -57,6 +57,7 @@ public sealed partial class MessengerPage : ContentPage
                 api=source;source.Invalidated+=()=>{if(api==source)Invalidate();};await source.Refresh();
                 if(source.Session.GetProperty("user").ValueKind!=JsonValueKind.Null)await Home();
             }));
+            await Run(GuardianLinkShown);
             return;
         }
         if(api is {Session.ValueKind:JsonValueKind.Object} source&&source.Session.GetProperty("user").ValueKind!=JsonValueKind.Null&&!covered)

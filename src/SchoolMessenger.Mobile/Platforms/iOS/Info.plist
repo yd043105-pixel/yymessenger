@@ -14,6 +14,17 @@
     <string>사용자가 선택한 이미지 첨부파일을 사진 앱에 저장할 때 사용합니다.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>사용자가 이미지 첨부파일의 사진 앱 저장·공유를 선택할 때 사용합니다.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>guardian-invite</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>schooltalk</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIDeviceFamily</key>

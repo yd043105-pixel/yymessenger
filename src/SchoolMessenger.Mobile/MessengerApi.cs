@@ -173,7 +173,8 @@ internal record MobileCookie(string Name,string Value,DateTime Expires);
 internal record MobileLogin(string Username,string Password,bool RememberLogin);
 internal record MobilePasswordChange(string CurrentPassword,string NewPassword);
 internal record MobileRegistration(string? Code,string? Username,string? Password,RegistrationAcceptance? Agreement=null);
-internal record MobileSignup(string? Name,string? Username,string? Password,string Role,string? ClassId,int? StudentNumber,RegistrationAcceptance? Agreement=null);
+internal record MobileSignup(string? Name,string? Username,string? Password,string Role,string? ClassId,int? StudentNumber,RegistrationAcceptance? Agreement=null,string? GuardianInvite=null);
+internal record MobileGuardianInvite(string Address,string? Pin);
 internal record MobileFamilyCode(string? Code);
 internal record MobileEmpty;
 [JsonSourceGenerationOptions(PropertyNamingPolicy=JsonKnownNamingPolicy.CamelCase)]
@@ -183,6 +184,7 @@ internal record MobileEmpty;
 [JsonSerializable(typeof(MobileRegistration))]
 [JsonSerializable(typeof(MobileSignup))]
 [JsonSerializable(typeof(MobileFamilyCode))]
+[JsonSerializable(typeof(MobileGuardianInvite))]
 [JsonSerializable(typeof(MobileEmpty))]
 [JsonSerializable(typeof(AnnouncementRequest))]
 [JsonSerializable(typeof(StaffActivation))]

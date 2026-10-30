@@ -31,6 +31,11 @@ public static class CertificatePins
             pending[Key(address)]=fingerprint;return false;
         }
     }
+    public static string? Pinned(string address)
+    {
+        if(Parse(address) is not {} uri)return null;
+        var pinned=Preferences.Default.Get(Store(Key(uri)),"");return pinned.Length>0?pinned:null;
+    }
     public static string? Pending(string address)
     {
         if(Parse(address) is not {} uri)return null;
