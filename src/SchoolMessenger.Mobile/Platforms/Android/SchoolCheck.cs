@@ -56,7 +56,10 @@ public static class SchoolCheck
             ((Android.App.NotificationManager)context.GetSystemService(Context.NotificationService)!).CreateNotificationChannel(new Android.App.NotificationChannel(Channel,"학교 소식",Android.App.NotificationImportance.Default));
         var open=context.PackageManager!.GetLaunchIntentForPackage(context.PackageName!)!;
         var tap=Android.App.PendingIntent.GetActivity(context,id,open,Android.App.PendingIntentFlags.Immutable|Android.App.PendingIntentFlags.UpdateCurrent);
-        var notification=new NotificationCompat.Builder(context,Channel).SetSmallIcon(context.ApplicationInfo!.Icon).SetContentTitle(title).SetContentText(text).SetContentIntent(tap).SetAutoCancel(true).Build();
+        // On a locked screen only "새 소식이 있습니다" shows; notice titles can name students or classes.
+        var hidden=new NotificationCompat.Builder(context,Channel).SetSmallIcon(context.ApplicationInfo!.Icon).SetContentTitle("학교톡").SetContentText("새 소식이 있습니다.").Build();
+        var notification=new NotificationCompat.Builder(context,Channel).SetSmallIcon(context.ApplicationInfo!.Icon).SetContentTitle(title).SetContentText(text).SetContentIntent(tap).SetAutoCancel(true)
+            .SetVisibility(NotificationCompat.VisibilityPrivate).SetPublicVersion(hidden).Build();
         manager.Notify(id,notification);
     }
 }

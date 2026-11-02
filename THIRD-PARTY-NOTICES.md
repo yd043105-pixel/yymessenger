@@ -13,3 +13,9 @@
 Windows는 WinSparkle 0.9.4(MIT)를 사용합니다. 배포본의 `licenses/WinSparkle`에 원문 고지를 포함합니다. https://github.com/vslavik/winsparkle
 
 Mac은 Sparkle 2.10.1을 사용합니다. 원문 및 포함된 구성요소의 고지는 `licenses/Sparkle-LICENSE.txt`와 앱의 `Contents/Resources/licenses/Sparkle-LICENSE.txt`에 포함합니다. https://github.com/sparkle-project/Sparkle
+
+## Android 학교 QR 스캔·하루 한 번 소식 확인
+
+- ZXing.Net.Maui 0.10.4 — MIT license. https://github.com/Redth/ZXing.Net.Maui
+- ZXing.Net — Apache License 2.0. https://github.com/micjahn/ZXing.Net
+- AndroidX WorkManager, Core, Lifecycle, CameraX (Xamarin.AndroidX 바인딩) — Apache License 2.0. https://developer.android.com/jetpack/androidx
