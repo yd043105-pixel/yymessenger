@@ -1,3 +1,5 @@
+using SchoolMessenger.Shared;
+
 namespace SchoolMessenger.Mobile;
 
 public sealed partial class MessengerPage
@@ -13,6 +15,14 @@ public sealed partial class MessengerPage
         if(!await owner.DisplayAlertAsync("학교 서버 확인","이 학교 서버에 처음 연결합니다.\n\n연결 확인 코드: "+CertificatePins.Code(fingerprint)+"\n\n서버 PC의 관리자 프로그램(또는 학교 관리자 안내)에 표시된 코드와 똑같을 때만 '예'를 누르세요. 다르면 '아니요'를 누르고 관리자에게 알려 주세요.","예","아니요"))
             throw new InvalidOperationException(CertificateRefused);
         CertificatePins.Trust(address,fingerprint);await action();
+    }
+    // The school list only confirms the address: a server stating another school (same name elsewhere) is refused
+    // before anything is sent. Older servers that do not state an address are not judged.
+    static async Task CheckSchool(string address,bool office,SchoolEntry? chosen)
+    {
+        if(chosen is null)return;
+        using var probe=new MessengerApi(address,office);var info=await probe.Get("server-info");
+        if(SchoolList.Mismatch(chosen,info.GetProperty("schoolName").GetString(),info.TryGetProperty("schoolAddress",out var stated)?stated.GetString():null) is {} problem)throw new InvalidOperationException(problem);
     }
     // There is no central school list: the address comes from the administrator program of the school's own server.
     static void RequireServerAddress(string? address)
