@@ -4,6 +4,7 @@ using Android.OS;
 
 namespace SchoolMessenger.Mobile;
 
+[IntentFilter(new[]{Android.Content.Intent.ActionView},Categories=new[]{Android.Content.Intent.CategoryDefault,Android.Content.Intent.CategoryBrowsable},DataScheme="schooltalk",DataHost="school")]
 #if !TEACHER_APP
 [IntentFilter(new[]{Android.Content.Intent.ActionView},Categories=new[]{Android.Content.Intent.CategoryDefault,Android.Content.Intent.CategoryBrowsable},DataScheme="schooltalk",DataHost="guardian")]
 #endif

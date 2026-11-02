@@ -12,7 +12,7 @@ public sealed partial class MessengerPage
     // Before the first screen has appeared the link waits; OnAppearing picks it up after any saved login is restored.
     public static void OpenLink(string? link)
     {
-        if(link is null||!link.StartsWith("schooltalk://guardian",StringComparison.OrdinalIgnoreCase))return;
+        if(link is null||!(link.StartsWith("schooltalk://guardian",StringComparison.OrdinalIgnoreCase)||link.StartsWith("schooltalk://school",StringComparison.OrdinalIgnoreCase)))return;
         pendingLink=link;
         // Run skips work while the page is busy (loading, signing in), so wait for it rather than drop the link.
         if(Active is{restored:true} page)MainThread.BeginInvokeOnMainThread(async()=>{for(var i=0;i<40&&(page.busy||page.resuming);i++)await Task.Delay(250);await page.Run(page.GuardianLinkShown);});
@@ -20,13 +20,14 @@ public sealed partial class MessengerPage
     // The link can arrive while any screen is on top, so the outcome is shown in an alert rather than the home feedback line.
     async Task GuardianLinkShown()
     {
-        var owner=Navigation.NavigationStack.LastOrDefault()??this;
-        try{if(await GuardianLink() is{} done)await owner.DisplayAlertAsync("보호자 초대 QR",done,"확인");}
-        catch(Exception e){await owner.DisplayAlertAsync("보호자 초대 QR",e is HttpRequestException?"학교 서버에 연결할 수 없습니다. 인터넷 연결을 확인하세요.":e.Message,"확인");}
+        var owner=Navigation.NavigationStack.LastOrDefault()??this;var title=pendingLink?.StartsWith("schooltalk://school",StringComparison.OrdinalIgnoreCase)==true?"학교 연결":"보호자 초대 QR";
+        try{if(await GuardianLink() is{} done)await owner.DisplayAlertAsync(title,done,"확인");}
+        catch(Exception e){await owner.DisplayAlertAsync(title,e is HttpRequestException?"학교 서버에 연결할 수 없습니다. 인터넷 연결을 확인하세요.":e.Message,"확인");}
     }
     async Task<string?> GuardianLink()
     {
         if(Interlocked.Exchange(ref pendingLink,null) is not{} link)return null;
+        if(link.StartsWith("schooltalk://school",StringComparison.OrdinalIgnoreCase))return await UseSchoolLink(link);
 #if TEACHER_APP
         await Task.CompletedTask;
         throw new InvalidOperationException("보호자 초대 QR 코드는 학교톡 앱에서 열어 주세요.");

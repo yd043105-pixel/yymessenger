@@ -44,6 +44,59 @@
         "resolved": "10.0.13",
         "contentHash": "40yrBMsLEcjixBR4G+FiUaBPvxXIPSKJ2OgSrbOZcmSDBda4Sb0k7BWrfDpIvn3IvvDzwOL/tEPa6gDQfh6aRw=="
       },
+      "Xamarin.AndroidX.Core.Core.Ktx": {
+        "type": "Direct",
+        "requested": "[1.19.0.1, )",
+        "resolved": "1.19.0.1",
+        "contentHash": "oYMa8qwe+Rs4v3Rs1SXA0UJ3DLyFWJtpjwSeFeh1+jlS+SF1xHbOt9G5zKqz193zPP+mDJkaYmdJpv8ahhAjlA==",
+        "dependencies": {
+          "Xamarin.AndroidX.Core": "1.19.0.1",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
+        }
+      },
+      "Xamarin.AndroidX.Lifecycle.Runtime.Ktx": {
+        "type": "Direct",
+        "requested": "[2.11.0.1, )",
+        "resolved": "2.11.0.1",
+        "contentHash": "8UdS0bEhQi+iycaJOkTzcTLgYS9wyOAlNSNsntCcimJFJ3VS6UvUDue4LzFmMmZQK/DdVesOQmFe1wdU49gZyw==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Lifecycle.Runtime": "[2.11.0.1, 2.11.1)",
+          "Xamarin.AndroidX.Lifecycle.Runtime.Ktx.Android": "2.11.0.1",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
+        }
+      },
+      "Xamarin.AndroidX.Work.Runtime": {
+        "type": "Direct",
+        "requested": "[2.11.2.1, )",
+        "resolved": "2.11.2.1",
+        "contentHash": "2oIjjMsYN+NaznlZqhZBYnuTRgyYau7tmXDPA7sCSGTXZ7bjFvx5d0tVtRaj6XnIjLTLYGp88exkc8q+SW9yxg==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation.Experimental": "1.6.0.1",
+          "Xamarin.AndroidX.Concurrent.Futures.Ktx": "1.3.0.4",
+          "Xamarin.AndroidX.Core": "1.19.0.1",
+          "Xamarin.AndroidX.Lifecycle.LiveData": "2.11.0.1",
+          "Xamarin.AndroidX.Lifecycle.Service": "2.11.0.1",
+          "Xamarin.AndroidX.Room.Runtime": "2.8.4.3",
+          "Xamarin.AndroidX.Startup.StartupRuntime": "1.2.0.8",
+          "Xamarin.AndroidX.Tracing.Tracing.Ktx": "1.3.0.4",
+          "Xamarin.Google.Guava.ListenableFuture": "1.0.0.32",
+          "Xamarin.JSpecify": "1.0.0.7",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1",
+          "Xamarin.KotlinX.Coroutines.Android": "1.11.0.1"
+        }
+      },
+      "ZXing.Net.Maui.Controls": {
+        "type": "Direct",
+        "requested": "[0.10.4, )",
+        "resolved": "0.10.4",
+        "contentHash": "zlwviS7FOC7hjRW90eoi96Smjlg4bxMPDzA0ZNA+X40VPNQvCq9zO1bACOuHXJ7P/PHOXgztUSqvZODIBWOnrw==",
+        "dependencies": {
+          "Microsoft.Maui.Controls": "10.0.0",
+          "ZXing.Net": "0.16.11",
+          "ZXing.Net.Maui": "0.10.4"
+        }
+      },
       "GoogleGson": {
         "type": "Transitive",
         "resolved": "2.13.1.1",
@@ -271,27 +324,27 @@
       },
       "Xamarin.AndroidX.Annotation": {
         "type": "Transitive",
-        "resolved": "1.9.1.5",
-        "contentHash": "4o4oY21xGR03dmQalOQwcwHVxUoLzPTw/Dun6aco2svGK+JcQdfEQdU9z+yoaeO2K4IarQbU5OQzC6qEcj5yNw==",
+        "resolved": "1.10.0.1",
+        "contentHash": "OFFhDPUvfvyAaYU1s32hkiRt460zLkNxBgW1l2QUZDa2sSAQSGdrdpSZSpeXGXI0r1lgXPLIv8PWNmStIDr+Hw==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation.Jvm": "1.9.1.5",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.AndroidX.Annotation.Jvm": "1.10.0.1",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.AndroidX.Annotation.Experimental": {
         "type": "Transitive",
-        "resolved": "1.5.1.1",
-        "contentHash": "WE6omaI8M+TFYQOXMEQV2OyvgLRn491VTIlB+4hJrFV4x+quQqE4Z9BHEhcFVW+KlaQK4d44vspj1zAvxVlgiA==",
+        "resolved": "1.6.0.1",
+        "contentHash": "sZSJtoivC3uBRIZVkRoBeYtpRcs1MxBxRoW9hcHeNwbQO9yPxBBpUsQyztZT4DrUNXvbLVAjA+fS4kvy7rUjbA==",
         "dependencies": {
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.AndroidX.Annotation.Jvm": {
         "type": "Transitive",
-        "resolved": "1.9.1.5",
-        "contentHash": "mMZwGncl5RHx9MxLJsu8Zp4ZW2mAMUQO60G36PP2Qqd0TuO144nCVANry6va7BqgwyysQaOmtHpKqE/Pdl8WBQ==",
+        "resolved": "1.10.0.1",
+        "contentHash": "TwAZDaPB2TYKAfRnrkh59rqrk0KaCKAqkMomZ84WuFJ5elkVzO1ttZjAHY7oD6XkmnaZyOkGhBacxmu4ApTh0g==",
         "dependencies": {
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.AndroidX.AppCompat": {
@@ -332,19 +385,19 @@
       },
       "Xamarin.AndroidX.Arch.Core.Common": {
         "type": "Transitive",
-        "resolved": "2.2.0.18",
-        "contentHash": "bxuNXCXcHBDiLCk0Rv7UQ5U0y6cowY7tniX0UkPN2LbiEMwbuSSwcEG99smnZnI17zYsaw/Z0yu3ili/+DD6Tg==",
+        "resolved": "2.2.0.21",
+        "contentHash": "K3/VTkAn9aKFPjMQZnMyXwU3jA3hj5RZps/KoQGzGBeg+4KtBpx+aZd8n6bSJQGRg0YF0Viz8bocSoCKfylvtw==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5"
+          "Xamarin.AndroidX.Annotation": "1.10.0.1"
         }
       },
       "Xamarin.AndroidX.Arch.Core.Runtime": {
         "type": "Transitive",
-        "resolved": "2.2.0.18",
-        "contentHash": "3hAR3rHrzRLRXn5+IgI/V7Pp98Xia37IESyNcPIKAQcaedOsHQNKcwyGAxjrbp3Z7L/v92uMuafBfje4Ucltvg==",
+        "resolved": "2.2.0.21",
+        "contentHash": "d+xgYu109rmZRpRA3QjdOxHWFwJBndtAudu/XbfeqQR+OTaW7dpFYNAKLK2bGlihQqVszOuVdUdn3crpbZeUGw==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5",
-          "Xamarin.AndroidX.Arch.Core.Common": "[2.2.0.18, 2.2.1)"
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Arch.Core.Common": "[2.2.0.21, 2.2.1)"
         }
       },
       "Xamarin.AndroidX.Browser": {
@@ -361,6 +414,86 @@
           "Xamarin.Google.Guava.ListenableFuture": "1.0.0.29"
         }
       },
+      "Xamarin.AndroidX.Camera.Camera2": {
+        "type": "Transitive",
+        "resolved": "1.4.2.3",
+        "contentHash": "gBeLU2IKN0N18LLAWqPpwzvVpfvEitNhoYj2bBEZshfgk5UkUmBh3knWmLtiUlqdowefN5Ve3JgyT24h1cYP2A==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.9.1.5",
+          "Xamarin.AndroidX.Camera.Core": "[1.4.2.3, 1.4.3)",
+          "Xamarin.AndroidX.Concurrent.Futures": "1.3.0.1",
+          "Xamarin.AndroidX.Core": "1.16.0.3",
+          "Xamarin.AndroidX.Tracing.Tracing": "1.3.0.1",
+          "Xamarin.Google.AutoValue.Annotations": "1.11.0.8",
+          "Xamarin.Google.Guava.ListenableFuture": "1.0.0.29"
+        }
+      },
+      "Xamarin.AndroidX.Camera.Core": {
+        "type": "Transitive",
+        "resolved": "1.4.2.3",
+        "contentHash": "B0nEc5k2hzo3V83p+LOQGo5GwznFcnSsklRTpPMcYDWCqUPPDPOIA0HCV6tKurOpOA/nVx4m6KRLpauM5GoMIw==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.9.1.5",
+          "Xamarin.AndroidX.Annotation.Experimental": "1.5.1.1",
+          "Xamarin.AndroidX.Concurrent.Futures": "1.3.0.1",
+          "Xamarin.AndroidX.Concurrent.Futures.Ktx": "1.3.0.1",
+          "Xamarin.AndroidX.Core": "1.16.0.3",
+          "Xamarin.AndroidX.ExifInterface": "1.4.1.1",
+          "Xamarin.AndroidX.Lifecycle.Common": "2.9.2.1",
+          "Xamarin.AndroidX.Lifecycle.LiveData": "2.9.2.1",
+          "Xamarin.AndroidX.Tracing.Tracing": "1.3.0.1",
+          "Xamarin.Google.AutoValue.Annotations": "1.11.0.8",
+          "Xamarin.Google.Guava.ListenableFuture": "1.0.0.29",
+          "Xamarin.Kotlin.StdLib": "2.2.0.1",
+          "Xamarin.KotlinX.Coroutines.Android": "1.10.2.1"
+        }
+      },
+      "Xamarin.AndroidX.Camera.Lifecycle": {
+        "type": "Transitive",
+        "resolved": "1.4.2.3",
+        "contentHash": "/gPG7P8sH6y0mJkIxzeOf3x8wrtyOJjKNC9WqApuKc7YxLaRU1h9QWcUTIDWXdbBAmregLi4WMy6rAdfH89NjA==",
+        "dependencies": {
+          "Xamarin.AndroidX.Camera.Core": "[1.4.2.3, 1.4.3)",
+          "Xamarin.AndroidX.Concurrent.Futures": "1.3.0.1",
+          "Xamarin.AndroidX.Concurrent.Futures.Ktx": "1.3.0.1",
+          "Xamarin.AndroidX.Core": "1.16.0.3",
+          "Xamarin.AndroidX.Lifecycle.Common": "2.9.2.1",
+          "Xamarin.AndroidX.Tracing.Tracing.Ktx": "1.3.0.1",
+          "Xamarin.Google.AutoValue.Annotations": "1.11.0.8",
+          "Xamarin.Google.Guava.ListenableFuture": "1.0.0.29",
+          "Xamarin.KotlinX.Coroutines.Android": "1.10.2.1"
+        }
+      },
+      "Xamarin.AndroidX.Camera.Video": {
+        "type": "Transitive",
+        "resolved": "1.4.2.3",
+        "contentHash": "JHK9l53p7ksmGbI9znjs/EZs12WvDMlwc4VgRLfV+bGW+Zn5taKXQ3zhKQg/6aa5wP2iQvPKqXUf0m7t4lP92g==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.9.1.5",
+          "Xamarin.AndroidX.Camera.Core": "[1.4.2.3, 1.4.3)",
+          "Xamarin.AndroidX.Concurrent.Futures": "1.3.0.1",
+          "Xamarin.AndroidX.Core": "1.16.0.3",
+          "Xamarin.Google.AutoValue.Annotations": "1.11.0.8"
+        }
+      },
+      "Xamarin.AndroidX.Camera.View": {
+        "type": "Transitive",
+        "resolved": "1.4.2.3",
+        "contentHash": "UntAHlxWk0fIw+S0DwA/KLLJPQWZUA8uHRgJ8ybEAVJO+lhrJE5ZY2hJGcgWjWSTI/e9nDvBTAHMNrJTA193Zw==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.9.1.5",
+          "Xamarin.AndroidX.Annotation.Experimental": "1.5.1.1",
+          "Xamarin.AndroidX.AppCompat": "1.7.1.1",
+          "Xamarin.AndroidX.Camera.Core": "[1.4.2.3, 1.4.3)",
+          "Xamarin.AndroidX.Camera.Lifecycle": "[1.4.2.3, 1.4.3)",
+          "Xamarin.AndroidX.Camera.Video": "[1.4.2.3, 1.4.3)",
+          "Xamarin.AndroidX.Concurrent.Futures": "1.3.0.1",
+          "Xamarin.AndroidX.Core": "1.16.0.3",
+          "Xamarin.AndroidX.Lifecycle.Common": "2.9.2.1",
+          "Xamarin.Google.AutoValue.Annotations": "1.11.0.8",
+          "Xamarin.Google.Guava.ListenableFuture": "1.0.0.29"
+        }
+      },
       "Xamarin.AndroidX.CardView": {
         "type": "Transitive",
         "resolved": "1.0.0.36",
@@ -371,21 +504,22 @@
       },
       "Xamarin.AndroidX.Collection": {
         "type": "Transitive",
-        "resolved": "1.5.0.3",
-        "contentHash": "rL4Sa779VQ+0XyrV3YCoWrSddyOv+WDkIu3zGJyEsHk+SSl2C/nBwTqdBVJbYwhIu4iStLADpCiM1OBTFbPAVw==",
+        "resolved": "1.6.0.1",
+        "contentHash": "2KWXJOSjKTcJRIUrayYj5Kic+UP7TsTCieDBgiyImMhft5cEvdHUJjhseH7WIrKRVkpNoj5PAIlZgRimVSbayA==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5",
-          "Xamarin.AndroidX.Collection.Jvm": "1.5.0.3",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Collection.Jvm": "1.6.0.1",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.AndroidX.Collection.Jvm": {
         "type": "Transitive",
-        "resolved": "1.5.0.3",
-        "contentHash": "S0RXRf3zICS5spPuwHkgOsfLpLks2Jk6uMl3ONOxKoGS27pYLaUSAZpnUR4rNiM38EA4BpKJQKGiYU9otcHrtg==",
+        "resolved": "1.6.0.1",
+        "contentHash": "qmUjU7y9SOuhBwVOVtsJogWE8xuDQIRGN+IQtL+JK4du6BDKrpY4sKSBaPH//+9SAzo+l6V8EgGXd/KhJQM0dg==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation.Jvm": "1.9.1.5",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.AndroidX.Annotation.Jvm": "1.10.0.1",
+          "Xamarin.JSpecify": "1.0.0.7",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.AndroidX.Collection.Ktx": {
@@ -398,12 +532,22 @@
       },
       "Xamarin.AndroidX.Concurrent.Futures": {
         "type": "Transitive",
-        "resolved": "1.3.0.1",
-        "contentHash": "xmav5pmoJoI66Djb1E1T3ME2lLylEf1PX4Xjqz4OaLVWK3wjPmtuKIaeDwmQ/yK0IgP7auj9RC7dap4YMoLu8g==",
+        "resolved": "1.3.0.4",
+        "contentHash": "KiRIKChlF+ZUSmwF7WsBXl5ACfr/dxaCzk8o3xRqLaUxuY5BFK7mrG1zGahkl1WZFSvXkMIqzA88DShr7EdnXQ==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5",
-          "Xamarin.Google.Guava.ListenableFuture": "1.0.0.29",
-          "Xamarin.JSpecify": "1.0.0.4"
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.Google.Guava.ListenableFuture": "1.0.0.32",
+          "Xamarin.JSpecify": "1.0.0.7"
+        }
+      },
+      "Xamarin.AndroidX.Concurrent.Futures.Ktx": {
+        "type": "Transitive",
+        "resolved": "1.3.0.4",
+        "contentHash": "nIS245hjYxqU0Lf4f7YBqmZLo1AHmfyApfFs97M8kY56rhAu7/PJzngQUC9q9SIflrgXvjqj+C72Qz2RAQZVzg==",
+        "dependencies": {
+          "Xamarin.AndroidX.Concurrent.Futures": "[1.3.0.4, 1.3.1)",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1",
+          "Xamarin.KotlinX.Coroutines.Core": "1.11.0.1"
         }
       },
       "Xamarin.AndroidX.ConstraintLayout": {
@@ -439,38 +583,31 @@
       },
       "Xamarin.AndroidX.Core": {
         "type": "Transitive",
-        "resolved": "1.16.0.3",
-        "contentHash": "ufdTfnLRHYcyrZWQzayzdQr3N7DQg+aZVqSs8QFYPIw8fvd41aWp8wLMRvockbzBOQezUJ5Xm0uuOhTur51u+Q==",
+        "resolved": "1.19.0.1",
+        "contentHash": "o99imtQhC8lAEzxbvoeh+Tk4Gr2yHOE5LlV0YJK0n561PZlFvQYBSGrM+ZYL3pivXBO2IjAcWZdRGy67DZI0oA==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5",
-          "Xamarin.AndroidX.Annotation.Experimental": "1.5.1.1",
-          "Xamarin.AndroidX.Collection": "1.5.0.3",
-          "Xamarin.AndroidX.Concurrent.Futures": "1.3.0.1",
-          "Xamarin.AndroidX.Core.ViewTree": "1.0.0.3",
-          "Xamarin.AndroidX.Interpolator": "1.0.0.34",
-          "Xamarin.AndroidX.Lifecycle.Runtime": "2.9.2.1",
-          "Xamarin.AndroidX.Tracing.Tracing": "1.3.0.1",
-          "Xamarin.AndroidX.VersionedParcelable": "1.2.1.3",
-          "Xamarin.JSpecify": "1.0.0.4",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
-        }
-      },
-      "Xamarin.AndroidX.Core.Core.Ktx": {
-        "type": "Transitive",
-        "resolved": "1.16.0.3",
-        "contentHash": "w8x1SNjzbuRi+85Bv0Iw4KAWpoXxlQpVQZAeJ/hE6diinnata7y/lmldx4GsdranZon5GSadaa49UnXSllJ0ZQ==",
-        "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5",
-          "Xamarin.AndroidX.Core": "1.16.0.3",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Annotation.Experimental": "1.6.0.1",
+          "Xamarin.AndroidX.Collection": "1.6.0.1",
+          "Xamarin.AndroidX.Concurrent.Futures": "1.3.0.4",
+          "Xamarin.AndroidX.Core.ViewTree": "1.0.0.6",
+          "Xamarin.AndroidX.Interpolator": "1.0.0.37",
+          "Xamarin.AndroidX.Lifecycle.Common": "2.11.0.1",
+          "Xamarin.AndroidX.Lifecycle.Runtime": "2.11.0.1",
+          "Xamarin.AndroidX.Tracing.Tracing": "1.3.0.4",
+          "Xamarin.AndroidX.VersionedParcelable": "1.2.1.6",
+          "Xamarin.Google.Guava.ListenableFuture": "1.0.0.32",
+          "Xamarin.JSpecify": "1.0.0.7",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1",
+          "Xamarin.KotlinX.Coroutines.Core": "1.11.0.1"
         }
       },
       "Xamarin.AndroidX.Core.ViewTree": {
         "type": "Transitive",
-        "resolved": "1.0.0.3",
-        "contentHash": "HHodPFu0R1xq6Emxdw5muLSBaFycL9Gxu+/M2mAaitKjFZgEguaMb4bgCNiRXk1AnoT26LEka833fjAT5PU/9w==",
+        "resolved": "1.0.0.6",
+        "contentHash": "BJP0aUy9fLExMVrrjqvzSj5MKU9RFVfT+fxW/5oUrlkmSewDZyfJfHo4MwtmbUDQGDDG+ARpPIABOalhWqYJdA==",
         "dependencies": {
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.AndroidX.CursorAdapter": {
@@ -545,8 +682,8 @@
       },
       "Xamarin.AndroidX.ExifInterface": {
         "type": "Transitive",
-        "resolved": "1.4.1.1",
-        "contentHash": "V6c8eS61dM+/7kHuG3wT956EjxwKOSfCiAY8faNmUY76BNt5VFNaimQZJT9ROSctf3Svv/GAGTl91Rcxzuf/9g==",
+        "resolved": "1.4.2",
+        "contentHash": "XJBHwk//4yX33eVXFZVI+DlzBDAIsoKVFOn/9c6AAdu3rdQFf3SmYXinbWK3RILqXNkliG06u4JfcttTQnRtNg==",
         "dependencies": {
           "Xamarin.AndroidX.Annotation": "1.9.1.5",
           "Xamarin.JSpecify": "1.0.0.4"
@@ -590,67 +727,67 @@
       },
       "Xamarin.AndroidX.Interpolator": {
         "type": "Transitive",
-        "resolved": "1.0.0.34",
-        "contentHash": "PRLkeu5BFY57wbC128lPMHpQZO4fxEV6PL0gxe7gosfluAqggSn1x2v47paq4hOpSa0VvaXdz5JwFjL9j+1ZMA==",
+        "resolved": "1.0.0.37",
+        "contentHash": "uBGc0kgh8v/SDiSWanClynPGz7sa6pQzkGgISn87MsiUqS8wtYlB+4HmXh7kEE449spgwPTf3ziEIEq/uJd99g==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5"
+          "Xamarin.AndroidX.Annotation": "1.10.0.1"
         }
       },
       "Xamarin.AndroidX.Lifecycle.Common": {
         "type": "Transitive",
-        "resolved": "2.9.2.1",
-        "contentHash": "5PCjbhIVEp3MIbhs72dM0wx4EuSpU5q418uqKRLKaLe5WfNbKmSI5h28ugqyXZlnVNmR3WNIm30Sjaa+rRCKIw==",
+        "resolved": "2.11.0.1",
+        "contentHash": "fCKqf0sAnuA0J4AqusRBWfMSoLQPEt9uDNTB9X2ZM2oed1JKyt8ipdOTvX46pes2HsyCT+0etu4oaJh4Agcdvw==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5",
-          "Xamarin.AndroidX.Lifecycle.Common.Jvm": "2.9.2.1",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1",
-          "Xamarin.KotlinX.Coroutines.Core": "1.10.2.1"
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Lifecycle.Common.Jvm": "2.11.0.1",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1",
+          "Xamarin.KotlinX.Coroutines.Core": "1.11.0.1"
         }
       },
       "Xamarin.AndroidX.Lifecycle.Common.Jvm": {
         "type": "Transitive",
-        "resolved": "2.9.2.1",
-        "contentHash": "z0/dW41mpX50ob+SzcWlI+kabR11dqrha6rlQXQvu3j+27hfNW00ZbukmE1Kw/zPBBdSAfwHILBRrdyPKDGzwA==",
+        "resolved": "2.11.0.1",
+        "contentHash": "wnp6hF14kO3zO9LFdH1SJJMIY6Vm0kIY+/goCRbtLMuF2/ZLnAW4SHGPqNrB467+YAVjNCNkc+CxLWP2ER7EIg==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation.Jvm": "1.9.1.5",
-          "Xamarin.JSpecify": "1.0.0.4",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1",
-          "Xamarin.KotlinX.Coroutines.Core": "1.10.2.1"
+          "Xamarin.AndroidX.Annotation.Jvm": "1.10.0.1",
+          "Xamarin.JSpecify": "1.0.0.7",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1",
+          "Xamarin.KotlinX.Coroutines.Core": "1.11.0.1"
         }
       },
       "Xamarin.AndroidX.Lifecycle.LiveData": {
         "type": "Transitive",
-        "resolved": "2.9.2.1",
-        "contentHash": "4++tRPKTWo4/6wY6cUsbxAbM23RD9+0Ictu9F7GJs0i4whGVgqIl+PTxrBq09cN43BFnrqhx6fySi9Ltdam+qg==",
+        "resolved": "2.11.0.1",
+        "contentHash": "gvZr8/vTBP4A+P634ihLUO7MDDgvwicn/BQS+OfZppdsnC8Eyz8l905QutC7oDZhBTihZCxonFRnxerddWFq7w==",
         "dependencies": {
-          "Xamarin.AndroidX.Arch.Core.Common": "2.2.0.18",
-          "Xamarin.AndroidX.Arch.Core.Runtime": "2.2.0.18",
-          "Xamarin.AndroidX.Lifecycle.LiveData.Core": "[2.9.2.1, 2.9.3)",
-          "Xamarin.AndroidX.Lifecycle.LiveData.Core.Ktx": "[2.9.2.1, 2.9.3)",
-          "Xamarin.JSpecify": "1.0.0.4",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1",
-          "Xamarin.KotlinX.Coroutines.Core": "1.10.2.1"
+          "Xamarin.AndroidX.Arch.Core.Common": "2.2.0.21",
+          "Xamarin.AndroidX.Arch.Core.Runtime": "2.2.0.21",
+          "Xamarin.AndroidX.Lifecycle.LiveData.Core": "[2.11.0.1, 2.11.1)",
+          "Xamarin.AndroidX.Lifecycle.LiveData.Core.Ktx": "[2.11.0.1, 2.11.1)",
+          "Xamarin.JSpecify": "1.0.0.7",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1",
+          "Xamarin.KotlinX.Coroutines.Core": "1.11.0.1"
         }
       },
       "Xamarin.AndroidX.Lifecycle.LiveData.Core": {
         "type": "Transitive",
-        "resolved": "2.9.2.1",
-        "contentHash": "dnQv9+I/lPhf5LWBKa6jhS18zp5RGbjOinie2tlU+x/BWKiekmgy9gXcGizFUtPdUdLjsUtUZMHr2HwBhPtbvw==",
+        "resolved": "2.11.0.1",
+        "contentHash": "oPRlEve2Cnngh15/6OoEzVE3mwYSo9XAfuphB37ya54+mxSrINO/deTuIR7zgwjG5iTUYKDAHlya848h1/VSug==",
         "dependencies": {
-          "Xamarin.AndroidX.Arch.Core.Common": "2.2.0.18",
-          "Xamarin.AndroidX.Arch.Core.Runtime": "2.2.0.18",
-          "Xamarin.AndroidX.Lifecycle.Common": "[2.9.2.1, 2.9.3)",
-          "Xamarin.JSpecify": "1.0.0.4",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.AndroidX.Arch.Core.Common": "2.2.0.21",
+          "Xamarin.AndroidX.Arch.Core.Runtime": "2.2.0.21",
+          "Xamarin.AndroidX.Lifecycle.Common": "[2.11.0.1, 2.11.1)",
+          "Xamarin.JSpecify": "1.0.0.7",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.AndroidX.Lifecycle.LiveData.Core.Ktx": {
         "type": "Transitive",
-        "resolved": "2.9.2.1",
-        "contentHash": "8BkUa80J7C48DVWKpcKjL+nWWyUKSYwh5R3J0iZZ6OX/PHGUf/qUQOnuIiTnMA+iTwNp03hUrOYPhyz8FM2R4A==",
+        "resolved": "2.11.0.1",
+        "contentHash": "Pwfym46gRvOiDR24WEk2aA8CmKLJnX4o4GfFjH5hQDj35MvUSBOvOl8oSn2WVsz1/v5WqppjlvQyyd8ciQdoBQ==",
         "dependencies": {
-          "Xamarin.AndroidX.Lifecycle.LiveData.Core": "[2.9.2.1, 2.9.3)",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.AndroidX.Lifecycle.LiveData.Core": "[2.11.0.1, 2.11.1)",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.AndroidX.Lifecycle.Process": {
@@ -666,52 +803,52 @@
       },
       "Xamarin.AndroidX.Lifecycle.Runtime": {
         "type": "Transitive",
-        "resolved": "2.9.2.1",
-        "contentHash": "0Cefhnmf0tUHH0LVcE47DZ4LIh/ueEVhJ+yUIsZ7DdzvQTCaHzgs+48Iv4ptndbeP/13hL5G7aoBDb0/Sfkpxg==",
+        "resolved": "2.11.0.1",
+        "contentHash": "Xb/G30kVZVClyHiylVzxG+5Rhce9Zk4BBo1qNzrh8vGztLVg8c1dof1zodB3DOaCE/Kz08xe+azYdeuzgvKwmw==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5",
-          "Xamarin.AndroidX.Arch.Core.Common": "2.2.0.18",
-          "Xamarin.AndroidX.Lifecycle.Common": "[2.9.2.1, 2.9.3)",
-          "Xamarin.AndroidX.Lifecycle.Runtime.Android": "2.9.2.1",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Arch.Core.Common": "2.2.0.21",
+          "Xamarin.AndroidX.Collection": "1.6.0.1",
+          "Xamarin.AndroidX.Lifecycle.Common": "[2.11.0.1, 2.11.1)",
+          "Xamarin.AndroidX.Lifecycle.Runtime.Android": "2.11.0.1",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.AndroidX.Lifecycle.Runtime.Android": {
         "type": "Transitive",
-        "resolved": "2.9.2.1",
-        "contentHash": "vzv8KbjAg3Qm57RrdwRoXMyeqqGU67pjT8wrD62ceOiobYI5daOTyVVVcn1f08SIH2W8Q9iAbBPA9l9zcWUxqg==",
+        "resolved": "2.11.0.1",
+        "contentHash": "XdoCaH+dVCnr5ya24MIgasaMyZV2mnUg812Ns+WO2gocOOtSjIxYzbXqihkFTaDUlWk0A+OFRIXTKYZ3ec6Viw==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation.Jvm": "1.9.1.5",
-          "Xamarin.AndroidX.Arch.Core.Common": "2.2.0.18",
-          "Xamarin.AndroidX.Arch.Core.Runtime": "2.2.0.18",
-          "Xamarin.AndroidX.Core.ViewTree": "1.0.0.3",
-          "Xamarin.AndroidX.Lifecycle.Common": "[2.9.2.1, 2.9.3)",
-          "Xamarin.AndroidX.ProfileInstaller.ProfileInstaller": "1.4.1.5",
-          "Xamarin.JSpecify": "1.0.0.4",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1",
-          "Xamarin.KotlinX.Coroutines.Android": "1.10.2.1"
-        }
-      },
-      "Xamarin.AndroidX.Lifecycle.Runtime.Ktx": {
-        "type": "Transitive",
-        "resolved": "2.9.2.1",
-        "contentHash": "CH2eVOugIKpyAOOrnCdF04baCjrPUfs3vkZNVB1Z0VeLfGT8NbVjP6IknjteZNVCqWy/22JNyKcp4wuMRaYVig==",
-        "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5",
-          "Xamarin.AndroidX.Lifecycle.Runtime": "[2.9.2.1, 2.9.3)",
-          "Xamarin.AndroidX.Lifecycle.Runtime.Ktx.Android": "2.9.2.1",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.AndroidX.Annotation.Jvm": "1.10.0.1",
+          "Xamarin.AndroidX.Arch.Core.Common": "2.2.0.21",
+          "Xamarin.AndroidX.Arch.Core.Runtime": "2.2.0.21",
+          "Xamarin.AndroidX.Collection.Jvm": "1.6.0.1",
+          "Xamarin.AndroidX.Core.ViewTree": "1.0.0.6",
+          "Xamarin.AndroidX.Lifecycle.Common.Jvm": "[2.11.0.1, 2.11.1)",
+          "Xamarin.AndroidX.ProfileInstaller.ProfileInstaller": "1.4.1.8",
+          "Xamarin.JSpecify": "1.0.0.7",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1",
+          "Xamarin.KotlinX.Coroutines.Android": "1.11.0.1"
         }
       },
       "Xamarin.AndroidX.Lifecycle.Runtime.Ktx.Android": {
         "type": "Transitive",
-        "resolved": "2.9.2.1",
-        "contentHash": "Lz877w1/XEAZPfO6Yn0U1ujU+NCGDjOGm5at6Y9s5eIzcgyJo/iTEFjqLCt+X1FXJ8kDcdFP3RvN0f4wQ+v12w==",
+        "resolved": "2.11.0.1",
+        "contentHash": "ESaAcWSSHhbJRJNUJJfd76WDIvlVIx9qezZ6v76f48BnpBA5MDBX0FiWiwoCYtXjTRpLABO/vaJkNED+H0oUPg==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation.Jvm": "1.9.1.5",
-          "Xamarin.AndroidX.Lifecycle.Runtime.Android": "[2.9.2.1, 2.9.3)",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1",
-          "Xamarin.KotlinX.Coroutines.Android": "1.10.2.1"
+          "Xamarin.AndroidX.Annotation.Jvm": "1.10.0.1",
+          "Xamarin.AndroidX.Lifecycle.Runtime.Android": "[2.11.0.1, 2.11.1)",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1",
+          "Xamarin.KotlinX.Coroutines.Android": "1.11.0.1"
+        }
+      },
+      "Xamarin.AndroidX.Lifecycle.Service": {
+        "type": "Transitive",
+        "resolved": "2.11.0.1",
+        "contentHash": "2fvxjZ1z4q8gMuEsGMe3RsZwuIBDjqALkr526r6i4V4eguwNpnHcvcg0+MOpuCBIDoHNnnKRzqbQUPg4G1D86Q==",
+        "dependencies": {
+          "Xamarin.AndroidX.Lifecycle.Runtime": "[2.11.0.1, 2.11.1)",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.AndroidX.Lifecycle.ViewModel": {
@@ -896,13 +1033,13 @@
       },
       "Xamarin.AndroidX.ProfileInstaller.ProfileInstaller": {
         "type": "Transitive",
-        "resolved": "1.4.1.5",
-        "contentHash": "wRnVAoFzhllgoonYpoA7JVpBHtsQP81ChagkQ+LtG8JPcu/MLPETg/Yq8cO+bvNwNCvn/5+v4uyv3Pd8j9hT+A==",
+        "resolved": "1.4.1.8",
+        "contentHash": "zBwJUR3ipSDdFs8yQCSHZVRc1Ngz6LRcdojEAF3Fn3YeXYjGEpQIWeGaruZi95bePWwk0L5628y3aqznAKfccQ==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5",
-          "Xamarin.AndroidX.Concurrent.Futures": "1.3.0.1",
-          "Xamarin.AndroidX.Startup.StartupRuntime": "1.2.0.5",
-          "Xamarin.Google.Guava.ListenableFuture": "1.0.0.29"
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Concurrent.Futures": "1.3.0.4",
+          "Xamarin.AndroidX.Startup.StartupRuntime": "1.2.0.8",
+          "Xamarin.Google.Guava.ListenableFuture": "1.0.0.32"
         }
       },
       "Xamarin.AndroidX.RecyclerView": {
@@ -924,6 +1061,59 @@
         "contentHash": "hAD8tWKqwvKQ2bWdRthlBWntBG0zpz5MzLuX2iG2CcFFFS+kx4w7qmXjfPgTEVxHE214ctvaBtYs8r9x3b82og==",
         "dependencies": {
           "Xamarin.AndroidX.Annotation": "1.9.1.5"
+        }
+      },
+      "Xamarin.AndroidX.Room.Common": {
+        "type": "Transitive",
+        "resolved": "2.8.4.3",
+        "contentHash": "9EXXX74OCgBA2RuZq6d7/4x5yg+mH5pRJ3Mt8+N48idxr6jsafWJk0pC56PjyipIilndZzclizjaRXrkCSLsbw==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Room.Common.JVM": "2.8.4.3",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
+        }
+      },
+      "Xamarin.AndroidX.Room.Common.JVM": {
+        "type": "Transitive",
+        "resolved": "2.8.4.3",
+        "contentHash": "ONfxyIszCRG02/E9YLKIDfDcjUJ93f3zYDNcOBZ05tXSvmgC7oDrcu9BpxFbSgG4/tOBU87wt5QJBOIgKM18ag==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation.Jvm": "1.10.0.1",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
+        }
+      },
+      "Xamarin.AndroidX.Room.Runtime": {
+        "type": "Transitive",
+        "resolved": "2.8.4.3",
+        "contentHash": "kLiMVNPu2TUbdwioNZqoQboSwiH/+OXmE1rgqRS1+OxJMf0F5f00XTp0jY5NrDSneWTnyO046+/lg+Xd+4D7MA==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Collection": "1.6.0.1",
+          "Xamarin.AndroidX.Room.Common": "[2.8.4.3, 2.8.5)",
+          "Xamarin.AndroidX.Room.Runtime.Android": "2.8.4.3",
+          "Xamarin.AndroidX.Sqlite": "2.6.2.3",
+          "Xamarin.AndroidX.Sqlite.Framework": "2.6.2.3",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1",
+          "Xamarin.KotlinX.AtomicFU": "0.33.0.1",
+          "Xamarin.KotlinX.Coroutines.Core": "1.11.0.1"
+        }
+      },
+      "Xamarin.AndroidX.Room.Runtime.Android": {
+        "type": "Transitive",
+        "resolved": "2.8.4.3",
+        "contentHash": "0Kuv4e2Mgz5iZueuW0eUCc5V8NOcWtKzY1o42JifT5lw7FfmGDng/NNLR8G1WSGYgl9CrkEjTITB4MyIlg49Og==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation.Experimental": "1.6.0.1",
+          "Xamarin.AndroidX.Annotation.Jvm": "1.10.0.1",
+          "Xamarin.AndroidX.Arch.Core.Runtime": "2.2.0.21",
+          "Xamarin.AndroidX.Collection.Jvm": "1.6.0.1",
+          "Xamarin.AndroidX.Room.Common.JVM": "[2.8.4.3, 2.8.5)",
+          "Xamarin.AndroidX.Sqlite.Android": "2.6.2.3",
+          "Xamarin.AndroidX.Sqlite.Framework.Android": "2.6.2.3",
+          "Xamarin.JSpecify": "1.0.0.7",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1",
+          "Xamarin.KotlinX.Coroutines.Android": "1.11.0.1",
+          "Xamarin.KotlinX.Coroutines.Core": "1.11.0.1"
         }
       },
       "Xamarin.AndroidX.SavedState": {
@@ -985,13 +1175,53 @@
           "Xamarin.AndroidX.Window": "1.4.0.1"
         }
       },
+      "Xamarin.AndroidX.Sqlite": {
+        "type": "Transitive",
+        "resolved": "2.6.2.3",
+        "contentHash": "3gFceFat6Rz+0bcWhSqH0T6zncSZu4z7Wv/lTg54B3Z2rlgZxOmkrLB6CA+2PJaPV0PkYc/eDxkcVM9Y2+142Q==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Sqlite.Android": "2.6.2.3",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
+        }
+      },
+      "Xamarin.AndroidX.Sqlite.Android": {
+        "type": "Transitive",
+        "resolved": "2.6.2.3",
+        "contentHash": "3CVQqSKASlD/qY0jTM1rveb0TSQPKF1vteztzQ0KCmTDCg6Zg3bJUdgZuns//RyhkINrtmH1+qYld9upXI2l9A==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation.Jvm": "1.10.0.1",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
+        }
+      },
+      "Xamarin.AndroidX.Sqlite.Framework": {
+        "type": "Transitive",
+        "resolved": "2.6.2.3",
+        "contentHash": "0LkMaDgcpF8FT1S72vK5REEhX12hgBZjCpcx3SEVjdfEC19qee9mvd/Hneq1+HN6BgJOkq/QjiaKw8C1Mnf7Gw==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Sqlite": "[2.6.2.3, 2.6.3)",
+          "Xamarin.AndroidX.Sqlite.Framework.Android": "2.6.2.3",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
+        }
+      },
+      "Xamarin.AndroidX.Sqlite.Framework.Android": {
+        "type": "Transitive",
+        "resolved": "2.6.2.3",
+        "contentHash": "rn2sTdKMXLNnjXPLU107HTaRC2YRoOvUIT58LXUtV5RngPoaI1s0gAQE7kSf015xd4KcuNWQLZW0KkrsHL9rww==",
+        "dependencies": {
+          "Xamarin.AndroidX.Annotation.Jvm": "1.10.0.1",
+          "Xamarin.AndroidX.Sqlite.Android": "[2.6.2.3, 2.6.3)",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
+        }
+      },
       "Xamarin.AndroidX.Startup.StartupRuntime": {
         "type": "Transitive",
-        "resolved": "1.2.0.5",
-        "contentHash": "A44F9zM0yqi2jg2AAsfwJqdc8W2MYKHnxKTewn5T9NxAvZg3h3aN7NCVjUWyqdmhzBamPWEyRrIN/1NY1U03/A==",
+        "resolved": "1.2.0.8",
+        "contentHash": "HKloS4O57Oniv/5VF0fkHh6zEWRwToK7VyW2ajyWZ7+l+bkxUFZy9tHIHS/TCGvDYR6NVM8yA/Mz2x+TrWwPmg==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5",
-          "Xamarin.AndroidX.Tracing.Tracing": "1.3.0.1"
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Tracing.Tracing": "1.3.0.4"
         }
       },
       "Xamarin.AndroidX.SwipeRefreshLayout": {
@@ -1006,20 +1236,28 @@
       },
       "Xamarin.AndroidX.Tracing.Tracing": {
         "type": "Transitive",
-        "resolved": "1.3.0.1",
-        "contentHash": "tgMXLYR6AFc/Hu32MNCPWrjsYnn1XMbse5+g8PNBzdmzmv+HoaJotSTYMI1qjAgZmYVxdPsmt5oU4Mu8q54iVw==",
+        "resolved": "1.3.0.4",
+        "contentHash": "x0Oig3saZ/b2zk0R8Um713vT15I428kKm0jh/cW2t1XDbk/LF9Cnrsbo6/0p8SFPyqQch7JJACbnvsH+xEunZQ==",
         "dependencies": {
-          "Xamarin.AndroidX.Tracing.Tracing.Android": "1.3.0.1",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.AndroidX.Tracing.Tracing.Android": "1.3.0.4",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.AndroidX.Tracing.Tracing.Android": {
         "type": "Transitive",
-        "resolved": "1.3.0.1",
-        "contentHash": "LkCq6ICPD9S8JBAqinPqx+gOeq/6kPcy7m/MUQlGZv0TjU8IL5qAX6mLKjq//fcAuuCX7FAHk3N8tCVsPmQ3Pw==",
+        "resolved": "1.3.0.4",
+        "contentHash": "qQNpa9D6q6CgtgGRJGfaEZUVFH+0pzA+58V2z8CYosv6K/mKwJys9InR+0xNmMDshm1IuGhX4mgJ3Lf54D2BQg==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation.Jvm": "1.9.1.5",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.AndroidX.Annotation.Jvm": "1.10.0.1",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
+        }
+      },
+      "Xamarin.AndroidX.Tracing.Tracing.Ktx": {
+        "type": "Transitive",
+        "resolved": "1.3.0.4",
+        "contentHash": "0+AuutPW7587SKRcJcEZ+ua1gQTrPnCY2ZT0vDLJu9DQBelU0ocwy95KWQnWxqivBbFA9atGanKiSH92HtTBdw==",
+        "dependencies": {
+          "Xamarin.AndroidX.Tracing.Tracing": "[1.3.0.4, 1.3.1)"
         }
       },
       "Xamarin.AndroidX.Transition": {
@@ -1059,12 +1297,12 @@
       },
       "Xamarin.AndroidX.VersionedParcelable": {
         "type": "Transitive",
-        "resolved": "1.2.1.3",
-        "contentHash": "UmcG3rQreb/ObIjObemxQ6Dw1xX3eDtpB9ICa+Dj05qYDKP3WK7dlfmYZGqvwu3TeoZQ1NSR6UjzePaXfvQwQA==",
+        "resolved": "1.2.1.6",
+        "contentHash": "RxZnmS3nBqOGHUUegHWBqAU4qlApR8s1nhCZ4CnCJBwvfXJQ1Y9aschXn2fXrYgV86xtwRR31+TN5KufIIvINw==",
         "dependencies": {
-          "Xamarin.AndroidX.Annotation": "1.9.1.5",
-          "Xamarin.AndroidX.Collection": "1.5.0.3",
-          "Xamarin.JSpecify": "1.0.0.4"
+          "Xamarin.AndroidX.Annotation": "1.10.0.1",
+          "Xamarin.AndroidX.Collection": "1.6.0.1",
+          "Xamarin.JSpecify": "1.0.0.7"
         }
       },
       "Xamarin.AndroidX.ViewPager": {
@@ -1148,6 +1386,11 @@
           "Xamarin.Google.ErrorProne.Annotations": "2.41.0.1"
         }
       },
+      "Xamarin.Google.AutoValue.Annotations": {
+        "type": "Transitive",
+        "resolved": "1.11.0.8",
+        "contentHash": "walriZJAiKAfsMhFAAvKS9KSqbbk7HVBxQgDlE7Sc+pKr9JsUPMnGQ0Aaa7TVIhmVrzXJSVend7ARV5f3HB4dQ=="
+      },
       "Xamarin.Google.Code.FindBugs.JSR305": {
         "type": "Transitive",
         "resolved": "3.0.2.21",
@@ -1171,51 +1414,67 @@
       },
       "Xamarin.Google.Guava.ListenableFuture": {
         "type": "Transitive",
-        "resolved": "1.0.0.29",
-        "contentHash": "5w1ErO9PmpGR3ii2qJkzV1ntOJGSrd7NyOdop3Sw+q/DQ6oCdyoOq3jbJ3Stg0ACOUItN7XO6EqAvNQ8jQaV0g=="
+        "resolved": "1.0.0.32",
+        "contentHash": "2jv4/HoPHk9PG8TGEuAwYMUJWf+OwxANCNASr0i0sWOAbvVQsNk9Mnu4BlYZkmJ5+KnEp0vtiHWDSkxm4kSabw=="
       },
       "Xamarin.Jetbrains.Annotations": {
         "type": "Transitive",
-        "resolved": "26.0.2.3",
-        "contentHash": "dSXWSYq/F7UAb2B3skXLkW7ZRK8lYkAyUWKXeL6Cn8EyubnDGrpLd0FN7akLFjsG7Li7WdSj4NdDTWbfOLnCOA=="
+        "resolved": "26.1.0.2",
+        "contentHash": "mwKW1QGbVFT649s9fJ/tTX1kkekI8Mt+n4sWS4kP39J78FjaatbNFu7bdyzxHYMbBB61S4cU6XRuaGAw2mhQCQ=="
       },
       "Xamarin.JSpecify": {
         "type": "Transitive",
-        "resolved": "1.0.0.4",
-        "contentHash": "/rjNkRuJWpyPcXs2ymK/jFvI5PVrTc/0ODpMKNPaQSOpBtiPgicHqjxrDlM0VAUdRr5+WB8PCpdSFqrWKtdcAg=="
+        "resolved": "1.0.0.7",
+        "contentHash": "pX+mTpwy0SkHGBxi3YPvQb0xLdl31GZD/VH+ebwXr97d5j7a+DGEyLWRqzC+hgZNK+bCOnlYlnUYYLD4TfSXSA=="
       },
       "Xamarin.Kotlin.StdLib": {
         "type": "Transitive",
-        "resolved": "2.2.0.1",
-        "contentHash": "jPxSvOvFabE8sTl+3v66s2q0RobE+KwJ9OkOqaxOFDesJJhNxo0qPa5DAoAiPRU00vbIQTu3op/cOpcK5ptRSQ==",
+        "resolved": "2.4.0.1",
+        "contentHash": "ZGskPNF6lIQWzkwfhoRLuf9isUSOmjfTZVOVXXfDP/vL/xLNC4H4h/NC63AcNoscOAReRic0po3VZsqfvLsgZQ==",
         "dependencies": {
-          "Xamarin.Jetbrains.Annotations": "26.0.2.3"
+          "Xamarin.Jetbrains.Annotations": "26.1.0.2"
+        }
+      },
+      "Xamarin.KotlinX.AtomicFU": {
+        "type": "Transitive",
+        "resolved": "0.33.0.1",
+        "contentHash": "9khTuFz9CvgZJc6pzKXNlmtTZF9zun1TCRHIlWpHddqmLoFjiN2Xy/Qfwj8+KK8EJZEBLPETOu0XsagKlm//SQ==",
+        "dependencies": {
+          "Xamarin.KotlinX.AtomicFU.Jvm": "0.33.0.1"
+        }
+      },
+      "Xamarin.KotlinX.AtomicFU.Jvm": {
+        "type": "Transitive",
+        "resolved": "0.33.0.1",
+        "contentHash": "4HAO14g7RTJm+WsahmXwzZBhBAEixKZuyiE+oxdQKAHCOfZzbh5uQphkcbp6YPpV3YVw/oOxE+vgL3Hn4ZPNUA==",
+        "dependencies": {
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.KotlinX.Coroutines.Android": {
         "type": "Transitive",
-        "resolved": "1.10.2.1",
-        "contentHash": "FsJqCEgV27IiiSg19xgcwmK0N89e3EL2uITws7b3D/HzoP/yyo9ddwWitxpI8PO0VTpRtrMxs4wUI7gy671wtQ==",
+        "resolved": "1.11.0.1",
+        "contentHash": "C+N1XS1s7bOD6ydON8DYjucwIsH/y1+zVRNQdwSqAG/6NEQPeTTxww2PpMnnIft9zxrpuCRBmnbb58BvL6j7+g==",
         "dependencies": {
-          "Xamarin.Kotlin.StdLib": "2.2.0.1",
-          "Xamarin.KotlinX.Coroutines.Core.Jvm": "1.10.2.1"
+          "Xamarin.Kotlin.StdLib": "2.4.0.1",
+          "Xamarin.KotlinX.Coroutines.Core.Jvm": "1.11.0.1"
         }
       },
       "Xamarin.KotlinX.Coroutines.Core": {
         "type": "Transitive",
-        "resolved": "1.10.2.1",
-        "contentHash": "4l0lpiEtS4lksxeLchfbSYwWVz7EgjIVfZUNmjgw4LfoHoI+6xptF05qryvAVnOZsORXXZMD9uKrsL6J3J2fxA==",
+        "resolved": "1.11.0.1",
+        "contentHash": "7zMBcmtyOqguwRLVZ8q6/GkWQ5RMu26W+me5KUJZU2yamHjdTfrOHIrnd0zmx3+3wwgohEmzjFfwwyJf3QOSwg==",
         "dependencies": {
-          "Xamarin.KotlinX.Coroutines.Core.Jvm": "1.10.2.1"
+          "Xamarin.KotlinX.Coroutines.Core.Jvm": "1.11.0.1"
         }
       },
       "Xamarin.KotlinX.Coroutines.Core.Jvm": {
         "type": "Transitive",
-        "resolved": "1.10.2.1",
-        "contentHash": "fKzLo4b9d8g6LCDf5YaJjxouNZxG2a6B6l68z3ifrvTjduRhcK9esjtQBhvJ+pl6EYBwHNOQPOxeeqOFdlTQ2g==",
+        "resolved": "1.11.0.1",
+        "contentHash": "PfimvxVnQSf3E6eXnWIw3ZW60cSDCNAFNnouf0Bw19/GoHUFnDRIjUrOccnX5TR+V7rvfGP2c3nblijKyPxM+w==",
         "dependencies": {
-          "Xamarin.Jetbrains.Annotations": "26.0.2.3",
-          "Xamarin.Kotlin.StdLib": "2.2.0.1"
+          "Xamarin.Jetbrains.Annotations": "26.1.0.2",
+          "Xamarin.Kotlin.StdLib": "2.4.0.1"
         }
       },
       "Xamarin.KotlinX.Serialization.Core": {
@@ -1232,6 +1491,24 @@
         "contentHash": "wxycnKINoRwSmVNV80NcZf7OUwPDVzgPwL3uz6W/hDQ1eJ/IxhzaSoElSKwICEsRwSFSpTQMjE6b6nRyAiUByA==",
         "dependencies": {
           "Xamarin.Kotlin.StdLib": "2.2.0.1"
+        }
+      },
+      "ZXing.Net": {
+        "type": "Transitive",
+        "resolved": "0.16.11",
+        "contentHash": "OZfAVu88hl87BffQ+rlWCj/vLvAhhCK4QnFaoveeF/MY8SjHNSYBQ3qyUEWlPKNgBQGh1syXhCDg10vUnCsqkg=="
+      },
+      "ZXing.Net.Maui": {
+        "type": "Transitive",
+        "resolved": "0.10.4",
+        "contentHash": "2QwpU/3NV+WQfAwjyZ9rHzx1+aD2JC48jqiCXv2L7pak6P+u1FxOZXR/2WLX4wMqAsKcmkZBGdyUXZPuwsZZnQ==",
+        "dependencies": {
+          "Microsoft.Maui.Controls": "10.0.0",
+          "Xamarin.AndroidX.Camera.Camera2": "1.4.2.3",
+          "Xamarin.AndroidX.Camera.Lifecycle": "1.4.2.3",
+          "Xamarin.AndroidX.Camera.View": "1.4.2.3",
+          "Xamarin.AndroidX.ExifInterface": "1.4.2",
+          "ZXing.Net": "0.16.11"
         }
       }
     },

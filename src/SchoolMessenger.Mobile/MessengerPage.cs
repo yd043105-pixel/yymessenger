@@ -52,10 +52,11 @@ public sealed partial class MessengerPage : ContentPage
             restored=true;var mode=Preferences.Default.Get("mode",0);var address=Preferences.Default.Get("address-"+mode,"");
             if(address.Length>0)await Run(()=>ConfirmingCertificate(address,async()=>
             {
+                if(await FollowMove(address,mode==1) is{} moved){address=moved;Login();}
                 var source=new MessengerApi(address,mode==1);await source.Restore();
                 if(!source.Remember){source.Dispose();return;}
                 api=source;source.Invalidated+=()=>{if(api==source)Invalidate();};await source.Refresh();
-                if(source.Session.GetProperty("user").ValueKind!=JsonValueKind.Null)await Home();
+                if(source.Session.GetProperty("user").ValueKind!=JsonValueKind.Null){await Home();await ScheduleChecks();}
             }));
             await Run(GuardianLinkShown);
             return;

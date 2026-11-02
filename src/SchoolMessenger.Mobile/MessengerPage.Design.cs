@@ -67,6 +67,10 @@ public sealed partial class MessengerPage
 #elif FAMILY_APP
         mode.SelectedIndex=0;modeCard.IsVisible=false;
 #endif
+#if ANDROID
+        var scan=MakeAction("학교 QR 찍기",ScanSchoolQr,true);body.Add(scan);
+        var scanHint=Text("학교에서 나눠 준 ‘학교 연결 QR’을 찍으면 서버 주소가 자동으로 들어갑니다.",11);scanHint.TextColor=Muted;body.Add(scanHint);
+#endif
         // Picking the school (name + road address) lets the app confirm the server address belongs to it.
         var school=Input("학교");school.Placeholder="학교 이름이나 지역 (예: 중앙고 서울)";school.AutomationId="school-search";
         var schoolChoice=Text("",11);schoolChoice.TextColor=Muted;body.Add(schoolChoice);var schoolResults=new VerticalStackLayout{Spacing=6};body.Add(schoolResults);
@@ -86,9 +90,13 @@ public sealed partial class MessengerPage
         };
         LoadSchool();mode.SelectedIndexChanged+=(_,_)=>LoadSchool();
         var address=Input("학교 서버 주소",value:Preferences.Default.Get("address-"+mode.SelectedIndex,""));address.Keyboard=Keyboard.Url;address.Placeholder="https://192.168.0.10:5443";address.AutomationId="school-address";
-        var addressHint=Text("관리자 프로그램에 표시된 접속 주소를 입력하세요. 처음 연결할 때 서버 PC에 표시된 연결 확인 코드와 비교합니다.",11);addressHint.TextColor=Muted;body.Add(addressHint);
+        var addressHint=Text("학교 연결 QR을 찍으면 자동으로 채워집니다. 직접 넣을 때는 처음 연결할 때 서버 PC에 표시된 연결 확인 코드와 비교합니다.",11);addressHint.TextColor=Muted;body.Add(addressHint);
+        // The address is filled from the school QR; typing it is the fallback, kept out of the way until asked for.
+        var addressField=(View)address.Parent!.Parent!;var manual=new Button{Text="서버 주소 직접 입력",FontSize=12,TextColor=Muted,BackgroundColor=Colors.Transparent,HorizontalOptions=LayoutOptions.Start,Padding=new Thickness(0)};body.Add(manual);
+        void ShowAddress(bool show){addressField.IsVisible=addressHint.IsVisible=show;manual.IsVisible=!show;}
+        ShowAddress(!string.IsNullOrWhiteSpace(address.Text));manual.Clicked+=(_,_)=>{ShowAddress(true);address.Focus();};
         System.Action clearSchoolLoginFields=()=>{};var shownAddress=address.Text??"";
-        mode.SelectedIndexChanged+=(_,_)=>{shownAddress=Preferences.Default.Get("address-"+mode.SelectedIndex,"");address.Text=shownAddress;help.Text=mode.SelectedIndex==1?"교직원 업무 메시지는 교내망 또는\n학교 VPN에 연결한 뒤 확인하세요.":"가정통신문부터 시간표까지,\n필요한 학교 소식을 한곳에서 확인하세요.";};
+        mode.SelectedIndexChanged+=(_,_)=>{shownAddress=Preferences.Default.Get("address-"+mode.SelectedIndex,"");address.Text=shownAddress;ShowAddress(shownAddress.Length>0);help.Text=mode.SelectedIndex==1?"교직원 업무 메시지는 교내망 또는\n학교 VPN에 연결한 뒤 확인하세요.":"가정통신문부터 시간표까지,\n필요한 학교 소식을 한곳에서 확인하세요.";};
         var username=Input("아이디");username.Keyboard=Keyboard.Text;var password=Input("비밀번호",true);
         var remember=new Switch{IsToggled=true};var rememberRow=new Grid{ColumnDefinitions={new(GridLength.Star),new(GridLength.Auto)}};
 #if MACCATALYST
@@ -107,12 +115,13 @@ public sealed partial class MessengerPage
             {
                 await ConfirmingCertificate(address.Text??"",async()=>
                 {
+                    if(await FollowMove(address.Text??"",mode.SelectedIndex==1) is{} moved){shownAddress=moved;address.Text=moved;}
                     await CheckSchool(address.Text??"",mode.SelectedIndex==1,chosenSchool);
                     api?.Dispose();epoch++;var source=new MessengerApi(address.Text??"",mode.SelectedIndex==1);api=source;source.Invalidated+=()=>{if(api==source)Invalidate();};
                     Preferences.Default.Set("mode",mode.SelectedIndex);Preferences.Default.Set("address-"+mode.SelectedIndex,source.Address.AbsoluteUri);
                     if(restore){await source.Restore();await source.Refresh();if(source.Session.GetProperty("user").ValueKind==JsonValueKind.Null)throw new InvalidOperationException("저장된 로그인이 없습니다. 아이디·비밀번호로 로그인하세요.");}
                     else await source.Login(username.Text??"",secret,remember.IsToggled);
-                    homeTab="home";offset=0;child="";unread=false;await Home();
+                    homeTab="home";offset=0;child="";unread=false;await Home();await ScheduleChecks();
                 });
             }
             finally{if(!restore)password.Text="";}

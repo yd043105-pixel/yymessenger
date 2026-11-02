@@ -1,5 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Maui.LifecycleEvents;
+#if ANDROID
+using ZXing.Net.Maui.Controls;
+#endif
 
 namespace SchoolMessenger.Mobile;
 
@@ -68,6 +71,9 @@ public static class MauiProgram
 		});
 		builder
 			.UseMauiApp<App>()
+#if ANDROID
+			.UseBarcodeReader()
+#endif
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");

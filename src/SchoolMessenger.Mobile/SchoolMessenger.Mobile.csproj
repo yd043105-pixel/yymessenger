@@ -31,7 +31,7 @@
 
 
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>
 	</PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)' == 'Debug' And '$(IosVerification)' == 'true'">
@@ -98,6 +98,14 @@
 		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Maui.Essentials" Version="10.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+	</ItemGroup>
+	<!-- Android: scanning the school connection QR in the app, and the once-a-day news check. -->
+	<ItemGroup Condition="$(TargetFramework.Contains('-android'))">
+		<PackageReference Include="ZXing.Net.Maui.Controls" Version="0.10.4" />
+		<PackageReference Include="Xamarin.AndroidX.Work.Runtime" Version="2.11.2.1" />
+		<!-- WorkManager brings newer AndroidX Core/Lifecycle; their Kotlin extension packages must match or classes are duplicated. -->
+		<PackageReference Include="Xamarin.AndroidX.Core.Core.Ktx" Version="1.19.0.1" />
+		<PackageReference Include="Xamarin.AndroidX.Lifecycle.Runtime.Ktx" Version="2.11.0.1" />
 	</ItemGroup>
 
 </Project>
